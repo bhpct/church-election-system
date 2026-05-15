@@ -21,11 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadUserProfile(user) {
     try {
-        // 設定頂部頭像與名稱
-        document.getElementById('navUserName').textContent = user.displayName || '使用者';
-        document.getElementById('navUserPic').src = user.photoURL || 'https://via.placeholder.com/40';
-
-        // 從 Firestore 讀取用戶權限
+        // 從 Firestore 讀取用戶權限與基本資料
         const userRef = window.doc(window.firebaseDb, 'users', user.uid);
         const userSnap = await window.getDoc(userRef);
 
@@ -33,9 +29,14 @@ async function loadUserProfile(user) {
             const userData = userSnap.data();
             const role = userData.role || 'GUEST';
             
+            // 設定頂部頭像與名稱 (優先使用資料庫中的 LINE 資料)
+            document.getElementById('navUserName').textContent = userData.name || user.displayName || '使用者';
+            document.getElementById('navUserPic').src = userData.picture || user.photoURL || 'https://via.placeholder.com/40';
+            
             applyRoleUI(role);
         } else {
             // 資料庫中沒有資料 (異常狀態)
+            document.getElementById('navUserName').textContent = user.displayName || '未知使用者';
             applyRoleUI('GUEST');
         }
 
