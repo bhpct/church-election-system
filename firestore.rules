@@ -35,14 +35,16 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // Elections 集合
+    // Elections 集合與其所有子集合 (candidates, items, rounds 等)
     // ==========================================
     match /elections/{electionId} {
-      // 只有所屬機構的管理員，或是超級管理員可以讀寫
       allow read, write: if isSuperAdmin() || isOrgAdmin(resource.data.org_id);
-      
-      // 允許創建新選舉 (確保創建時的 org_id 與管理員的 org_id 相符)
       allow create: if isSuperAdmin() || isOrgAdmin(request.resource.data.org_id);
+      
+      // 遞迴允許所有子集合存取 (繼承父選舉的權限)
+      match /{document=**} {
+        allow read, write: if isSuperAdmin() || isOrgAdmin(get(/databases/$(database)/documents/elections/$(electionId)).data.org_id);
+      }
     }
   }
 }

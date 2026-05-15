@@ -183,6 +183,36 @@ function renderCandidatesTable() {
     });
 }
 
+// 下載 Excel 範本
+document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
+    // 建立範本資料
+    const templateData = [
+        ["編號", "姓名", "分區", "單位", "候選資格"],
+        ["1", "王大明", "東區", "第一教會", "牧師"],
+        ["2", "李小華", "西區", "第二教會", "長老"],
+        ["3", "陳阿信", "", "青年團契", "長執候選人"]
+    ];
+
+    // 轉換為工作表
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    
+    // 設定欄寬
+    ws['!cols'] = [
+        { wch: 10 }, // 編號
+        { wch: 15 }, // 姓名
+        { wch: 15 }, // 分區
+        { wch: 20 }, // 單位
+        { wch: 20 }  // 候選資格
+    ];
+
+    // 建立工作簿
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "候選人名單");
+
+    // 匯出檔案
+    XLSX.writeFile(wb, "候選人匯入範本.xlsx");
+});
+
 // Excel 檔案上傳解析
 document.getElementById('excelUpload').addEventListener('change', function(e) {
     const file = e.target.files[0];
@@ -275,6 +305,52 @@ window.deleteCandidate = async function(id) {
         }
     }
 }
+
+// 單筆新增候選人儲存邏輯
+document.getElementById('saveCandidateBtn').addEventListener('click', async () => {
+    const number = document.getElementById('candNumberInput').value.trim();
+    const name = document.getElementById('candNameInput').value.trim();
+    const district = document.getElementById('candDistrictInput').value.trim();
+    const unit = document.getElementById('candUnitInput').value.trim();
+    const qualification = document.getElementById('candQualInput').value.trim();
+
+    if (!name || !qualification) {
+        Swal.fire('錯誤', '「姓名」與「候選資格」為必填欄位', 'error');
+        return;
+    }
+
+    try {
+        const btn = document.getElementById('saveCandidateBtn');
+        btn.disabled = true;
+        btn.textContent = '儲存中...';
+
+        const { collection, addDoc, serverTimestamp } = window.fs;
+        const db = window.firebaseDb;
+        const candidatesRef = collection(db, 'elections', currentElectionId, 'candidates');
+
+        await addDoc(candidatesRef, {
+            number: number,
+            name: name,
+            district: district,
+            unit: unit,
+            qualification: qualification,
+            createdAt: serverTimestamp()
+        });
+
+        Swal.fire('成功', '新增候選人成功！', 'success');
+        bootstrap.Modal.getInstance(document.getElementById('addCandidateModal')).hide();
+        document.getElementById('addCandidateForm').reset();
+        await loadCandidates();
+
+    } catch (error) {
+        console.error("單筆新增失敗:", error);
+        Swal.fire('錯誤', '新增失敗: ' + error.message, 'error');
+    } finally {
+        const btn = document.getElementById('saveCandidateBtn');
+        btn.disabled = false;
+        btn.textContent = '儲存候選人';
+    }
+});
 
 // ==========================================
 // 項次與輪次設定 (Items & Rounds)

@@ -169,6 +169,9 @@
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h5 class="m-0"><i class="fas fa-users text-primary"></i> 候選人資料庫</h5>
                                 <div>
+                                    <button class="btn btn-sm btn-outline-info me-2" id="downloadTemplateBtn">
+                                        <i class="fas fa-download"></i> 下載 Excel 範本
+                                    </button>
                                     <button class="btn btn-sm btn-outline-success me-2" onclick="document.getElementById('excelUpload').click()">
                                         <i class="fas fa-file-excel"></i> Excel 匯入
                                     </button>
@@ -296,6 +299,48 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
         <button type="button" class="btn btn-primary" id="saveItemBtn">建立項次與三輪設定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增候選人 Modal -->
+<div class="modal fade" id="addCandidateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">新增單筆候選人</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addCandidateForm">
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">號次</label>
+              <input type="text" class="form-control" id="candNumberInput">
+            </div>
+            <div class="col-md-8 mb-3">
+              <label class="form-label">姓名 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="candNameInput" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">分區 (選填)</label>
+            <input type="text" class="form-control" id="candDistrictInput" placeholder="例如：東區">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">單位/教會/小組 (選填)</label>
+            <input type="text" class="form-control" id="candUnitInput" placeholder="例如：第一教會">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">候選資格 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="candQualInput" placeholder="例如：牧師, 長老" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveCandidateBtn">儲存候選人</button>
       </div>
     </div>
   </div>
