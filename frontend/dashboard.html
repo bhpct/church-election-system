@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Cropper.js -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
     <style>
         body {
             background-color: #f4f6f9;
@@ -83,7 +86,10 @@
     <div class="row g-0">
         <!-- 側邊欄 -->
         <div class="col-md-2 sidebar d-none d-md-block" id="sidebarMenu">
-            <h5 class="text-center mb-4 fw-bold">🗳️ 選舉後台</h5>
+            <div class="text-center mb-4">
+                <img src="assets/logo.png" alt="Logo" style="width: 80px; height: 80px; border-radius: 10px; object-fit: cover; margin-bottom: 10px; background: white; padding: 5px;">
+                <h5 class="fw-bold">選舉後台</h5>
+            </div>
             
             <a href="#" class="active"><i class="fas fa-home"></i> 總覽</a>
             
@@ -346,6 +352,31 @@
   </div>
 </div>
 
+<!-- 公印裁切 Modal -->
+<div class="modal fade" id="cropSealModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">裁切與去背公印</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closeCropModalBtn"></button>
+      </div>
+      <div class="modal-body text-center">
+        <p class="text-muted mb-3">請拖曳遮罩選擇公印範圍。系統將自動為您「去背」並將顏色轉為「鮮紅色」！</p>
+        <div style="max-width: 100%; max-height: 500px; overflow: hidden; display: flex; justify-content: center;">
+            <img id="cropImageTarget" src="" style="max-width: 100%;">
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <span class="text-muted small" id="cropSizeHint">預估大小：計算中...</span>
+        <div>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-danger" id="confirmCropBtn">確認裁切並上傳</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -354,7 +385,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getFirestore, doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
     // 注意：這裡必須貼上您與 index.html 相同的 Firebase Config
     const firebaseConfig = {
@@ -369,20 +399,15 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const storage = getStorage(app);
 
     window.firebaseAuth = auth;
     window.firebaseDb = db;
-    window.firebaseStorage = storage;
     window.onAuthStateChanged = onAuthStateChanged;
     window.signOut = signOut;
     
-    // Firestore 與 Storage utils
+    // Firestore 與 Base64 Utils
     window.fs = {
         doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp
-    };
-    window.st = {
-        ref, uploadBytes, getDownloadURL
     };
 </script>
 

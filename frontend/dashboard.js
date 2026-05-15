@@ -295,66 +295,152 @@ function applyRoleUI(role, org_ids) {
     // ==========================================
 
     // ==========================================
-    // Phase 4: 機構設定與選舉管理邏輯
+    // Phase 4: 機構設定與公印管理 (Cropper + 去背 + Base64)
     // ==========================================
+    let cropper = null;
 
-    // 上傳公印
-    document.getElementById('uploadSealBtn')?.addEventListener('click', async () => {
-        const fileInput = document.getElementById('sealFileInput');
-        const file = fileInput.files[0];
-        const orgId = document.getElementById('currentOrgSelect').value;
+    // 處理檔案選擇，開啟裁切 Modal
+    document.getElementById('sealFileInput')?.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // 讀取檔案為 DataURL
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const imgTarget = document.getElementById('cropImageTarget');
+            imgTarget.src = event.target.result;
+            
+            // 顯示 Modal
+            const cropModal = new bootstrap.Modal(document.getElementById('cropSealModal'));
+            cropModal.show();
+
+            // 初始化或重置 Cropper (強制 1:1 正方形)
+            imgTarget.onload = () => {
+                if (cropper) {
+                    cropper.destroy();
+                }
+                cropper = new Cropper(imgTarget, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    autoCropArea: 0.8,
+                    background: false
+                });
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // 當 Modal 關閉時清空 Input，讓下次選同一個檔案也能觸發 change
+    document.getElementById('cropSealModal')?.addEventListener('hidden.bs.modal', function () {
+        document.getElementById('sealFileInput').value = '';
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+    });
+
+    // 觸發選擇檔案 (原本的上傳按鈕改為觸發 Input)
+    document.getElementById('uploadSealBtn')?.addEventListener('click', () => {
+        document.getElementById('sealFileInput').click();
+    });
+
+    // 印章去背與鮮紅化演算法
+    function extractSeal(canvas) {
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
         
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            // 這裡不讀取 a (data[i+3])，假設背景不透明
+            
+            // 計算亮度 (0~255)
+            const brightness = (r + g + b) / 3;
+            
+            // 閥值：大於 200 視為背景白色
+            if (brightness > 200) {
+                data[i + 3] = 0; // 全透明
+            } else {
+                // 將墨跡轉為鮮紅色
+                data[i] = 220;   // R (使用亮紅色)
+                data[i + 1] = 30;// G
+                data[i + 2] = 30;// B
+                
+                // 依據原本的深度設定透明度 (保留邊緣平滑)
+                // 亮度 0 = 最深 (alpha 255)
+                // 亮度 200 = 最淺 (alpha 0)
+                const opacity = 255 - (brightness * (255 / 200));
+                data[i + 3] = Math.min(255, Math.max(0, opacity));
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        return canvas;
+    }
+
+    // 確認裁切並儲存 Base64 到 Firestore
+    document.getElementById('confirmCropBtn')?.addEventListener('click', async () => {
+        if (!cropper) return;
+        
+        const orgId = document.getElementById('currentOrgSelect').value;
         if (!orgId) {
-            Swal.fire('提示', '請先選擇機構', 'warning');
+            Swal.fire('錯誤', '找不到當前機構 ID', 'error');
             return;
         }
-        if (!file) {
-            Swal.fire('提示', '請選擇圖片檔案', 'warning');
-            return;
-        }
+
+        const btn = document.getElementById('confirmCropBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 處理中...';
 
         try {
-            const btn = document.getElementById('uploadSealBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 上傳中...';
-
-            const { ref, uploadBytes, getDownloadURL } = window.st;
-            const { doc, updateDoc } = window.fs;
-            const storage = window.firebaseStorage;
-            const db = window.firebaseDb;
-
-            // 檔名加上 timestamp 以防快取或覆蓋問題
-            const ext = file.name.split('.').pop();
-            const storageRef = ref(storage, `seals/${orgId}/seal_${Date.now()}.${ext}`);
-            
-            // 上傳檔案
-            await uploadBytes(storageRef, file);
-            // 取得公開下載網址
-            const downloadURL = await getDownloadURL(storageRef);
-
-            // 更新 Firestore 中的 seal_url
-            await updateDoc(doc(db, 'organizations', orgId), {
-                seal_url: downloadURL
+            // 1. 取得裁切後的 Canvas (設定固定輸出大小，確保檔案夠小)
+            const croppedCanvas = cropper.getCroppedCanvas({
+                width: 300,
+                height: 300,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
             });
 
-            Swal.fire('成功', '公印上傳成功！', 'success');
-            fileInput.value = '';
+            // 2. 進行去背與鮮紅化
+            const processedCanvas = extractSeal(croppedCanvas);
+
+            // 3. 轉為 Base64 (PNG格式)
+            const base64String = processedCanvas.toDataURL('image/png');
             
-            // 重新載入當前機構視角 (更新圖片與列表狀態)
-            window.switchOrgContext();
+            // 4. 計算容量大小 (Base64 大約等於字串長度 * 3/4)
+            const sizeInBytes = Math.round(base64String.length * 3 / 4);
+            const sizeInKB = (sizeInBytes / 1024).toFixed(1);
             
-            // 如果是 SUPER_ADMIN，連帶更新系統列表的狀態
-            if (currentUserRole === 'SUPER_ADMIN') {
-                loadAdminDashboard();
+            document.getElementById('cropSizeHint').textContent = `處理後大小: ${sizeInKB} KB`;
+
+            if (sizeInKB > 800) {
+                throw new Error(`圖片過大 (${sizeInKB} KB)，請重試！上限為 800 KB。`);
             }
 
+            // 5. 寫入 Firestore
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+            await updateDoc(doc(db, 'organizations', orgId), {
+                seal_url: base64String
+            });
+
+            Swal.fire('成功', `公印已自動去背並成功儲存！(大小: ${sizeInKB} KB)`, 'success');
+            
+            // 關閉 Modal
+            const modalEl = document.getElementById('cropSealModal');
+            bootstrap.Modal.getInstance(modalEl).hide();
+            
+            // 更新畫面預覽
+            window.switchOrgContext();
+
         } catch (error) {
-            console.error('上傳失敗:', error);
-            Swal.fire('錯誤', '上傳失敗: ' + error.message, 'error');
+            console.error('儲存公印失敗:', error);
+            Swal.fire('錯誤', error.message, 'error');
         } finally {
-            const btn = document.getElementById('uploadSealBtn');
             btn.disabled = false;
-            btn.textContent = '上傳/更新公印';
+            btn.textContent = '確認裁切並上傳';
         }
     });
 
