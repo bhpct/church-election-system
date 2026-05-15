@@ -211,10 +211,9 @@ function applyRoleUI(role, org_ids) {
     // 建立新機構
     document.getElementById('saveOrgBtn')?.addEventListener('click', async () => {
         const orgName = document.getElementById('orgNameInput').value.trim();
-        const adminUid = document.getElementById('orgAdminSelect').value;
 
-        if (!orgName || !adminUid) {
-            Swal.fire('提示', '請填寫機構名稱並選擇管理員', 'warning');
+        if (!orgName) {
+            Swal.fire('提示', '請填寫機構名稱', 'warning');
             return;
         }
 
