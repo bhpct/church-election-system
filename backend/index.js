@@ -37,8 +37,10 @@ app.use(cors());
 app.use(express.json());
 
 // 註冊 API 路由
-const authRoute = require('./routes/auth');
-app.use('/api/auth', authRoute);
+const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 3. 基礎路由測試
 app.get('/', (req, res) => {
