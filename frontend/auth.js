@@ -88,6 +88,22 @@ async function processLogin() {
 
     } catch (error) {
         console.error('登入流程發生錯誤:', error);
+        
+        // 如果是 Token 過期，自動幫使用者登出 LINE，讓他們可以重新取得新 Token
+        if (error.message.toLowerCase().includes('expired')) {
+            Swal.fire({
+                icon: 'warning',
+                title: '憑證已過期',
+                text: '您的登入憑證已過期，系統將為您重新整理以取得新憑證。',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                liff.logout();
+                window.location.reload();
+            });
+            return;
+        }
+
         Swal.fire('驗證失敗', error.message, 'error');
         spinner.style.display = 'none';
         loginBtn.style.display = 'block';
