@@ -55,16 +55,42 @@ router.post('/verify', async (req, res) => {
         console.log(`✅ 成功驗證 LINE 用戶: ${name} (${lineUid})`);
 
         // 2. 更新或建立使用者在 Firestore 的基礎資料 (選用，為了日後容易辨識)
-        // 這邊我們將使用者的基本資料寫入 db，方便管理員在後台看到是誰
         const db = admin.firestore();
-        await db.collection('users').doc(lineUid).set({
-            name: name,
-            picture: picture || null,
-            lastLogin: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+        const userRef = db.collection('users').doc(lineUid);
+        const userDoc = await userRef.get();
 
-        // 3. 利用 Firebase Admin SDK 產生自訂權杖 (Custom Token)
-        const customToken = await admin.auth().createCustomToken(lineUid);
+        let role = 'GUEST'; // 預設無權限角色
+        
+        if (!userDoc.exists) {
+            // 如果是新用戶，檢查是否為系統的第一位使用者
+            const usersSnapshot = await db.collection('users').limit(1).get();
+            if (usersSnapshot.empty) {
+                role = 'SUPER_ADMIN'; // 首位登入者自動獲得最高權限
+                console.log(`👑 系統首位用戶登入，自動賦予 SUPER_ADMIN 權限: ${name}`);
+            }
+
+            // 建立新用戶資料
+            await userRef.set({
+                name: name,
+                picture: picture || null,
+                role: role,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastLogin: admin.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            // 已存在之用戶，讀取既有權限
+            role = userDoc.data().role || 'GUEST';
+            
+            // 更新登入時間與頭像
+            await userRef.set({
+                name: name,
+                picture: picture || null,
+                lastLogin: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        // 3. 利用 Firebase Admin SDK 產生自訂權杖 (Custom Token)，並將 role 夾帶進去
+        const customToken = await admin.auth().createCustomToken(lineUid, { role: role });
 
         // 4. 回傳給前端
         res.json({

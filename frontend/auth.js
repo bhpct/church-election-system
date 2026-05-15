@@ -81,9 +81,12 @@ async function processLogin() {
         Swal.fire({
             icon: 'success',
             title: '登入成功',
-            text: `歡迎回來，${user.name}！`,
+            text: `歡迎回來，${user.name}！即將進入系統...`,
             timer: 1500,
             showConfirmButton: false
+        }).then(() => {
+            // 跳轉至後台儀表板
+            window.location.href = 'dashboard.html';
         });
 
     } catch (error) {
