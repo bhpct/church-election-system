@@ -55,7 +55,8 @@ async function processLogin() {
         const result = await response.json();
 
         if (!result.success) {
-            throw new Error(result.message || '後端驗證失敗');
+            // 優先顯示詳細錯誤，方便除錯
+            throw new Error(result.error || result.message || '後端驗證失敗');
         }
 
         // 3. 取得後端派發的 Firebase Custom Token

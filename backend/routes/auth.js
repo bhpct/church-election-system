@@ -85,7 +85,9 @@ router.post('/verify', async (req, res) => {
         res.status(500).json({
             success: false,
             message: '伺服器內部錯誤',
-            error: error.message
+            error: error.message,
+            fullError: String(error),
+            stack: error.stack
         });
     }
 });
