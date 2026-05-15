@@ -5,15 +5,24 @@ require('dotenv').config();
 
 // 1. 初始化 Firebase Admin SDK
 try {
-    // 本機開發：尋找 firebase-adminsdk.json
-    const serviceAccount = require('./firebase-adminsdk.json');
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-    console.log('✅ Firebase Admin SDK 初始化成功 (本機 JSON 金鑰)！');
+    // 優先檢查是否有設定環境變數 (用於 Cloud Run 跨專案)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        const serviceAccountConfig = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccountConfig)
+        });
+        console.log('✅ Firebase Admin SDK 初始化成功 (透過 Cloud Run 環境變數)！');
+    } else {
+        // 本機開發：尋找 firebase-adminsdk.json
+        const serviceAccount = require('./firebase-adminsdk.json');
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('✅ Firebase Admin SDK 初始化成功 (本機 JSON 金鑰)！');
+    }
 } catch (error) {
-    // 雲端環境：Cloud Run 會自動帶入預設的 GCP 服務帳戶憑證
-    console.log('⚠️ 找不到 firebase-adminsdk.json，改為嘗試使用 Cloud Run 預設憑證初始化...');
+    // 雲端環境：Fallback Cloud Run 會自動帶入預設的 GCP 服務帳戶憑證
+    console.log('⚠️ 找不到明確的金鑰，改為嘗試使用 Cloud Run 預設憑證初始化...');
     admin.initializeApp();
     console.log('✅ Firebase Admin SDK 初始化成功 (Cloud Run 預設憑證)！');
 }
