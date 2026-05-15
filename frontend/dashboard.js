@@ -174,6 +174,7 @@ window.switchOrgContext = async function() {
                     actionBtns = `<button class="btn btn-sm btn-outline-danger" onclick="deleteElection('${election.id}', '${election.name}')">徹底刪除</button>`;
                 } else {
                     actionBtns = `
+                        <a href="election_admin.html?id=${election.id}" class="btn btn-sm btn-primary">進入管理</a>
                         <button class="btn btn-sm btn-outline-warning" onclick="archiveElection('${election.id}', '${election.name}')">封存</button>
                         <button class="btn btn-sm btn-outline-danger" onclick="deleteElection('${election.id}', '${election.name}')">徹底刪除</button>
                     `;

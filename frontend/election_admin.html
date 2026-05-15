@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>選舉設定 - 教會數位選舉系統</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Cropper.js -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background: #2c3e50;
+            color: #fff;
+            padding-top: 20px;
+        }
+        .sidebar a {
+            color: #bdc3c7;
+            text-decoration: none;
+            padding: 12px 20px;
+            display: block;
+            transition: 0.3s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background: #34495e;
+            color: #fff;
+            border-left: 4px solid #3498db;
+        }
+        .sidebar i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+        .main-content {
+            padding: 30px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .topbar {
+            background: #fff;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .nav-section { display: none; }
+        .nav-section.active { display: block; }
+        
+        .candidate-img-preview {
+            width: 50px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: #eee;
+        }
+        
+        /* 選票預覽樣式 */
+        .ballot-preview {
+            background: white;
+            border: 1px solid #ccc;
+            padding: 20px;
+            position: relative;
+            min-height: 400px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .ballot-watermark {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            opacity: 0.15;
+            width: 200px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .ballot-content {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid p-0">
+    <div class="row g-0">
+        <!-- 側邊欄 -->
+        <div class="col-md-2 sidebar d-none d-md-block" id="sidebarMenu">
+            <div class="text-center mb-4">
+                <img src="assets/logo.png" alt="Logo" style="width: 80px; height: 80px; border-radius: 10px; object-fit: cover; margin-bottom: 10px; background: white; padding: 5px;">
+                <h5 class="fw-bold" id="sidebarElectionName">載入中...</h5>
+            </div>
+            
+            <a href="#" class="nav-link-btn active" data-target="section-overview"><i class="fas fa-home"></i> 選舉總覽</a>
+            <a href="#" class="nav-link-btn" data-target="section-candidates"><i class="fas fa-users"></i> 候選人資料庫</a>
+            <a href="#" class="nav-link-btn" data-target="section-items"><i class="fas fa-list-alt"></i> 項次與輪次設定</a>
+            <a href="#" class="nav-link-btn" data-target="section-preview"><i class="fas fa-ticket-alt"></i> 選票預覽</a>
+            
+            <div class="mt-auto pt-5">
+                <a href="dashboard.html"><i class="fas fa-arrow-left"></i> 回系統總覽</a>
+            </div>
+        </div>
+
+        <!-- 主內容區 -->
+        <div class="col-md-10 bg-light">
+            <!-- 頂部導覽列 -->
+            <div class="topbar">
+                <h4 class="m-0" id="pageTitle">載入中...</h4>
+                <div>
+                    <span class="badge bg-primary me-2" id="orgNameBadge">載入中</span>
+                </div>
+            </div>
+
+            <!-- 內容區塊 -->
+            <div class="main-content">
+                <!-- 載入中動畫 -->
+                <div id="loader" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3 text-muted">資料載入中...</p>
+                </div>
+
+                <!-- 錯誤畫面 -->
+                <div id="errorView" class="text-center py-5" style="display:none;">
+                    <i class="fas fa-exclamation-triangle fa-4x text-danger mb-3"></i>
+                    <h3>無法讀取選舉資料</h3>
+                    <p class="text-muted" id="errorMsg">可能是權限不足或網址錯誤。</p>
+                    <a href="dashboard.html" class="btn btn-primary">回首頁</a>
+                </div>
+
+                <!-- 實際內容容器 -->
+                <div id="mainContainer" style="display:none;">
+                    
+                    <!-- 1. 總覽 -->
+                    <div id="section-overview" class="nav-section active">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card p-4 text-center">
+                                    <h1 class="text-primary" id="statCandidates">0</h1>
+                                    <p class="text-muted mb-0">候選人總數</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card p-4 text-center">
+                                    <h1 class="text-success" id="statItems">0</h1>
+                                    <p class="text-muted mb-0">選舉項次</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. 候選人資料庫 -->
+                    <div id="section-candidates" class="nav-section">
+                        <div class="card p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="m-0"><i class="fas fa-users text-primary"></i> 候選人資料庫</h5>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-success me-2" onclick="document.getElementById('excelUpload').click()">
+                                        <i class="fas fa-file-excel"></i> Excel 匯入
+                                    </button>
+                                    <input type="file" id="excelUpload" accept=".xlsx, .xls" style="display:none;">
+                                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addCandidateModal">
+                                        <i class="fas fa-plus"></i> 單筆新增
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="alert alert-info py-2">
+                                <i class="fas fa-info-circle"></i> 建議 Excel 欄位（含標題）：<strong>編號、姓名、分區(可空白)、單位(可空白)、候選資格(必填)</strong>。
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>照片</th>
+                                            <th>編號</th>
+                                            <th>姓名</th>
+                                            <th>資格</th>
+                                            <th>分區</th>
+                                            <th>單位</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="candidatesTableBody">
+                                        <tr><td colspan="7" class="text-center text-muted py-3">載入中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. 項次與輪次設定 -->
+                    <div id="section-items" class="nav-section">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與輪次</h5>
+                            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
+                                <i class="fas fa-plus"></i> 新增選舉項次
+                            </button>
+                        </div>
+
+                        <div class="accordion" id="itemsAccordion">
+                            <p class="text-muted text-center py-4">載入中...</p>
+                        </div>
+                    </div>
+
+                    <!-- 4. 選票預覽 -->
+                    <div id="section-preview" class="nav-section">
+                        <div class="card p-4">
+                            <h5 class="mb-4"><i class="fas fa-ticket-alt text-warning"></i> 選票預覽</h5>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要預覽的項次</label>
+                                    <select class="form-select" id="previewItemSelect">
+                                        <option value="">請選擇...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要預覽的輪次</label>
+                                    <select class="form-select" id="previewRoundSelect">
+                                        <option value="round_1">第一輪</option>
+                                        <option value="round_2">第二輪</option>
+                                        <option value="round_3">第三輪</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button class="btn btn-primary" id="btnGeneratePreview">產生預覽</button>
+                                </div>
+                            </div>
+
+                            <div class="ballot-preview rounded" id="ballotPreviewContainer" style="display:none;">
+                                <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印">
+                                <div class="ballot-content">
+                                    <div class="text-center border-bottom pb-3 mb-4">
+                                        <h3 id="previewOrgName" class="fw-bold">機構名稱</h3>
+                                        <h4 id="previewElectionName" class="text-primary">選舉名稱</h4>
+                                        <h5 id="previewItemRoundName" class="text-success mt-2">項次 - 輪次</h5>
+                                        <p class="mb-0 mt-2 fw-bold text-danger">應選 <span id="previewSeats"></span> 名<span id="previewDistrictReq"></span></p>
+                                    </div>
+                                    <div class="row" id="previewCandidatesList">
+                                        <!-- 候選人預覽格 -->
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增項次 Modal -->
+<div class="modal fade" id="addItemModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">新增選舉項次</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addItemForm">
+          <div class="mb-3">
+            <label class="form-label">項次名稱 (例如：議長、中委牧師) <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="itemTitleInput" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">應選名額 <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="itemSeatsInput" min="1" value="1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">允許的候選資格 (過濾用，例如：牧師、長老) <span class="text-muted">用逗號分隔，空白代表不限制</span></label>
+            <input type="text" class="form-control" id="itemQualificationsInput" placeholder="例如：牧師, 長老">
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="itemDistrictReqInput">
+            <label class="form-check-label" for="itemDistrictReqInput"><strong>強制分區競選限制</strong> (當選者必須來自不同的地區)</label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveItemBtn">建立項次與三輪設定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyABw9ATwX7E0YxtkM4PK_YCpAEH98X0nBs",
+        authDomain: "church-election-system-7c674.firebaseapp.com",
+        projectId: "church-election-system-7c674",
+        storageBucket: "church-election-system-7c674.firebasestorage.app",
+        messagingSenderId: "107251562289",
+        appId: "1:107251562289:web:a9cd450302d7c235aa6210"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebaseAuth = auth;
+    window.firebaseDb = db;
+    window.onAuthStateChanged = onAuthStateChanged;
+    
+    // Firestore Utils
+    window.fs = {
+        doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch
+    };
+</script>
+
+<script src="election_admin.js"></script>
+</body>
+</html>
