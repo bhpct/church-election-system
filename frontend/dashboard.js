@@ -54,6 +54,7 @@ async function loadUserProfile(user) {
 }
 
 // 全域變數
+const API_BASE_URL = "https://church-election-system-1089220354332.asia-east1.run.app/api";
 let allOrgs = [];
 let allUsers = [];
 let currentUserRole = 'GUEST';
@@ -614,7 +615,7 @@ function applyRoleUI(role, org_ids) {
                     const idToken = await window.firebaseAuth.currentUser.getIdToken();
                     
                     // 呼叫我們自己寫的後端 API
-                    const response = await fetch(`/api/admin/organizations/${orgId}`, {
+                    const response = await fetch(`${API_BASE_URL}/admin/organizations/${orgId}`, {
                         method: 'DELETE',
                         headers: {
                             'Authorization': `Bearer ${idToken}`
@@ -689,7 +690,7 @@ function applyRoleUI(role, org_ids) {
             const idToken = await window.firebaseAuth.currentUser.getIdToken(true);
 
             // 呼叫後端 API，同時更新 Firestore 與 Firebase Auth Custom Claims
-            const response = await fetch('/api/admin/update_user_claims', {
+            const response = await fetch(`${API_BASE_URL}/admin/update_user_claims`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
