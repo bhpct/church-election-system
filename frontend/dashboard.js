@@ -53,6 +53,146 @@ async function loadUserProfile(user) {
     }
 }
 
+// 全域變數
+let allOrgs = [];
+let allUsers = [];
+
+// ==========================================
+// 載入機構視角切換器
+// ==========================================
+async function loadOrgSwitcher(role, org_ids) {
+    const { collection, getDocs } = window.fs;
+    const db = window.firebaseDb;
+    const switcherContainer = document.getElementById('orgSwitcherContainer');
+    const selectEl = document.getElementById('currentOrgSelect');
+    
+    try {
+        allOrgs = [];
+        if (role === 'SUPER_ADMIN') {
+            // 超級管理員：載入所有機構
+            const snap = await getDocs(collection(db, 'organizations'));
+            snap.forEach(doc => allOrgs.push({ id: doc.id, ...doc.data() }));
+        } else if (role === 'ORG_ADMIN' && org_ids.length > 0) {
+            // 單位管理員：只載入授權的機構
+            const snap = await getDocs(collection(db, 'organizations'));
+            snap.forEach(doc => {
+                if (org_ids.includes(doc.id)) {
+                    allOrgs.push({ id: doc.id, ...doc.data() });
+                }
+            });
+        }
+
+        selectEl.innerHTML = '';
+        if (allOrgs.length === 0) {
+            selectEl.innerHTML = '<option value="">目前無可用機構</option>';
+        } else {
+            allOrgs.forEach(org => {
+                const opt = document.createElement('option');
+                opt.value = org.id;
+                opt.textContent = org.name;
+                selectEl.appendChild(opt);
+            });
+            switcherContainer.classList.remove('d-none');
+            
+            // 觸發第一次切換
+            window.switchOrgContext();
+        }
+    } catch (error) {
+        console.error("載入視角失敗:", error);
+    }
+}
+
+window.switchOrgContext = function() {
+    const selectedOrgId = document.getElementById('currentOrgSelect').value;
+    if (!selectedOrgId) return;
+    console.log(`切換視角至機構: ${selectedOrgId}`);
+    // 未來在這裡載入該機構的選舉場次
+};
+
+// ==========================================
+// 超級管理員專屬功能：載入列表
+// ==========================================
+async function loadAdminDashboard() {
+    try {
+        const { collection, getDocs } = window.fs;
+        const db = window.firebaseDb;
+
+        // 1. 載入機構列表
+        const tbodyOrg = document.getElementById('orgTableBody');
+        tbodyOrg.innerHTML = '';
+        if (allOrgs.length === 0) {
+            tbodyOrg.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">尚無任何機構，請點擊新增</td></tr>';
+        } else {
+            allOrgs.forEach(org => {
+                const sealStatus = org.seal_url ? '<span class="badge bg-success">已上傳</span>' : '<span class="badge bg-warning text-dark">未上傳</span>';
+                const createDate = org.createdAt ? new Date(org.createdAt.toDate()).toLocaleDateString() : '未知';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="fw-bold">${org.name}</td>
+                    <td>${sealStatus}</td>
+                    <td>${createDate}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteOrg('${org.id}', '${org.name}')">刪除</button>
+                    </td>
+                `;
+                tbodyOrg.appendChild(tr);
+            });
+        }
+
+        // 2. 載入使用者名單
+        const usersSnap = await getDocs(collection(db, 'users'));
+        allUsers = [];
+        const tbodyUser = document.getElementById('adminUsersTableBody');
+        tbodyUser.innerHTML = '';
+
+        usersSnap.forEach(doc => {
+            const u = doc.data();
+            if (u.role !== 'SUPER_ADMIN') {
+                u.uid = doc.id;
+                allUsers.push(u);
+            }
+        });
+
+        if (allUsers.length === 0) {
+            tbodyUser.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">無其他使用者</td></tr>';
+        } else {
+            allUsers.forEach(u => {
+                const roleBadge = (!u.role || u.role === 'GUEST') 
+                                ? '<span class="badge bg-warning text-dark">審核中</span>' 
+                                : '<span class="badge bg-primary">已授權單位管理員</span>';
+                
+                const uOrgIds = u.org_ids || [];
+                let orgNames = [];
+                uOrgIds.forEach(id => {
+                    const o = allOrgs.find(x => x.id === id);
+                    if (o) orgNames.push(o.name);
+                });
+                const orgsDisplay = orgNames.length > 0 ? orgNames.join(', ') : '<span class="text-muted">無</span>';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <img src="${u.picture || 'https://via.placeholder.com/30'}" style="width:30px; border-radius:50%; margin-right:10px;">
+                            <span>${u.name}</span>
+                        </div>
+                    </td>
+                    <td>${roleBadge}</td>
+                    <td>${orgsDisplay}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>
+                    </td>
+                `;
+                tbodyUser.appendChild(tr);
+            });
+        }
+    } catch (error) {
+        console.error("載入管理員資料失敗:", error);
+        Swal.fire('錯誤', '無法載入列表', 'error');
+    }
+}
+
 function applyRoleUI(role, org_ids) {
     const roleNameEl = document.getElementById('navUserRole');
     const displayRoleNameEl = document.getElementById('displayRoleName');
@@ -99,7 +239,7 @@ function applyRoleUI(role, org_ids) {
             document.getElementById('createOrgForm').reset();
             
             // 重新載入全域資料
-            await loadOrgSwitcher();
+            await loadOrgSwitcher('SUPER_ADMIN', []);
             loadAdminDashboard();
 
         } catch (error) {
@@ -141,7 +281,7 @@ function applyRoleUI(role, org_ids) {
                     
                     if (data.success) {
                         Swal.fire('已刪除', '機構與相關資料已成功刪除', 'success');
-                        await loadOrgSwitcher();
+                        await loadOrgSwitcher('SUPER_ADMIN', []);
                         loadAdminDashboard();
                     } else {
                         throw new Error(data.message || '伺服器拒絕刪除');
@@ -235,7 +375,7 @@ function applyRoleUI(role, org_ids) {
         document.querySelectorAll('.role-super-admin').forEach(el => el.style.display = 'block');
         contentEl.style.display = 'block';
 
-        loadOrgSwitcher().then(() => loadAdminDashboard());
+        loadOrgSwitcher(role, org_ids).then(() => loadAdminDashboard());
 
     } else if (role === 'ORG_ADMIN') {
         roleNameEl.textContent = '單位管理員';
@@ -245,7 +385,7 @@ function applyRoleUI(role, org_ids) {
         document.querySelectorAll('.role-org-admin').forEach(el => el.style.display = 'block');
         contentEl.style.display = 'block';
 
-        loadOrgSwitcher();
+        loadOrgSwitcher(role, org_ids);
 
     } else {
         // GUEST 或未知權限
