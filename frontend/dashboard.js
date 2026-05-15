@@ -56,6 +56,7 @@ async function loadUserProfile(user) {
 // 全域變數
 let allOrgs = [];
 let allUsers = [];
+let currentUserRole = 'GUEST';
 
 // ==========================================
 // 載入機構視角切換器
@@ -102,11 +103,95 @@ async function loadOrgSwitcher(role, org_ids) {
     }
 }
 
-window.switchOrgContext = function() {
+window.switchOrgContext = async function() {
     const selectedOrgId = document.getElementById('currentOrgSelect').value;
-    if (!selectedOrgId) return;
-    console.log(`切換視角至機構: ${selectedOrgId}`);
-    // 未來在這裡載入該機構的選舉場次
+    const orgContextArea = document.getElementById('orgContextArea');
+    
+    if (!selectedOrgId) {
+        orgContextArea.style.display = 'none';
+        return;
+    }
+    
+    // 顯示區塊並更新標題
+    orgContextArea.style.display = 'flex';
+    const selectedOrg = allOrgs.find(o => o.id === selectedOrgId);
+    document.querySelectorAll('.current-org-name-display').forEach(el => {
+        el.textContent = selectedOrg ? selectedOrg.name : '未知機構';
+    });
+
+    try {
+        const { doc, getDoc, collection, query, where, getDocs } = window.fs;
+        const db = window.firebaseDb;
+
+        // 1. 載入公印
+        const orgSnap = await getDoc(doc(db, 'organizations', selectedOrgId));
+        if (orgSnap.exists()) {
+            const orgData = orgSnap.data();
+            const preview = document.getElementById('orgSealPreview');
+            if (orgData.seal_url) {
+                preview.src = orgData.seal_url;
+            } else {
+                preview.src = 'https://via.placeholder.com/150?text=未設定';
+            }
+        }
+
+        // 2. 載入選舉場次
+        const tbody = document.getElementById('electionTableBody');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">載入中...</td></tr>';
+        
+        const q = query(collection(db, 'elections'), where('org_id', '==', selectedOrgId));
+        const electionsSnap = await getDocs(q);
+        
+        tbody.innerHTML = '';
+        if (electionsSnap.empty) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">尚無選舉場次</td></tr>';
+        } else {
+            // 將文件存入陣列以便排序
+            let elections = [];
+            electionsSnap.forEach(doc => {
+                elections.push({ id: doc.id, ...doc.data() });
+            });
+            // 依建立時間反向排序 (新的在上面)
+            elections.sort((a, b) => {
+                const timeA = a.createdAt ? a.createdAt.toMillis() : 0;
+                const timeB = b.createdAt ? b.createdAt.toMillis() : 0;
+                return timeB - timeA;
+            });
+
+            elections.forEach(election => {
+                const isArchived = election.status === 'ARCHIVED';
+                const statusBadge = isArchived 
+                    ? '<span class="badge bg-secondary">已封存</span>' 
+                    : '<span class="badge bg-success">進行中</span>';
+                const createDate = election.createdAt ? new Date(election.createdAt.toDate()).toLocaleDateString() : '未知';
+                
+                const tr = document.createElement('tr');
+                if (isArchived) tr.style.opacity = '0.6';
+
+                let actionBtns = '';
+                if (isArchived) {
+                    actionBtns = `<button class="btn btn-sm btn-outline-danger" onclick="deleteElection('${election.id}', '${election.name}')">徹底刪除</button>`;
+                } else {
+                    actionBtns = `
+                        <button class="btn btn-sm btn-outline-warning" onclick="archiveElection('${election.id}', '${election.name}')">封存</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteElection('${election.id}', '${election.name}')">徹底刪除</button>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td class="fw-bold">${election.name}</td>
+                    <td>${statusBadge}</td>
+                    <td>${createDate}</td>
+                    <td>${actionBtns}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+    } catch (error) {
+        console.error("載入機構內容失敗:", error);
+        Swal.fire('錯誤', '無法載入機構專屬資料', 'error');
+    }
 };
 
 // ==========================================
@@ -194,6 +279,7 @@ async function loadAdminDashboard() {
 }
 
 function applyRoleUI(role, org_ids) {
+    currentUserRole = role;
     const roleNameEl = document.getElementById('navUserRole');
     const displayRoleNameEl = document.getElementById('displayRoleName');
     const contentEl = document.getElementById('dashboardContent');
@@ -207,6 +293,179 @@ function applyRoleUI(role, org_ids) {
     // ==========================================
     // 舊版函數已移除
     // ==========================================
+
+    // ==========================================
+    // Phase 4: 機構設定與選舉管理邏輯
+    // ==========================================
+
+    // 上傳公印
+    document.getElementById('uploadSealBtn')?.addEventListener('click', async () => {
+        const fileInput = document.getElementById('sealFileInput');
+        const file = fileInput.files[0];
+        const orgId = document.getElementById('currentOrgSelect').value;
+        
+        if (!orgId) {
+            Swal.fire('提示', '請先選擇機構', 'warning');
+            return;
+        }
+        if (!file) {
+            Swal.fire('提示', '請選擇圖片檔案', 'warning');
+            return;
+        }
+
+        try {
+            const btn = document.getElementById('uploadSealBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 上傳中...';
+
+            const { ref, uploadBytes, getDownloadURL } = window.st;
+            const { doc, updateDoc } = window.fs;
+            const storage = window.firebaseStorage;
+            const db = window.firebaseDb;
+
+            // 檔名加上 timestamp 以防快取或覆蓋問題
+            const ext = file.name.split('.').pop();
+            const storageRef = ref(storage, `seals/${orgId}/seal_${Date.now()}.${ext}`);
+            
+            // 上傳檔案
+            await uploadBytes(storageRef, file);
+            // 取得公開下載網址
+            const downloadURL = await getDownloadURL(storageRef);
+
+            // 更新 Firestore 中的 seal_url
+            await updateDoc(doc(db, 'organizations', orgId), {
+                seal_url: downloadURL
+            });
+
+            Swal.fire('成功', '公印上傳成功！', 'success');
+            fileInput.value = '';
+            
+            // 重新載入當前機構視角 (更新圖片與列表狀態)
+            window.switchOrgContext();
+            
+            // 如果是 SUPER_ADMIN，連帶更新系統列表的狀態
+            if (currentUserRole === 'SUPER_ADMIN') {
+                loadAdminDashboard();
+            }
+
+        } catch (error) {
+            console.error('上傳失敗:', error);
+            Swal.fire('錯誤', '上傳失敗: ' + error.message, 'error');
+        } finally {
+            const btn = document.getElementById('uploadSealBtn');
+            btn.disabled = false;
+            btn.textContent = '上傳/更新公印';
+        }
+    });
+
+    // 新增選舉
+    document.getElementById('saveElectionBtn')?.addEventListener('click', async () => {
+        const orgId = document.getElementById('currentOrgSelect').value;
+        const electionName = document.getElementById('electionNameInput').value.trim();
+
+        if (!orgId) {
+            Swal.fire('提示', '請先選擇機構', 'warning');
+            return;
+        }
+        if (!electionName) {
+            Swal.fire('提示', '請填寫選舉名稱', 'warning');
+            return;
+        }
+
+        try {
+            const btn = document.getElementById('saveElectionBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 建立中...';
+
+            const { collection, addDoc, serverTimestamp } = window.fs;
+            const db = window.firebaseDb;
+
+            await addDoc(collection(db, 'elections'), {
+                org_id: orgId,
+                name: electionName,
+                status: 'ACTIVE',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            Swal.fire('成功', '已成功建立選舉場次！', 'success');
+            
+            const modalEl = document.getElementById('createElectionModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+            document.getElementById('createElectionForm').reset();
+            
+            // 重新載入列表
+            window.switchOrgContext();
+
+        } catch (error) {
+            console.error('新增選舉失敗:', error);
+            Swal.fire('錯誤', '新增失敗: ' + error.message, 'error');
+        } finally {
+            const btn = document.getElementById('saveElectionBtn');
+            btn.disabled = false;
+            btn.textContent = '建立選舉';
+        }
+    });
+
+    // 封存選舉
+    window.archiveElection = function(electionId, electionName) {
+        Swal.fire({
+            title: '確定要封存此選舉嗎？',
+            html: `封存後 <b>${electionName}</b> 將無法再進行投票或修改，但紀錄會保留。<br>若要重新啟用，請聯絡系統管理員。`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ffc107',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '是的，我要封存',
+            cancelButtonText: '取消'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const { doc, updateDoc, serverTimestamp } = window.fs;
+                    const db = window.firebaseDb;
+                    
+                    await updateDoc(doc(db, 'elections', electionId), {
+                        status: 'ARCHIVED',
+                        updatedAt: serverTimestamp()
+                    });
+                    
+                    Swal.fire('成功', '已封存', 'success');
+                    window.switchOrgContext();
+                } catch (error) {
+                    Swal.fire('錯誤', error.message, 'error');
+                }
+            }
+        });
+    };
+
+    // 徹底刪除選舉
+    window.deleteElection = function(electionId, electionName) {
+        Swal.fire({
+            title: '徹底刪除確認',
+            html: `這將徹底刪除 <b>${electionName}</b> 的所有資料。<br><span class="text-danger">⚠️ 注意：此操作無法復原！</span>`,
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const { doc, deleteDoc } = window.fs;
+                    const db = window.firebaseDb;
+                    
+                    await deleteDoc(doc(db, 'elections', electionId));
+                    
+                    Swal.fire('成功', '已刪除', 'success');
+                    window.switchOrgContext();
+                } catch (error) {
+                    Swal.fire('錯誤', error.message, 'error');
+                }
+            }
+        });
+    };
 
     // 建立新機構
     document.getElementById('saveOrgBtn')?.addEventListener('click', async () => {
