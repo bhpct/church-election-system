@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,15 +17,17 @@
             align-items: center;
             justify-content: center;
         }
+
         .login-card {
             max-width: 400px;
             width: 100%;
             padding: 30px;
             border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             background: white;
             text-align: center;
         }
+
         .btn-line {
             background-color: #06C755;
             color: white;
@@ -35,23 +38,26 @@
             border: none;
             transition: 0.3s;
         }
+
         .btn-line:hover {
             background-color: #05b04a;
             color: white;
         }
+
         .logo {
             font-size: 3rem;
             margin-bottom: 20px;
         }
     </style>
 </head>
+
 <body>
 
     <div class="login-card">
         <div class="logo">🗳️</div>
         <h3 class="mb-4">教會數位選舉系統</h3>
         <p class="text-muted mb-4">管理員登入 / 申請開通</p>
-        
+
         <!-- LIFF 登入按鈕 -->
         <button id="liffLoginBtn" class="btn-line" style="display: none;" onclick="handleLiffLogin()">
             使用 LINE 登入
@@ -73,21 +79,21 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        
+
         // Firebase 設定 (請在此填入您的 Firebase 設定)
         // 這些可以在 Firebase 控制台的專案設定中找到
         const firebaseConfig = {
-            apiKey: "請填入您的_API_KEY",
-            authDomain: "請填入您的_AUTH_DOMAIN",
-            projectId: "church-election-system",
-            storageBucket: "church-election-system.appspot.com",
-            messagingSenderId: "請填入您的_MESSAGING_SENDER_ID",
-            appId: "請填入您的_APP_ID"
+            apiKey: "[GCP_API_KEY]",
+            authDomain: "church-election.firebaseapp.com",
+            projectId: "church-election",
+            storageBucket: "church-election.firebasestorage.app",
+            messagingSenderId: "398284959770",
+            appId: "1:398284959770:web:3fad134fb67d4840f761a3"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-        
+
         // 匯出 auth 供外部使用
         window.firebaseAuth = auth;
         window.signInWithCustomToken = signInWithCustomToken;
@@ -95,8 +101,9 @@
 
     <!-- LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    
+
     <!-- 本地端驗證邏輯 -->
     <script src="auth.js"></script>
 </body>
+
 </html>

@@ -1,7 +1,7 @@
 // 您的 LIFF ID (從 LINE Developers Console 取得)
 const LIFF_ID = "2010101902-5m98FoAq";
 // 本地開發時的後端 API 位置
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = "https://church-election-system-1089220354332.asia-east1.run.app";
 
 const loginBtn = document.getElementById('liffLoginBtn');
 const spinner = document.getElementById('loadingSpinner');
