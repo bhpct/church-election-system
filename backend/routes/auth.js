@@ -60,6 +60,7 @@ router.post('/verify', async (req, res) => {
         const userDoc = await userRef.get();
 
         let role = 'GUEST'; // 預設無權限角色
+        let org_ids = [];   // 所屬機構 ID 陣列
         
         if (!userDoc.exists) {
             // 如果是新用戶，檢查是否為系統的第一位使用者
@@ -74,12 +75,15 @@ router.post('/verify', async (req, res) => {
                 name: name,
                 picture: picture || null,
                 role: role,
+                org_ids: org_ids,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 lastLogin: admin.firestore.FieldValue.serverTimestamp()
             });
         } else {
-            // 已存在之用戶，讀取既有權限
-            role = userDoc.data().role || 'GUEST';
+            // 已存在之用戶，讀取既有權限與機構陣列
+            const data = userDoc.data();
+            role = data.role || 'GUEST';
+            org_ids = data.org_ids || [];
             
             // 更新登入時間與頭像
             await userRef.set({
@@ -89,8 +93,11 @@ router.post('/verify', async (req, res) => {
             }, { merge: true });
         }
 
-        // 3. 利用 Firebase Admin SDK 產生自訂權杖 (Custom Token)，並將 role 夾帶進去
-        const customToken = await admin.auth().createCustomToken(lineUid, { role: role });
+        // 3. 利用 Firebase Admin SDK 產生自訂權杖 (Custom Token)，並將 role 與 org_ids 夾帶進去
+        const customToken = await admin.auth().createCustomToken(lineUid, { 
+            role: role,
+            org_ids: org_ids
+        });
 
         // 4. 回傳給前端
         res.json({

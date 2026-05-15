@@ -7,9 +7,11 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.role == 'SUPER_ADMIN';
     }
     
-    // 檢查是否為該機構的管理員
+    // 檢查是否為該機構的管理員 (orgId 必須存在於使用者的 org_ids 陣列中)
     function isOrgAdmin(orgId) {
-      return request.auth != null && request.auth.token.role == 'ORG_ADMIN' && request.auth.token.org_id == orgId;
+      return request.auth != null && 
+             (request.auth.token.role == 'ORG_ADMIN' || request.auth.token.role == 'SUPER_ADMIN') && 
+             (orgId in request.auth.token.org_ids || isSuperAdmin());
     }
 
     // ==========================================

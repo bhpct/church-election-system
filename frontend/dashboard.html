@@ -55,6 +55,13 @@
             justify-content: space-between;
             align-items: center;
         }
+        .org-switcher {
+            min-width: 250px;
+        }
+        .user-profile {
+            display: flex;
+            align-items: center;
+        }
         .user-profile img {
             width: 40px;
             height: 40px;
@@ -102,8 +109,18 @@
         <div class="col-md-10 bg-light">
             <!-- 頂部導覽列 -->
             <div class="topbar">
-                <h4 class="m-0" id="pageTitle">系統總覽</h4>
-                <div class="user-profile d-flex align-items-center">
+                <div class="d-flex align-items-center">
+                    <h4 class="m-0 me-4" id="pageTitle">系統總覽</h4>
+                    
+                    <!-- 機構視角切換器 (只有有權限者顯示) -->
+                    <div class="org-switcher d-none" id="orgSwitcherContainer">
+                        <select class="form-select form-select-sm border-primary text-primary fw-bold" id="currentOrgSelect" onchange="switchOrgContext()">
+                            <option value="">載入機構中...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="user-profile">
                     <img id="navUserPic" src="https://via.placeholder.com/40" alt="User">
                     <div>
                         <div id="navUserName" class="fw-bold text-dark">載入中...</div>
@@ -134,33 +151,33 @@
                     </div>
                     
                     <div class="row mt-3">
+                        <!-- 機構管理 (純建立機構，不綁人員) -->
                         <div class="col-md-6 role-super-admin">
                             <div class="card p-4">
-                                <h5><i class="fas fa-building text-success"></i> 快速建立新機構</h5>
-                                <p class="text-muted">開始建立中會、教會與專屬管理員權限。</p>
-                                <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#createOrgModal">前往機構管理</button>
+                                <h5><i class="fas fa-building text-success"></i> 機構建立與管理</h5>
+                                <p class="text-muted">單純建立中會、教會等機構名稱。</p>
+                                <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#createOrgModal">新增機構</button>
                             </div>
                         </div>
                         <div class="col-md-6 role-super-admin role-org-admin">
                             <div class="card p-4">
                                 <h5><i class="fas fa-plus-circle text-primary"></i> 建立新選舉</h5>
-                                <p class="text-muted">設定選舉名稱、法規輪次與候選人名單。</p>
+                                <p class="text-muted">於當前選擇的機構底下建立新選舉。</p>
                                 <button class="btn btn-outline-primary">開始設定</button>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- 機構管理列表 (僅 SUPER_ADMIN 可見) -->
+                    <!-- 機構與單位列表 (僅 SUPER_ADMIN 可見) -->
                     <div class="row mt-4 role-super-admin">
                         <div class="col-12">
                             <div class="card p-4">
-                                <h5>機構與單位列表</h5>
+                                <h5>機構列表</h5>
                                 <div class="table-responsive mt-3">
                                     <table class="table table-hover align-middle">
                                         <thead class="table-light">
                                             <tr>
                                                 <th>機構名稱</th>
-                                                <th>管理員</th>
                                                 <th>公印狀態</th>
                                                 <th>建立時間</th>
                                                 <th>操作</th>
@@ -168,7 +185,34 @@
                                         </thead>
                                         <tbody id="orgTableBody">
                                             <tr>
-                                                <td colspan="5" class="text-center text-muted py-3">載入中...</td>
+                                                <td colspan="4" class="text-center text-muted py-3">載入中...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 系統管理員授權列表 (僅 SUPER_ADMIN 可見) -->
+                    <div class="row mt-4 role-super-admin">
+                        <div class="col-12">
+                            <div class="card p-4">
+                                <h5>系統管理員授權</h5>
+                                <p class="text-muted mb-3">審核由 LINE 登入的申請者，並指派他們可以管理哪些機構。</p>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>使用者</th>
+                                                <th>目前狀態</th>
+                                                <th>可管轄機構</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="adminUsersTableBody">
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted py-3">載入中...</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -203,18 +247,35 @@
             <label class="form-label">機構名稱 <span class="text-danger">*</span></label>
             <input type="text" class="form-control" id="orgNameInput" required placeholder="例如：台北中會 或 濟南教會">
           </div>
-          <div class="mb-3">
-            <label class="form-label">指派管理員 <span class="text-danger">*</span></label>
-            <select class="form-select" id="orgAdminSelect" required>
-                <option value="">載入名單中...</option>
-            </select>
-            <div class="form-text">只能指派已經用 LINE 登入過且尚未綁定機構的使用者。</div>
-          </div>
         </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
         <button type="button" class="btn btn-primary" id="saveOrgBtn">建立機構</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 管理員授權 Modal -->
+<div class="modal fade" id="assignAdminModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">編輯管理員授權</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">目前正在為 <strong id="assignTargetName" class="text-primary"></strong> 設定權限。</p>
+        <input type="hidden" id="assignTargetUid">
+        <div class="mb-2 fw-bold">允許管轄的機構 (可複選)：</div>
+        <div id="orgCheckboxesContainer" class="border p-3 rounded" style="max-height: 250px; overflow-y: auto;">
+            <!-- 核取方塊將由 JS 動態產生 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveAssignBtn">儲存授權</button>
       </div>
     </div>
   </div>

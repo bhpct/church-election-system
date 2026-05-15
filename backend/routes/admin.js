@@ -44,19 +44,11 @@ router.delete('/organizations/:orgId', verifySuperAdmin, async (req, res) => {
             return res.status(404).json({ success: false, message: '找不到該機構' });
         }
         
-        const orgData = orgDoc.data();
-        const adminUid = orgData.admin_uid;
-
         const batch = db.batch();
 
-        // 2. 解除管理員職務 (將其降級為 GUEST 並移除 org_id)
-        if (adminUid) {
-            const userRef = db.collection('users').doc(adminUid);
-            batch.update(userRef, {
-                role: 'GUEST',
-                org_id: admin.firestore.FieldValue.delete()
-            });
-        }
+        // 2. 解除管理員職務 (已棄用)
+        // 因為改為多對多關係 (org_ids)，管理員被剝奪權限的動作將在前端「編輯管理員授權」時進行
+        // 刪除機構單純只連鎖刪除選舉場次
 
         // 3. 找出所有隸屬於該機構的選舉場次
         const electionsSnapshot = await db.collection('elections')
