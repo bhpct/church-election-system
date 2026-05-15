@@ -1,0 +1,14 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Firebase & Secrets
+firebase-adminsdk.json
+.env
+
+# Windows
+Thumbs.db
+
+# Mac
+.DS_Store
