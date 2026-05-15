@@ -77,4 +77,40 @@ router.delete('/organizations/:orgId', verifySuperAdmin, async (req, res) => {
     }
 });
 
+// 3. 更新使用者權限 (Custom Claims 與 Firestore)
+router.post('/update_user_claims', verifySuperAdmin, async (req, res) => {
+    try {
+        const { targetUid, newRole, org_ids } = req.body;
+        
+        if (!targetUid || !newRole) {
+            return res.status(400).json({ success: false, message: '缺少必要參數' });
+        }
+
+        // 確認發出請求的用戶是否為 SUPER_ADMIN
+        const callerUid = req.user.uid;
+        const callerDoc = await db.collection('users').doc(callerUid).get();
+        if (!callerDoc.exists || callerDoc.data().role !== 'SUPER_ADMIN') {
+            return res.status(403).json({ success: false, message: '權限不足，必須為超級管理員' });
+        }
+
+        // 1. 更新 Firebase Auth Custom Claims
+        await admin.auth().setCustomUserClaims(targetUid, {
+            role: newRole,
+            org_ids: org_ids || []
+        });
+
+        // 2. 同步更新 Firestore users 集合
+        await db.collection('users').doc(targetUid).update({
+            role: newRole,
+            org_ids: org_ids || []
+        });
+
+        res.json({ success: true, message: '權限更新成功，使用者重新載入後生效' });
+
+    } catch (error) {
+        console.error('更新使用者權限失敗:', error);
+        res.status(500).json({ success: false, message: '伺服器錯誤', error: error.message });
+    }
+});
+
 module.exports = router;

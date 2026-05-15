@@ -29,8 +29,8 @@ async function loadUserProfile(user) {
             const userData = userSnap.data();
             const role = userData.role || 'GUEST';
             
-            // 取得 Custom Token 裡的 org_ids
-            const tokenResult = await user.getIdTokenResult();
+            // 取得 Custom Token 裡的 org_ids (強制更新以確保讀取到最新權限)
+            const tokenResult = await user.getIdTokenResult(true);
             const org_ids = tokenResult.claims.org_ids || userData.org_ids || [];
             
             // 設定頂部頭像與名稱 (優先使用資料庫中的 LINE 資料)
@@ -679,20 +679,35 @@ function applyRoleUI(role, org_ids) {
         const selectedOrgIds = Array.from(checkboxes).map(cb => cb.value);
 
         try {
-            const { doc, updateDoc } = window.fs;
-            const db = window.firebaseDb;
             const btn = document.getElementById('saveAssignBtn');
             btn.disabled = true;
             btn.textContent = '儲存中...';
 
             const newRole = selectedOrgIds.length > 0 ? 'ORG_ADMIN' : 'GUEST';
 
-            await updateDoc(doc(db, 'users', uid), {
-                role: newRole,
-                org_ids: selectedOrgIds
+            // 取得目前的 Firebase ID Token
+            const idToken = await window.firebaseAuth.currentUser.getIdToken(true);
+
+            // 呼叫後端 API，同時更新 Firestore 與 Firebase Auth Custom Claims
+            const response = await fetch('/api/admin/update_user_claims', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({
+                    targetUid: uid,
+                    newRole: newRole,
+                    org_ids: selectedOrgIds
+                })
             });
 
-            Swal.fire('成功', '權限設定已儲存！', 'success');
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.message);
+            }
+
+            Swal.fire('成功', '權限設定已儲存！對方重新整理頁面後即可生效。', 'success');
             bootstrap.Modal.getInstance(document.getElementById('assignAdminModal')).hide();
             
             // 重新載入列表
