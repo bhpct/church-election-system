@@ -193,12 +193,13 @@
                                             <th>姓名</th>
                                             <th>資格</th>
                                             <th>分區</th>
-                                            <th>單位</th>
+                                            <th>當選項次</th>
+                                            <th>狀態</th>
                                             <th>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="candidatesTableBody">
-                                        <tr><td colspan="7" class="text-center text-muted py-3">載入中...</td></tr>
+                                        <tr><td colspan="8" class="text-center text-muted py-3">載入中...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -291,8 +292,17 @@
             <input type="text" class="form-control" id="itemQualificationsInput" placeholder="例如：牧師, 長老">
           </div>
           <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="itemExcludeElectedInput" checked>
+            <label class="form-check-label" for="itemExcludeElectedInput"><strong>自動排除已當選者</strong> (產生名單時，剔除已被標記當選的候選人)</label>
+          </div>
+          <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" id="itemDistrictReqInput">
-            <label class="form-check-label" for="itemDistrictReqInput"><strong>強制分區競選限制</strong> (當選者必須來自不同的地區)</label>
+            <label class="form-check-label" for="itemDistrictReqInput"><strong>強制分區競選限制</strong> (當選者必須來自不同地區，請在下方勾選地區)</label>
+          </div>
+          <div id="districtCheckboxesContainer" class="p-3 bg-light border rounded mb-3" style="display:none;">
+            <!-- 動態產生分區勾選框 -->
+            <small class="text-muted">請勾選指定的分區 (勾選數量必須與應選名額相同)</small>
+            <div id="districtCheckboxesList" class="row mt-2"></div>
           </div>
         </form>
       </div>
@@ -341,6 +351,64 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
         <button type="button" class="btn btn-primary" id="saveCandidateBtn">儲存候選人</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯候選人 Modal -->
+<div class="modal fade" id="editCandidateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">編輯候選人</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editCandidateForm">
+          <input type="hidden" id="editCandIdInput">
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">號次</label>
+              <input type="text" class="form-control" id="editCandNumberInput">
+            </div>
+            <div class="col-md-8 mb-3">
+              <label class="form-label">姓名 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="editCandNameInput" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">分區 (選填)</label>
+            <input type="text" class="form-control" id="editCandDistrictInput">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">單位/教會/小組 (選填)</label>
+            <input type="text" class="form-control" id="editCandUnitInput">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">候選資格 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="editCandQualInput" required>
+          </div>
+          
+          <hr>
+          <h6 class="fw-bold mb-3 text-primary">進階狀態設定</h6>
+          
+          <div class="mb-3">
+            <label class="form-label">已當選項次</label>
+            <input type="text" class="form-control" id="editCandElectedItemInput" placeholder="若未當選請留空">
+            <small class="text-muted">填寫後，若新項次開啟「排除已當選者」，此人將不會出現在名單中。</small>
+          </div>
+          
+          <div class="form-check form-switch mb-3 mt-3">
+            <input class="form-check-input bg-danger" type="checkbox" id="editCandIneligibleInput">
+            <label class="form-check-label text-danger fw-bold" for="editCandIneligibleInput">不可被選 (打 X)</label>
+            <div class="text-muted small mt-1">勾選後，此人將全域隱藏，絕對不會出現在任何選舉輪次中。</div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="updateCandidateBtn">儲存變更</button>
       </div>
     </div>
   </div>

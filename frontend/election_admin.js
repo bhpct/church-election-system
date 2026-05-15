@@ -155,7 +155,7 @@ function renderCandidatesTable() {
     tbody.innerHTML = '';
     
     if (allCandidates.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">尚無資料，請匯入或新增</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">尚無資料，請匯入或新增</td></tr>';
         return;
     }
 
@@ -165,7 +165,8 @@ function renderCandidatesTable() {
             : `<div class="candidate-img-preview d-flex align-items-center justify-content-center text-muted"><i class="fas fa-user"></i></div>`;
             
         const districtHtml = c.district ? `<span class="badge bg-info">${c.district}</span>` : '<span class="text-muted">-</span>';
-        const unitHtml = c.unit ? c.unit : '<span class="text-muted">-</span>';
+        const electedHtml = c.elected_item ? `<span class="badge bg-warning text-dark"><i class="fas fa-trophy"></i> ${c.elected_item}</span>` : '<span class="text-muted">-</span>';
+        const statusHtml = c.is_ineligible ? `<span class="badge bg-danger"><i class="fas fa-times"></i> 不可被選</span>` : `<span class="badge bg-success">正常</span>`;
         
         tbody.innerHTML += `
             <tr>
@@ -174,8 +175,10 @@ function renderCandidatesTable() {
                 <td>${c.name}</td>
                 <td><span class="badge bg-secondary">${c.qualification}</span></td>
                 <td>${districtHtml}</td>
-                <td>${unitHtml}</td>
+                <td>${electedHtml}</td>
+                <td>${statusHtml}</td>
                 <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="openEditCandidate('${c.id}')"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteCandidate('${c.id}')"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>
@@ -352,6 +355,66 @@ document.getElementById('saveCandidateBtn').addEventListener('click', async () =
     }
 });
 
+// 打開編輯候選人 Modal
+window.openEditCandidate = function(id) {
+    const c = allCandidates.find(cand => cand.id === id);
+    if (!c) return;
+
+    document.getElementById('editCandIdInput').value = c.id;
+    document.getElementById('editCandNumberInput').value = c.number || '';
+    document.getElementById('editCandNameInput').value = c.name || '';
+    document.getElementById('editCandDistrictInput').value = c.district || '';
+    document.getElementById('editCandUnitInput').value = c.unit || '';
+    document.getElementById('editCandQualInput').value = c.qualification || '';
+    document.getElementById('editCandElectedItemInput').value = c.elected_item || '';
+    document.getElementById('editCandIneligibleInput').checked = !!c.is_ineligible;
+
+    const modal = new bootstrap.Modal(document.getElementById('editCandidateModal'));
+    modal.show();
+}
+
+// 儲存編輯變更
+document.getElementById('updateCandidateBtn').addEventListener('click', async () => {
+    const id = document.getElementById('editCandIdInput').value;
+    const name = document.getElementById('editCandNameInput').value.trim();
+    if (!name) {
+        Swal.fire('錯誤', '「姓名」為必填欄位', 'error');
+        return;
+    }
+
+    try {
+        const btn = document.getElementById('updateCandidateBtn');
+        btn.disabled = true;
+        btn.textContent = '儲存中...';
+
+        const { doc, updateDoc } = window.fs;
+        const db = window.firebaseDb;
+        const candRef = doc(db, 'elections', currentElectionId, 'candidates', id);
+
+        await updateDoc(candRef, {
+            number: document.getElementById('editCandNumberInput').value.trim(),
+            name: name,
+            district: document.getElementById('editCandDistrictInput').value.trim(),
+            unit: document.getElementById('editCandUnitInput').value.trim(),
+            qualification: document.getElementById('editCandQualInput').value.trim(),
+            elected_item: document.getElementById('editCandElectedItemInput').value.trim(),
+            is_ineligible: document.getElementById('editCandIneligibleInput').checked
+        });
+
+        Swal.fire('成功', '更新候選人資料成功！', 'success');
+        bootstrap.Modal.getInstance(document.getElementById('editCandidateModal')).hide();
+        await loadCandidates();
+
+    } catch (error) {
+        console.error("編輯失敗:", error);
+        Swal.fire('錯誤', '更新失敗: ' + error.message, 'error');
+    } finally {
+        const btn = document.getElementById('updateCandidateBtn');
+        btn.disabled = false;
+        btn.textContent = '儲存變更';
+    }
+});
+
 // ==========================================
 // 項次與輪次設定 (Items & Rounds)
 // ==========================================
@@ -460,16 +523,58 @@ function getRoundName(roundId) {
     return roundId;
 }
 
+// 動態顯示分區勾選清單
+document.getElementById('itemDistrictReqInput').addEventListener('change', function(e) {
+    const container = document.getElementById('districtCheckboxesContainer');
+    if (e.target.checked) {
+        // 抓取不重複的分區
+        let districts = [...new Set(allCandidates.filter(c => c.district).map(c => c.district))];
+        const listDiv = document.getElementById('districtCheckboxesList');
+        listDiv.innerHTML = '';
+        
+        if (districts.length === 0) {
+            listDiv.innerHTML = '<p class="text-danger mb-0">警告：目前的候選人資料庫中，沒有任何分區資料，無法使用強制分區競選！</p>';
+        } else {
+            districts.forEach((d, idx) => {
+                listDiv.innerHTML += `
+                    <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input district-checkbox" type="checkbox" value="${d}" id="dist_${idx}">
+                            <label class="form-check-label" for="dist_${idx}">${d}</label>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
+});
+
 // 儲存項次與初始化三輪
 document.getElementById('saveItemBtn').addEventListener('click', async () => {
     const title = document.getElementById('itemTitleInput').value.trim();
     const seats = parseInt(document.getElementById('itemSeatsInput').value);
     const qualifications = document.getElementById('itemQualificationsInput').value.trim();
     const reqDistrict = document.getElementById('itemDistrictReqInput').checked;
+    const excludeElected = document.getElementById('itemExcludeElectedInput').checked;
     
     if (!title || isNaN(seats) || seats < 1) {
         Swal.fire('錯誤', '請填寫完整項次名稱與應選名額', 'error');
         return;
+    }
+
+    // 檢查分區勾選數量
+    let selectedDistricts = [];
+    if (reqDistrict) {
+        const checkboxes = document.querySelectorAll('.district-checkbox:checked');
+        checkboxes.forEach(cb => selectedDistricts.push(cb.value));
+        
+        if (selectedDistricts.length !== seats) {
+            Swal.fire('錯誤', `此項次應選 ${seats} 名，您必須精準勾選 ${seats} 個不同的地區！\n目前已勾選：${selectedDistricts.length} 個。`, 'error');
+            return;
+        }
     }
 
     try {
@@ -487,6 +592,8 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
             seats: seats,
             qualifications: qualifications,
             require_district: reqDistrict,
+            selected_districts: selectedDistricts,
+            exclude_elected: excludeElected,
             createdAt: serverTimestamp()
         });
 
@@ -496,12 +603,19 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
             qArray = qualifications.split(',').map(s => s.trim()).filter(s => s);
         }
         
-        let initialCandidateIds = [];
-        if (qArray.length > 0) {
-            initialCandidateIds = allCandidates.filter(c => qArray.includes(c.qualification)).map(c => c.id);
-        } else {
-            initialCandidateIds = allCandidates.map(c => c.id); // 沒限制就全塞
-        }
+        // 核心過濾邏輯
+        let initialCandidateIds = allCandidates.filter(c => {
+            // (1) 全域不可被選：直接剔除
+            if (c.is_ineligible) return false;
+            
+            // (2) 排除已當選者：若開啟，且有當選項次紀錄，則剔除
+            if (excludeElected && c.elected_item && c.elected_item.trim() !== '') return false;
+            
+            // (3) 候選資格限制：若有設定，必須符合其中之一
+            if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
+            
+            return true;
+        }).map(c => c.id);
 
         // 3. 建立三輪 (round_1, round_2, round_3)
         const round1Ref = doc(db, 'elections', currentElectionId, 'items', newItemRef.id, 'rounds', 'round_1');
@@ -585,10 +699,14 @@ document.getElementById('btnGeneratePreview').addEventListener('click', () => {
     if (!round.candidate_ids || round.candidate_ids.length === 0) {
         listContainer.innerHTML = '<p class="text-center text-muted">此輪次目前沒有任何候選人。</p>';
     } else {
-        // 從全域抓資料並排序 (依號次)
-        const roundCandidates = allCandidates.filter(c => round.candidate_ids.includes(c.id));
+        // 從全域抓資料並過濾掉不可被選者，然後排序 (依號次)
+        const roundCandidates = allCandidates.filter(c => round.candidate_ids.includes(c.id) && !c.is_ineligible);
         roundCandidates.sort((a, b) => (parseInt(a.number)||0) - (parseInt(b.number)||0));
         
+        if (roundCandidates.length === 0) {
+             listContainer.innerHTML = '<p class="text-center text-muted">此輪次的名單皆為不可被選狀態。</p>';
+        }
+
         roundCandidates.forEach(c => {
             const districtStr = c.district ? `<small class="text-muted d-block">${c.district}</small>` : '';
             listContainer.innerHTML += `
