@@ -1203,6 +1203,25 @@ async function loadKeys(itemId, roundId) {
             return timeB - timeA;
         });
 
+        // 檢查是否已列印鎖定
+        const item = allItems.find(i => i.id === itemId);
+        const round = item?.rounds.find(r => r.id === roundId);
+        const isPrinted = round?.keys_printed === true;
+        
+        if (isPrinted) {
+            document.getElementById('btnGenerateKeys').disabled = true;
+            document.getElementById('generateKeysCount').disabled = true;
+            document.getElementById('btnDestroyAllKeys').style.display = 'inline-block';
+            document.getElementById('btnPrintBallots').style.display = 'inline-block';
+            document.getElementById('generateKeyHint').innerHTML = '<strong class="text-danger"><i class="fas fa-lock"></i> 產生金鑰功能已鎖定，因為選票已經列印。若要重新配發，請先銷毀所有未使用金鑰。</strong>';
+        } else {
+            document.getElementById('btnGenerateKeys').disabled = false;
+            document.getElementById('generateKeysCount').disabled = false;
+            document.getElementById('btnDestroyAllKeys').style.display = 'none';
+            document.getElementById('btnPrintBallots').style.display = currentKeys.length > 0 ? 'inline-block' : 'none';
+            document.getElementById('generateKeyHint').innerHTML = '系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦執行列印，將會鎖定產生功能，避免印出的選票失效。</strong>';
+        }
+
         renderKeysTable();
 
     } catch (error) {
@@ -1247,12 +1266,11 @@ function renderKeysTable() {
     });
 }
 
-// 產生隨機六碼英數
+// 產生隨機八碼純數字
 function generateRandomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除容易混淆的 I, O, 0, 1
     let result = '';
-    for (let i = 0; i < 6; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 8; i++) {
+        result += Math.floor(Math.random() * 10).toString();
     }
     return result;
 }
@@ -1317,33 +1335,191 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 匯出金鑰 CSV
-    document.getElementById('btnDownloadKeys')?.addEventListener('click', () => {
+    // 列印實體選票 (A4套印)
+    document.getElementById('btnPrintBallots')?.addEventListener('click', async () => {
         if (currentKeys.length === 0) {
-            Swal.fire('提示', '目前沒有金鑰可供匯出', 'info');
+            Swal.fire('提示', '目前沒有金鑰可供列印', 'info');
             return;
         }
 
-        // 只匯出可使用的金鑰
         const validKeys = currentKeys.filter(k => k.status === 'VALID');
-        
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-        csvContent += "序號,金鑰代碼,狀態,備註\n";
+        if (validKeys.length === 0) {
+            Swal.fire('提示', '沒有狀態為「可使用」的金鑰', 'info');
+            return;
+        }
 
-        validKeys.forEach((k, index) => {
-            csvContent += `${index + 1},${k.code},可使用,\n`;
-        });
+        const itemId = document.getElementById('manageKeysItemId').value;
+        const roundId = document.getElementById('manageKeysRoundId').value;
 
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        
-        const title = document.getElementById('manageKeysTitle').textContent;
-        link.setAttribute("download", `金鑰清單_${title}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // 鎖定狀態
+        try {
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+                keys_printed: true,
+                updatedAt: window.fs.serverTimestamp()
+            });
+
+            // 重新載入，套用鎖定UI
+            await loadItems();
+            await loadKeys(itemId, roundId);
+
+            // 呼叫列印函數 (稍後實作)
+            printBallotsA4(validKeys, itemId, roundId);
+
+        } catch (error) {
+            console.error('鎖定列印失敗', error);
+            Swal.fire('錯誤', '無法更新列印狀態', 'error');
+        }
     });
+
+    // 銷毀所有未使用金鑰解除鎖定
+    document.getElementById('btnDestroyAllKeys')?.addEventListener('click', () => {
+        Swal.fire({
+            title: '危險操作確認',
+            html: '<strong class="text-danger">這將會作廢本輪次所有「未使用」的金鑰！</strong><br>已印出的選票將全數失效，並且解除列印鎖定，允許您重新產生金鑰。<br>確定要執行嗎？',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '是的，全部銷毀',
+            cancelButtonText: '取消'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const { collection, query, where, getDocs, writeBatch, doc, updateDoc } = window.fs;
+                    const db = window.firebaseDb;
+                    
+                    const itemId = document.getElementById('manageKeysItemId').value;
+                    const roundId = document.getElementById('manageKeysRoundId').value;
+
+                    // 1. 找出所有 VALID 的金鑰
+                    const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+                    const q = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId), where('status', '==', 'VALID'));
+                    const snap = await getDocs(q);
+
+                    if (!snap.empty) {
+                        const batch = writeBatch(db);
+                        snap.forEach(d => {
+                            batch.update(d.ref, { status: 'INVALID', updatedAt: window.fs.serverTimestamp() });
+                        });
+                        await batch.commit();
+                    }
+
+                    // 2. 解除 keys_printed 鎖定
+                    await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+                        keys_printed: false,
+                        updatedAt: window.fs.serverTimestamp()
+                    });
+
+                    Swal.fire('成功', '所有未使用金鑰已銷毀，列印鎖定已解除。', 'success');
+                    
+                    await loadItems();
+                    await loadKeys(itemId, roundId);
+
+                } catch (error) {
+                    console.error('銷毀失敗', error);
+                    Swal.fire('錯誤', '銷毀失敗: ' + error.message, 'error');
+                }
+            }
+        });
+    });
+});
+
+function printBallotsA4(validKeys, itemId, roundId) {
+    const item = allItems.find(i => i.id === itemId);
+    const round = item?.rounds.find(r => r.id === roundId);
+    
+    // 建立列印用的隱藏 iframe 或新開視窗
+    const printWindow = window.open('', '_blank');
+    
+    // 載入 QR Code 生成庫 (使用 CDN)
+    let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>列印選票</title>
+        <style>
+            @page { size: A4 portrait; margin: 0; }
+            body { margin: 0; padding: 0; background: #fff; font-family: '微軟正黑體', sans-serif; }
+            .page { width: 210mm; height: 297mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 10mm; }
+            .ballot { width: 50%; height: 50%; padding: 10mm; box-sizing: border-box; border: 1px dashed #ccc; position: relative; overflow: hidden; }
+            .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.15; z-index: 0; pointer-events: none; }
+            .content { position: relative; z-index: 1; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+            .header h3 { margin: 0 0 5px 0; font-size: 20px; color: #333; }
+            .header h2 { margin: 0 0 10px 0; font-size: 26px; color: #000; }
+            .header h4 { margin: 0; font-size: 18px; color: #555; }
+            .qr-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; margin: 15px 0; }
+            .qr-code { width: 150px; height: 150px; }
+            .footer { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 2px solid #333; }
+            .footer span { font-size: 16px; color: #666; display: block; margin-bottom: 5px; }
+            .footer strong { font-size: 32px; letter-spacing: 5px; color: #000; }
+            .hint { font-size: 14px; margin-top: 10px; font-weight: bold; }
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    </head>
+    <body>
+    `;
+
+    // 生成每一頁 (4張選票一頁)
+    for (let i = 0; i < validKeys.length; i += 4) {
+        html += '<div class="page">';
+        for (let j = 0; j < 4; j++) {
+            if (i + j < validKeys.length) {
+                const k = validKeys[i + j];
+                const voteUrl = \`\${window.location.origin}/voter.html?eid=\${currentElectionId}&key=\${k.code}\`;
+                
+                const sealHtml = currentOrgData?.seal_url ? \`<img src="\${currentOrgData.seal_url}" class="watermark">\` : '';
+                
+                html += \`
+                <div class="ballot">
+                    \${sealHtml}
+                    <div class="content">
+                        <div class="header">
+                            <h3>\${currentOrgData?.name || '教會機構'}</h3>
+                            <h2>\${currentElectionData?.name || '選舉'}</h2>
+                            <h4>\${item?.title} - \${round?.title}</h4>
+                        </div>
+                        <div class="qr-container">
+                            <div id="qr-\${k.code}" class="qr-code"></div>
+                        </div>
+                        <div class="footer">
+                            <span>請掃描上方 QR Code 或於網頁輸入此金鑰</span>
+                            <strong>\${k.code}</strong>
+                        </div>
+                        <div class="hint">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
+                    </div>
+                </div>
+                <script>
+                    setTimeout(() => {
+                        new QRCode(document.getElementById("qr-\${k.code}"), {
+                            text: "\${voteUrl}",
+                            width: 150,
+                            height: 150,
+                            colorDark : "#000000",
+                            colorLight : "#ffffff",
+                            correctLevel : QRCode.CorrectLevel.M
+                        });
+                    }, 100);
+                </script>
+                \`;
+            }
+        }
+        html += '</div>';
+    }
+
+    html += \`
+    <script>
+        // 等待 QR Code 渲染完成後自動列印
+        setTimeout(() => {
+            window.print();
+        }, 1000);
+    </script>
+    </body></html>\`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+}
 });
 
 window.invalidateKey = function(keyId) {
