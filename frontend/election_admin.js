@@ -47,6 +47,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
 });
 
+// 全域選舉啟動邏輯
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('confirmStartElectionBtn')?.addEventListener('click', async () => {
+        try {
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+            
+            const btn = document.getElementById('confirmStartElectionBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 啟動中...';
+
+            const baseElement = document.querySelector('input[name="globalQuorumBase"]:checked');
+            const quorumBase = baseElement ? baseElement.value : 'ATTENDING';
+            const initAttending = parseInt(document.getElementById('globalInitAttending').value) || null;
+
+            // 檢查是否有至少一個項次與一輪
+            if (allItems.length === 0) {
+                throw new Error("請先建立至少一個選舉項次！");
+            }
+
+            await updateDoc(doc(db, 'elections', currentElectionId), {
+                status: 'ACTIVE',
+                quorum_base: quorumBase,
+                init_attending_count: initAttending,
+                updatedAt: window.fs.serverTimestamp()
+            });
+
+            Swal.fire('啟動成功', '選舉已正式啟動！資料已全域鎖定。', 'success').then(() => {
+                window.location.reload();
+            });
+
+        } catch (error) {
+            console.error("啟動選舉失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+            const btn = document.getElementById('confirmStartElectionBtn');
+            btn.disabled = false;
+            btn.innerHTML = '確認啟動';
+        }
+    });
+});
+
 function initSystem() {
     window.onAuthStateChanged(window.firebaseAuth, async (user) => {
         if (user) {
@@ -106,9 +147,40 @@ async function loadElectionData() {
             document.getElementById('orgNameBadge').textContent = currentOrgData.name;
         }
 
-        // 4. 更新畫面文字
+        // 4. 更新畫面文字與狀態
         document.getElementById('sidebarElectionName').textContent = currentElectionData.name;
         document.getElementById('pageTitle').textContent = `管理：${currentElectionData.name}`;
+
+        const status = currentElectionData.status || 'PENDING';
+        const statusBadge = document.getElementById('globalElectionStatusBadge');
+        const startBtn = document.getElementById('btnStartElectionGlobal');
+        
+        if (status === 'PENDING') {
+            statusBadge.textContent = '準備中';
+            statusBadge.className = 'badge bg-secondary me-2';
+            startBtn.style.display = 'inline-block';
+        } else {
+            statusBadge.textContent = status === 'ACTIVE' ? '投票中' : (status === 'CLOSED' ? '開票中' : '結果發布');
+            statusBadge.className = status === 'ACTIVE' ? 'badge bg-success me-2' : 'badge bg-warning text-dark me-2';
+            startBtn.style.display = 'none';
+        }
+
+        // 防呆保護：若已經啟動，隱藏匯入與新增按鈕
+        if (status !== 'PENDING') {
+            const importBtn = document.getElementById('btnExcelImport');
+            if (importBtn) importBtn.style.display = 'none';
+            const clearBtn = document.getElementById('btnDeleteAllCandidates');
+            if (clearBtn) clearBtn.style.display = 'none';
+            
+            // 加入選舉保護橫幅 (已在先前的 PR 實作過，確保安全)
+            if (!document.getElementById('electionProtectedBanner')) {
+                const alertDiv = document.createElement('div');
+                alertDiv.id = 'electionProtectedBanner';
+                alertDiv.className = 'alert alert-danger mb-3';
+                alertDiv.innerHTML = '<i class="fas fa-lock"></i> <strong>系統已鎖定：</strong> 選舉已正式啟動，為了防止資料錯亂，禁止再從 Excel 匯入或刪除現有候選人資料。';
+                document.getElementById('section-candidates').prepend(alertDiv);
+            }
+        }
 
         // 5. 載入子集合資料
         await loadCandidates();
@@ -524,8 +596,10 @@ function renderItemsAccordion() {
                         <span class="badge bg-${statusColor} ms-2">${statusText}</span>
                     </div>
                     <div>
-                        <button class="btn btn-sm btn-outline-primary" onclick="openRoundCandidates('${item.id}', '${round.id}')">調整名單 (${round.candidate_ids ? round.candidate_ids.length : 0}人)</button>
-                        <button class="btn btn-sm btn-success" onclick="startRound('${item.id}', '${round.id}')" ${round.status !== 'PENDING' ? 'disabled' : ''}>開始投票</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="openKeyManagement('${item.id}', '${round.id}')"><i class="fas fa-key"></i> 金鑰</button>
+                        <button class="btn btn-sm btn-outline-primary ms-1" onclick="openRoundCandidates('${item.id}', '${round.id}')">調整名單 (${round.candidate_ids ? round.candidate_ids.length : 0}人)</button>
+                        <button class="btn btn-sm btn-success ms-1" onclick="startRound('${item.id}', '${round.id}')" ${round.status !== 'PENDING' ? 'disabled' : ''}>開始投票</button>
+                        <button class="btn btn-sm btn-info text-white ms-1" onclick="openTallyCenter('${item.id}', '${round.id}')" style="display: ${round.status !== 'PENDING' ? 'inline-block' : 'none'};">開票中心</button>
                     </div>
                 </div>
             `;
@@ -862,4 +936,970 @@ document.getElementById('btnGeneratePreview').addEventListener('click', () => {
     }
 
     document.getElementById('ballotPreviewContainer').style.display = 'block';
+});
+
+// ==========================================
+// 輪次微調名單 (Shuttle Box 雙欄穿梭)
+// ==========================================
+window.openRoundCandidates = function(itemId, roundId) {
+    const item = allItems.find(i => i.id === itemId);
+    if (!item) return;
+    const round = item.rounds.find(r => r.id === roundId);
+    if (!round) return;
+
+    // 檢查全域選舉是否鎖定，或者該輪次是否鎖定
+    const globalStatus = currentElectionData.status || 'PENDING';
+    if (globalStatus !== 'PENDING' && round.status !== 'PENDING') {
+        Swal.fire('系統鎖定', '該輪次已開始或已結束，無法再微調名單！', 'warning');
+        return;
+    }
+
+    document.getElementById('adjustRoundTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
+    document.getElementById('adjustItemId').value = itemId;
+    document.getElementById('adjustRoundId').value = roundId;
+
+    const selectedIds = round.candidate_ids || [];
+    const forceId = item.forced_candidate_id || null;
+    
+    // 清空並重建清單
+    const listSelected = document.getElementById('listSelected');
+    const listUnselected = document.getElementById('listUnselected');
+    listSelected.innerHTML = '';
+    listUnselected.innerHTML = '';
+
+    // 解析允許資格 (若有)
+    let allowedQuals = [];
+    if (item.qualifications) {
+        allowedQuals = item.qualifications.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    allCandidates.forEach(c => {
+        // 基本過濾：如果沒有包含資格，就不顯示
+        if (allowedQuals.length > 0 && c.qualification && !allowedQuals.includes(c.qualification)) {
+            return;
+        }
+
+        // 判斷狀態
+        let isSelected = selectedIds.includes(c.id);
+        let isDisabled = false;
+        let badgeHtml = '';
+
+        if (c.is_ineligible) {
+            isSelected = false;
+            isDisabled = true;
+            badgeHtml = '<span class="badge bg-danger float-end">不可被選</span>';
+        } else if (c.id === forceId) {
+            isSelected = true;
+            isDisabled = true;
+            badgeHtml = '<span class="badge bg-warning text-dark float-end">保障名額</span>';
+        } else if (c.elected_item && item.exclude_elected) {
+            // 如果該項次設定排除已當選者，且該人已經有當選頭銜
+            isSelected = false;
+            isDisabled = true;
+            badgeHtml = `<span class="badge bg-secondary float-end">已當選: ${c.elected_item}</span>`;
+        }
+
+        const li = document.createElement('li');
+        li.className = `list-group-item d-flex justify-content-between align-items-center ${isDisabled ? 'disabled' : ''}`;
+        li.dataset.id = c.id;
+        li.innerHTML = `
+            <div>
+                <span class="text-primary me-2 fw-bold">${c.number || ''}</span>
+                <span>${c.name}</span>
+                ${c.district ? `<small class="text-muted ms-2">[${c.district}]</small>` : ''}
+            </div>
+            ${badgeHtml}
+        `;
+
+        if (!isDisabled) {
+            li.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        }
+
+        if (isSelected) {
+            listSelected.appendChild(li);
+        } else {
+            listUnselected.appendChild(li);
+        }
+    });
+
+    updateShuttleCounts();
+    document.getElementById('searchSelected').value = '';
+    document.getElementById('searchUnselected').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('adjustRoundCandidatesModal'));
+    modal.show();
+};
+
+function updateShuttleCounts() {
+    // 只計算沒有被 display: none 的數量 (雖然搜尋時會隱藏，但計數應為全量，這裡計算所有 DOM element)
+    document.getElementById('countSelected').textContent = document.querySelectorAll('#listSelected .list-group-item').length;
+    document.getElementById('countUnselected').textContent = document.querySelectorAll('#listUnselected .list-group-item').length;
+}
+
+// 穿梭框按鈕綁定
+document.addEventListener('DOMContentLoaded', () => {
+    // 搜尋功能
+    const setupSearch = (inputId, listId) => {
+        document.getElementById(inputId)?.addEventListener('input', function(e) {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll(`#${listId} .list-group-item`).forEach(li => {
+                const text = li.textContent.toLowerCase();
+                li.style.display = text.includes(term) ? '' : 'none';
+            });
+        });
+    };
+    setupSearch('searchSelected', 'listSelected');
+    setupSearch('searchUnselected', 'listUnselected');
+
+    // 移出所選 (左到右)
+    document.getElementById('btnMoveToRight')?.addEventListener('click', () => {
+        const selected = document.querySelectorAll('#listSelected .list-group-item.active:not(.disabled)');
+        const targetList = document.getElementById('listUnselected');
+        selected.forEach(li => {
+            li.classList.remove('active');
+            targetList.appendChild(li);
+        });
+        updateShuttleCounts();
+    });
+
+    // 全部移出 (左到右)
+    document.getElementById('btnMoveAllToRight')?.addEventListener('click', () => {
+        const all = document.querySelectorAll('#listSelected .list-group-item:not(.disabled)');
+        const targetList = document.getElementById('listUnselected');
+        all.forEach(li => {
+            li.classList.remove('active');
+            targetList.appendChild(li);
+        });
+        updateShuttleCounts();
+    });
+
+    // 移入所選 (右到左)
+    document.getElementById('btnMoveToLeft')?.addEventListener('click', () => {
+        const selected = document.querySelectorAll('#listUnselected .list-group-item.active:not(.disabled)');
+        const targetList = document.getElementById('listSelected');
+        selected.forEach(li => {
+            li.classList.remove('active');
+            targetList.appendChild(li);
+        });
+        updateShuttleCounts();
+    });
+
+    // 全部移入 (右到左)
+    document.getElementById('btnMoveAllToLeft')?.addEventListener('click', () => {
+        const all = document.querySelectorAll('#listUnselected .list-group-item:not(.disabled)');
+        const targetList = document.getElementById('listSelected');
+        all.forEach(li => {
+            li.classList.remove('active');
+            targetList.appendChild(li);
+        });
+        updateShuttleCounts();
+    });
+
+    // 儲存按鈕
+    document.getElementById('saveRoundCandidatesBtn')?.addEventListener('click', async () => {
+        const itemId = document.getElementById('adjustItemId').value;
+        const roundId = document.getElementById('adjustRoundId').value;
+        const btn = document.getElementById('saveRoundCandidatesBtn');
+        
+        // 抓取左欄所有 ID
+        const finalIds = Array.from(document.querySelectorAll('#listSelected .list-group-item')).map(li => li.dataset.id);
+        
+        try {
+            btn.disabled = true;
+            btn.textContent = '儲存中...';
+            
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+            
+            // 找到該 item，更新 rounds 陣列中的 candidate_ids
+            const item = allItems.find(i => i.id === itemId);
+            const rounds = [...item.rounds];
+            const roundIndex = rounds.findIndex(r => r.id === roundId);
+            rounds[roundIndex].candidate_ids = finalIds;
+            
+            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
+                rounds: rounds,
+                updatedAt: window.fs.serverTimestamp()
+            });
+            
+            Swal.fire('儲存成功', '輪次候選名單已更新', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('adjustRoundCandidatesModal')).hide();
+            
+            // 重新載入 items 並更新畫面
+            await loadItems();
+            
+        } catch (error) {
+            console.error("儲存輪次名單失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '儲存輪次名單';
+        }
+    });
+});
+
+// ==========================================
+// 金鑰管理模組
+// ==========================================
+
+let currentKeys = [];
+
+window.openKeyManagement = async function(itemId, roundId) {
+    const item = allItems.find(i => i.id === itemId);
+    if (!item) return;
+    const round = item.rounds.find(r => r.id === roundId);
+    if (!round) return;
+
+    document.getElementById('manageKeysTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
+    document.getElementById('manageKeysItemId').value = itemId;
+    document.getElementById('manageKeysRoundId').value = roundId;
+
+    // 預設發放數量為全域設定的出席人數 (如果有)
+    const defaultCount = currentElectionData.init_attending_count || '';
+    document.getElementById('generateKeysCount').value = defaultCount;
+
+    const modal = new bootstrap.Modal(document.getElementById('manageKeysModal'));
+    modal.show();
+
+    await loadKeys(itemId, roundId);
+};
+
+async function loadKeys(itemId, roundId) {
+    const { collection, query, where, getDocs } = window.fs;
+    const db = window.firebaseDb;
+
+    const tbody = document.getElementById('keysTableBody');
+    tbody.innerHTML = '<tr><td colspan="4" class="text-muted py-3">載入中...</td></tr>';
+
+    try {
+        const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+        const q = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
+        const snap = await getDocs(q);
+
+        currentKeys = [];
+        let issued = 0;
+        let used = 0;
+        let invalid = 0;
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            currentKeys.push({ id: doc.id, ...data });
+            if (data.status === 'VALID') issued++;
+            else if (data.status === 'USED') used++;
+            else if (data.status === 'INVALID') invalid++;
+        });
+
+        // 更新統計數字 (已發放包含已使用，所以是 VALID + USED)
+        document.getElementById('statKeysIssued').textContent = issued + used;
+        document.getElementById('statKeysUsed').textContent = used;
+        document.getElementById('statKeysInvalid').textContent = invalid;
+
+        // 依據時間排序 (新的在前)
+        currentKeys.sort((a, b) => {
+            const timeA = a.created_at?.toMillis() || 0;
+            const timeB = b.created_at?.toMillis() || 0;
+            return timeB - timeA;
+        });
+
+        renderKeysTable();
+
+    } catch (error) {
+        console.error("載入金鑰失敗:", error);
+        tbody.innerHTML = `<tr><td colspan="4" class="text-danger py-3">載入失敗: ${error.message}</td></tr>`;
+    }
+}
+
+function renderKeysTable() {
+    const tbody = document.getElementById('keysTableBody');
+    tbody.innerHTML = '';
+
+    if (currentKeys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-muted py-3">目前尚無金鑰，請使用上方功能產生。</td></tr>';
+        return;
+    }
+
+    currentKeys.forEach(k => {
+        let statusBadge = '';
+        let actionBtn = '';
+        if (k.status === 'VALID') {
+            statusBadge = '<span class="badge bg-success">可使用</span>';
+            actionBtn = `<button class="btn btn-sm btn-danger" onclick="invalidateKey('${k.id}')">作廢</button>`;
+        } else if (k.status === 'USED') {
+            statusBadge = '<span class="badge bg-secondary">已投票</span>';
+            actionBtn = `<button class="btn btn-sm btn-outline-secondary" disabled>無法修改</button>`;
+        } else {
+            statusBadge = '<span class="badge bg-danger">已作廢</span>';
+            actionBtn = `<button class="btn btn-sm btn-outline-secondary" disabled>已作廢</button>`;
+        }
+
+        const dateStr = k.created_at ? new Date(k.created_at.toMillis()).toLocaleString() : '剛剛';
+
+        tbody.innerHTML += `
+            <tr>
+                <td class="fw-bold font-monospace text-primary fs-5">${k.code}</td>
+                <td>${statusBadge}</td>
+                <td>${dateStr}</td>
+                <td>${actionBtn}</td>
+            </tr>
+        `;
+    });
+}
+
+// 產生隨機六碼英數
+function generateRandomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除容易混淆的 I, O, 0, 1
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 批次產生金鑰
+    document.getElementById('btnGenerateKeys')?.addEventListener('click', async () => {
+        const count = parseInt(document.getElementById('generateKeysCount').value);
+        if (!count || count <= 0) {
+            Swal.fire('錯誤', '請輸入有效的發放數量', 'error');
+            return;
+        }
+
+        const itemId = document.getElementById('manageKeysItemId').value;
+        const roundId = document.getElementById('manageKeysRoundId').value;
+        const btn = document.getElementById('btnGenerateKeys');
+
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 產生中...';
+
+            const { collection, doc, writeBatch } = window.fs;
+            const db = window.firebaseDb;
+            const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+            
+            // Firebase Batch 最多 500 筆，超過需分批，這裡簡單處理，一般選舉不太會單輪超過500
+            if (count > 450) {
+                throw new Error("單次最多產生 450 組金鑰，請分批操作。");
+            }
+
+            const batch = writeBatch(db);
+            const newKeys = [];
+
+            for (let i = 0; i < count; i++) {
+                const newRef = doc(keysRef); // 自動生成 ID
+                const code = generateRandomCode();
+                batch.set(newRef, {
+                    code: code,
+                    item_id: itemId,
+                    round_id: roundId,
+                    status: 'VALID',
+                    created_at: window.fs.serverTimestamp(),
+                    used_at: null
+                });
+                newKeys.push(code);
+            }
+
+            await batch.commit();
+
+            Swal.fire('產生成功', `已成功產生 ${count} 組金鑰！`, 'success');
+            document.getElementById('generateKeysCount').value = '';
+            
+            // 重新載入
+            await loadKeys(itemId, roundId);
+
+        } catch (error) {
+            console.error("產生金鑰失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '產生金鑰';
+        }
+    });
+
+    // 匯出金鑰 CSV
+    document.getElementById('btnDownloadKeys')?.addEventListener('click', () => {
+        if (currentKeys.length === 0) {
+            Swal.fire('提示', '目前沒有金鑰可供匯出', 'info');
+            return;
+        }
+
+        // 只匯出可使用的金鑰
+        const validKeys = currentKeys.filter(k => k.status === 'VALID');
+        
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        csvContent += "序號,金鑰代碼,狀態,備註\n";
+
+        validKeys.forEach((k, index) => {
+            csvContent += `${index + 1},${k.code},可使用,\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        
+        const title = document.getElementById('manageKeysTitle').textContent;
+        link.setAttribute("download", `金鑰清單_${title}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+});
+
+window.invalidateKey = function(keyId) {
+    Swal.fire({
+        title: '確定要作廢此金鑰嗎？',
+        text: "作廢後該金鑰將無法用於投票，此操作無法復原！",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: '確定作廢',
+        cancelButtonText: '取消'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const { doc, updateDoc } = window.fs;
+                const db = window.firebaseDb;
+                
+                await updateDoc(doc(db, 'elections', currentElectionId, 'keys', keyId), {
+                    status: 'INVALID',
+                    updatedAt: window.fs.serverTimestamp()
+                });
+                
+                const itemId = document.getElementById('manageKeysItemId').value;
+                const roundId = document.getElementById('manageKeysRoundId').value;
+                await loadKeys(itemId, roundId);
+
+            } catch (error) {
+                console.error("作廢失敗:", error);
+                Swal.fire('錯誤', '作廢失敗: ' + error.message, 'error');
+            }
+        }
+    });
+};
+
+// ==========================================
+// 開票中心模組 (Tally Center)
+// ==========================================
+
+let currentTallyData = {
+    itemId: null,
+    roundId: null,
+    candidates: [],
+    digitalIssued: 0,
+    digitalUsed: 0,
+    digitalVotesMap: {}
+};
+
+window.openTallyCenter = async function(itemId, roundId) {
+    const item = allItems.find(i => i.id === itemId);
+    const round = item?.rounds.find(r => r.id === roundId);
+    if (!item || !round) return;
+
+    currentTallyData.itemId = itemId;
+    currentTallyData.roundId = roundId;
+    currentTallyData.candidates = [];
+    currentTallyData.digitalVotesMap = {};
+
+    document.getElementById('tallyTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
+    document.getElementById('tallyItemId').value = itemId;
+    document.getElementById('tallyRoundId').value = roundId;
+    document.getElementById('tallyQuota').textContent = item.quota || 0;
+
+    // 狀態設定
+    const badge = document.getElementById('tallyStatusBadge');
+    const btnEnd = document.getElementById('btnEndVoting');
+    const btnReopen = document.getElementById('btnReopenVoting');
+    const btnPublish = document.getElementById('btnPublishTally');
+
+    if (round.status === 'ACTIVE') {
+        badge.textContent = '狀態：投票進行中';
+        badge.className = 'badge bg-success me-3 fs-6';
+        btnEnd.style.display = 'inline-block';
+        btnReopen.style.display = 'none';
+        btnPublish.disabled = true;
+    } else if (round.status === 'CLOSED') {
+        badge.textContent = '狀態：開票結算中';
+        badge.className = 'badge bg-warning text-dark me-3 fs-6';
+        btnEnd.style.display = 'none';
+        btnReopen.style.display = 'inline-block';
+        btnPublish.disabled = false;
+    } else {
+        badge.textContent = '狀態：結果已發布';
+        badge.className = 'badge bg-secondary me-3 fs-6';
+        btnEnd.style.display = 'none';
+        btnReopen.style.display = 'none';
+        btnPublish.disabled = true; // 已經發布過了
+    }
+
+    // 參數預設值
+    document.getElementById('tallyQuorumBase').value = round.quorum_base || currentElectionData.quorum_base || 'ATTENDING';
+    document.getElementById('tallyAttendingCount').value = round.attending_count || currentElectionData.init_attending_count || 0;
+    document.getElementById('tallyPaperIssued').value = round.paper_issued || 0;
+
+    const modal = new bootstrap.Modal(document.getElementById('tallyCenterModal'));
+    modal.show();
+
+    // 非同步載入金鑰統計與數位選票
+    await loadTallyStats(itemId, roundId);
+    
+    // 取得候選人清單
+    const candidateIds = round.candidate_ids || [];
+    currentTallyData.candidates = allCandidates.filter(c => candidateIds.includes(c.id)).map(c => {
+        const digi = currentTallyData.digitalVotesMap[c.id] || 0;
+        const paper = (round.paper_votes && round.paper_votes[c.id]) ? parseInt(round.paper_votes[c.id]) : 0;
+        const isElected = round.elected_ids ? round.elected_ids.includes(c.id) : false;
+        return {
+            ...c,
+            digital_votes: digi,
+            paper_votes: paper,
+            total_votes: digi + paper,
+            is_elected: isElected
+        };
+    });
+
+    updateTallyThreshold();
+    renderTallyTable();
+};
+
+async function loadTallyStats(itemId, roundId) {
+    const { collection, query, where, getDocs } = window.fs;
+    const db = window.firebaseDb;
+
+    // 1. 取得金鑰統計
+    const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+    const qKeys = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
+    const snapKeys = await getDocs(qKeys);
+    
+    let issued = 0, used = 0;
+    snapKeys.forEach(doc => {
+        const d = doc.data();
+        if (d.status === 'VALID' || d.status === 'USED') issued++;
+        if (d.status === 'USED') used++;
+    });
+    
+    currentTallyData.digitalIssued = issued;
+    currentTallyData.digitalUsed = used;
+    
+    document.getElementById('tallyDigitalIssued').textContent = issued;
+    document.getElementById('tallyDigitalUsed').textContent = used;
+
+    // 2. 取得選票統計 (分組計算每個人的得票)
+    // 註：這需要後端實際有寫入 votes 集合
+    currentTallyData.digitalVotesMap = {};
+    const votesRef = collection(db, 'elections', currentElectionId, 'votes');
+    const qVotes = query(votesRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
+    const snapVotes = await getDocs(qVotes);
+    
+    snapVotes.forEach(doc => {
+        const d = doc.data();
+        if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
+            d.candidate_ids.forEach(cid => {
+                if (!currentTallyData.digitalVotesMap[cid]) {
+                    currentTallyData.digitalVotesMap[cid] = 0;
+                }
+                currentTallyData.digitalVotesMap[cid]++;
+            });
+        }
+    });
+}
+
+function updateTallyThreshold() {
+    const baseType = document.getElementById('tallyQuorumBase').value;
+    const attending = parseInt(document.getElementById('tallyAttendingCount').value) || 0;
+    const digitalUsed = currentTallyData.digitalUsed || 0;
+    const paperIssued = parseInt(document.getElementById('tallyPaperIssued').value) || 0;
+    
+    let baseNumber = 0;
+    let formulaText = "";
+
+    if (baseType === 'ATTENDING') {
+        baseNumber = attending;
+        formulaText = `(${attending} / 2) + 1`;
+    } else {
+        baseNumber = digitalUsed + paperIssued;
+        formulaText = `(${digitalUsed} 數位 + ${paperIssued} 紙本) / 2 + 1`;
+    }
+
+    const threshold = Math.floor(baseNumber / 2) + 1;
+    document.getElementById('tallyThreshold').textContent = threshold;
+    document.getElementById('tallyThresholdFormula').textContent = formulaText;
+
+    // 觸發重新繪製表格以更新過半標示
+    renderTallyTable(threshold);
+}
+
+// 監聽輸入框變更以即時更新門檻
+document.addEventListener('DOMContentLoaded', () => {
+    ['tallyQuorumBase', 'tallyAttendingCount', 'tallyPaperIssued'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', updateTallyThreshold);
+        document.getElementById(id)?.addEventListener('change', updateTallyThreshold);
+    });
+});
+
+function renderTallyTable(threshold) {
+    if (threshold === undefined) {
+        threshold = parseInt(document.getElementById('tallyThreshold').textContent) || 0;
+    }
+
+    const tbody = document.getElementById('tallyTableBody');
+    tbody.innerHTML = '';
+
+    if (currentTallyData.candidates.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-muted py-5">此輪次尚無候選人</td></tr>';
+        return;
+    }
+
+    currentTallyData.candidates.forEach((c, index) => {
+        const isPassed = c.total_votes >= threshold;
+        const passBadge = isPassed ? '<span class="badge bg-danger"><i class="fas fa-check"></i> 達標</span>' : '<span class="badge bg-secondary">未過半</span>';
+        
+        // 判斷是否為保障名額
+        const item = allItems.find(i => i.id === currentTallyData.itemId);
+        const isForced = item && item.forced_candidate_id === c.id;
+        const forceBadge = isForced ? '<br><span class="badge bg-warning text-dark mt-1">保障名額</span>' : '';
+
+        // 取出目前的紙本得票 (供綁定 input)
+        const paperVal = c.paper_votes || 0;
+        
+        tbody.innerHTML += `
+            <tr data-id="${c.id}">
+                <td class="fw-bold">${c.number || ''}</td>
+                <td>
+                    <div class="fw-bold fs-6">${c.name}</div>
+                    ${c.district ? `<small class="text-muted">[${c.district}]</small>` : ''}
+                    ${forceBadge}
+                </td>
+                <td class="fs-5 text-secondary">${c.digital_votes}</td>
+                <td>
+                    <input type="number" class="form-control form-control-sm text-center border-success paper-vote-input" 
+                           data-id="${c.id}" value="${paperVal}" min="0" style="width: 80px; margin: 0 auto;">
+                </td>
+                <td class="fs-4 fw-bold text-primary total-vote-display">${c.total_votes}</td>
+                <td>${passBadge}</td>
+                <td>
+                    <div class="form-check d-flex justify-content-center">
+                        <input class="form-check-input elected-checkbox" type="checkbox" data-id="${c.id}" 
+                               style="transform: scale(1.5);" ${c.is_elected ? 'checked' : ''}>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    // 綁定紙本票數輸入事件以即時加總
+    document.querySelectorAll('.paper-vote-input').forEach(input => {
+        input.addEventListener('input', function() {
+            const cid = this.dataset.id;
+            const cand = currentTallyData.candidates.find(c => c.id === cid);
+            if (cand) {
+                cand.paper_votes = parseInt(this.value) || 0;
+                cand.total_votes = cand.digital_votes + cand.paper_votes;
+                this.closest('tr').querySelector('.total-vote-display').textContent = cand.total_votes;
+                // 延遲一點重新繪製，避免打字中斷，這裡採用單純更新 DOM 或呼叫 render
+                // 若要精確過半標記，應該重新 render，但會打斷 input focus。所以簡單處理。
+                const isPassed = cand.total_votes >= threshold;
+                const passTd = this.closest('tr').children[5];
+                passTd.innerHTML = isPassed ? '<span class="badge bg-danger"><i class="fas fa-check"></i> 達標</span>' : '<span class="badge bg-secondary">未過半</span>';
+            }
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 排序功能
+    document.getElementById('btnSortTally')?.addEventListener('click', () => {
+        currentTallyData.candidates.sort((a, b) => b.total_votes - a.total_votes);
+        renderTallyTable();
+    });
+
+    // 結束數位投票
+    document.getElementById('btnEndVoting')?.addEventListener('click', async () => {
+        await updateRoundStatus('CLOSED', '結束投票將鎖定所有數位金鑰，確定繼續？');
+    });
+
+    // 重新開放
+    document.getElementById('btnReopenVoting')?.addEventListener('click', async () => {
+        await updateRoundStatus('ACTIVE', '確定要重新開放數位投票嗎？');
+    });
+
+    // 儲存開票數據
+    document.getElementById('btnSaveTallyResults')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btnSaveTallyResults');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
+
+        try {
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+
+            const itemId = currentTallyData.itemId;
+            const roundId = currentTallyData.roundId;
+            const item = allItems.find(i => i.id === itemId);
+            const roundIndex = item.rounds.findIndex(r => r.id === roundId);
+
+            const paperVotesMap = {};
+            const electedIds = [];
+
+            // 讀取當前畫面資料
+            document.querySelectorAll('.paper-vote-input').forEach(input => {
+                const val = parseInt(input.value) || 0;
+                if (val > 0) paperVotesMap[input.dataset.id] = val;
+            });
+            document.querySelectorAll('.elected-checkbox:checked').forEach(chk => {
+                electedIds.push(chk.dataset.id);
+            });
+
+            // 準備更新資料
+            const updatedRounds = [...item.rounds];
+            updatedRounds[roundIndex] = {
+                ...updatedRounds[roundIndex],
+                quorum_base: document.getElementById('tallyQuorumBase').value,
+                attending_count: parseInt(document.getElementById('tallyAttendingCount').value) || 0,
+                paper_issued: parseInt(document.getElementById('tallyPaperIssued').value) || 0,
+                paper_votes: paperVotesMap,
+                elected_ids: electedIds
+            };
+
+            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
+                rounds: updatedRounds,
+                updatedAt: window.fs.serverTimestamp()
+            });
+
+            Swal.fire('成功', '開票數據已儲存！', 'success');
+            await loadItems(); // 重新載入最新資料
+            
+        } catch (error) {
+            console.error("儲存失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> 儲存開票數據';
+        }
+    });
+
+    // 確定發布當選 (這個動作會將當選人寫回 candidates)
+    document.getElementById('btnPublishTally')?.addEventListener('click', async () => {
+        const electedCheckboxes = document.querySelectorAll('.elected-checkbox:checked');
+        if (electedCheckboxes.length === 0) {
+            Swal.fire('警告', '您沒有勾選任何確認當選的候選人。若本輪無人當選，請直接儲存即可。', 'warning');
+            return;
+        }
+
+        Swal.fire({
+            title: '確定要發布當選名單嗎？',
+            text: `發布後，系統會將當選狀態寫回總表。請確定這是本輪最終結果。`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ffc107',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '是的，正式發布'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                // 先觸發一次儲存
+                document.getElementById('btnSaveTallyResults').click();
+                
+                // 等待一下讓儲存完成 (簡單做法)
+                setTimeout(async () => {
+                    try {
+                        const { doc, updateDoc, writeBatch } = window.fs;
+                        const db = window.firebaseDb;
+
+                        const itemId = currentTallyData.itemId;
+                        const roundId = currentTallyData.roundId;
+                        const item = allItems.find(i => i.id === itemId);
+                        const roundIndex = item.rounds.findIndex(r => r.id === roundId);
+
+                        // 更新狀態為 PUBLISHED
+                        const updatedRounds = [...item.rounds];
+                        updatedRounds[roundIndex].status = 'PUBLISHED';
+
+                        await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
+                            rounds: updatedRounds,
+                            updatedAt: window.fs.serverTimestamp()
+                        });
+
+                        // 寫回 candidates 總表
+                        const batch = writeBatch(db);
+                        electedCheckboxes.forEach(chk => {
+                            const cid = chk.dataset.id;
+                            const candRef = doc(db, 'elections', currentElectionId, 'candidates', cid);
+                            batch.update(candRef, {
+                                elected_item: item.title,
+                                updatedAt: window.fs.serverTimestamp()
+                            });
+                        });
+
+                        await batch.commit();
+
+                        Swal.fire('發布成功', '當選名單已發布並同步至資料庫。', 'success').then(() => {
+                            bootstrap.Modal.getInstance(document.getElementById('tallyCenterModal')).hide();
+                            // TODO: 這裡可以接續呼叫 Next Round Setup Wizard
+                            checkNextRoundWizard(itemId, roundId);
+                        });
+
+                    } catch (error) {
+                        console.error("發布失敗:", error);
+                        Swal.fire('錯誤', error.message, 'error');
+                    }
+                }, 1000);
+            }
+        });
+    });
+});
+
+async function updateRoundStatus(newStatus, confirmMsg) {
+    Swal.fire({
+        title: confirmMsg,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '確定',
+        cancelButtonText: '取消'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const { doc, updateDoc } = window.fs;
+                const db = window.firebaseDb;
+
+                const itemId = currentTallyData.itemId;
+                const roundId = currentTallyData.roundId;
+                const item = allItems.find(i => i.id === itemId);
+                const roundIndex = item.rounds.findIndex(r => r.id === roundId);
+
+                const updatedRounds = [...item.rounds];
+                updatedRounds[roundIndex].status = newStatus;
+
+                await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
+                    rounds: updatedRounds,
+                    updatedAt: window.fs.serverTimestamp()
+                });
+
+                Swal.fire('狀態更新成功', '', 'success');
+                await loadItems();
+                // 重新載入 Tally Center
+                openTallyCenter(itemId, roundId);
+                
+                
+            } catch (error) {
+                console.error("更新狀態失敗:", error);
+                Swal.fire('錯誤', error.message, 'error');
+            }
+        }
+    });
+}
+
+// ==========================================
+// 晉級下一輪設定嚮導 (Next Round Wizard)
+// ==========================================
+
+window.checkNextRoundWizard = async function(itemId, currentRoundId) {
+    const item = allItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    const roundIndex = item.rounds.findIndex(r => r.id === currentRoundId);
+    if (roundIndex === -1 || roundIndex === item.rounds.length - 1) {
+        // 沒有下一輪，或者找不到當前輪次
+        return;
+    }
+
+    const nextRound = item.rounds[roundIndex + 1];
+
+    // 重新載入最新候選人資料，確保 elected_item 是最新的
+    await loadCandidates();
+
+    // 計算已當選人數
+    const electedCount = allCandidates.filter(c => c.elected_item === item.title).length;
+    const remainingQuota = (item.quota || 0) - electedCount;
+
+    if (remainingQuota <= 0) {
+        Swal.fire('選舉結束', `【${item.title}】的應選名額 (${item.quota}名) 已滿，無須進行下一輪！`, 'success');
+        return;
+    }
+
+    // 顯示嚮導
+    document.getElementById('wizardItemId').value = itemId;
+    document.getElementById('wizardNextRoundId').value = nextRound.id;
+    
+    document.getElementById('wizardTotalQuota').textContent = item.quota || 0;
+    document.getElementById('wizardElectedCount').textContent = electedCount;
+    document.getElementById('wizardRemainingQuota').textContent = remainingQuota;
+
+    const modal = new bootstrap.Modal(document.getElementById('nextRoundWizardModal'));
+    modal.show();
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btnConfirmNextRound')?.addEventListener('click', async () => {
+        const itemId = document.getElementById('wizardItemId').value;
+        const nextRoundId = document.getElementById('wizardNextRoundId').value;
+        const filterType = document.querySelector('input[name="wizardFilterType"]:checked').value;
+        
+        const remainingQuota = parseInt(document.getElementById('wizardRemainingQuota').textContent) || 0;
+        
+        const btn = document.getElementById('btnConfirmNextRound');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 處理中...';
+
+        try {
+            // 從 currentTallyData 取得上一輪的候選人與得票排序
+            // (因為剛開票完，currentTallyData 內存有最新的計算結果)
+            let candidatesList = [...currentTallyData.candidates];
+            
+            // 排除已當選、或中途被設為不可被選者
+            candidatesList = candidatesList.filter(c => !c.is_elected && !c.is_ineligible);
+            
+            // 依得票數由高至低排序
+            candidatesList.sort((a, b) => b.total_votes - a.total_votes);
+
+            let limit = candidatesList.length; // 預設全部
+
+            if (filterType === 'MULTIPLY') {
+                const n = parseInt(document.getElementById('wizardFilterMultiplyN').value) || 2;
+                limit = remainingQuota * n;
+            } else if (filterType === 'ADD') {
+                const n = parseInt(document.getElementById('wizardFilterAddN').value) || 1;
+                limit = remainingQuota + n;
+            }
+
+            // 擷取前 limit 名
+            const nextRoundIds = candidatesList.slice(0, limit).map(c => c.id);
+
+            // 如果有保障名額，且該人尚未當選，確保他進入下一輪
+            const item = allItems.find(i => i.id === itemId);
+            if (item && item.forced_candidate_id) {
+                const forceCand = allCandidates.find(c => c.id === item.forced_candidate_id);
+                // 確定保障名額還沒當選
+                if (forceCand && forceCand.elected_item !== item.title) {
+                    if (!nextRoundIds.includes(forceCand.id)) {
+                        nextRoundIds.push(forceCand.id);
+                    }
+                }
+            }
+
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+
+            const updatedRounds = [...item.rounds];
+            const nextRoundIndex = updatedRounds.findIndex(r => r.id === nextRoundId);
+            updatedRounds[nextRoundIndex].candidate_ids = nextRoundIds;
+
+            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
+                rounds: updatedRounds,
+                updatedAt: window.fs.serverTimestamp()
+            });
+
+            Swal.fire('設定成功', `已將 ${nextRoundIds.length} 名候選人帶入下一輪！`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('nextRoundWizardModal')).hide();
+            
+            await loadItems();
+
+        } catch (error) {
+            console.error("產生下一輪名單失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '產生下一輪名單';
+        }
+    });
 });

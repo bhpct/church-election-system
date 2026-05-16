@@ -60,9 +60,31 @@
             justify-content: space-between;
             align-items: center;
         }
-        .nav-section { display: none; }
-        .nav-section.active { display: block; }
-        
+        .nav-section {
+            display: none;
+        }
+        .nav-section.active {
+            display: block;
+        }
+        /* Shuttle Box 樣式 */
+        .shuttle-list .list-group-item {
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .shuttle-list .list-group-item:hover:not(.disabled) {
+            background-color: #f8f9fa;
+        }
+        .shuttle-list .list-group-item.active {
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+            color: #495057;
+        }
+        .shuttle-list .list-group-item.disabled {
+            background-color: #e9ecef;
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
         .candidate-img-preview {
             width: 50px;
             height: 60px;
@@ -121,8 +143,10 @@
             <!-- 頂部導覽列 -->
             <div class="topbar">
                 <h4 class="m-0" id="pageTitle">載入中...</h4>
-                <div>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-secondary me-2" id="globalElectionStatusBadge">準備中</span>
                     <span class="badge bg-primary me-2" id="orgNameBadge">載入中</span>
+                    <button class="btn btn-sm btn-success" id="btnStartElectionGlobal" data-bs-toggle="modal" data-bs-target="#globalInitModal" style="display: none;"><i class="fas fa-play-circle"></i> 啟動選舉</button>
                 </div>
             </div>
 
@@ -433,6 +457,351 @@
   </div>
 </div>
 
+<!-- 開票中心 Modal -->
+<div class="modal fade" id="tallyCenterModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title"><i class="fas fa-chart-bar text-info"></i> 開票中心：<span id="tallyTitle"></span></h5>
+        <div class="ms-auto d-flex align-items-center">
+            <span class="badge bg-warning text-dark me-3 fs-6" id="tallyStatusBadge">狀態：載入中</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body bg-light">
+        <input type="hidden" id="tallyItemId">
+        <input type="hidden" id="tallyRoundId">
+        
+        <div class="row mb-3">
+            <!-- 左側：設定面板 -->
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-white fw-bold"><i class="fas fa-cog text-secondary"></i> 選務參數設定</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">過半計算基準</label>
+                            <select class="form-select border-primary" id="tallyQuorumBase">
+                                <option value="ATTENDING">以「出席人數」為準</option>
+                                <option value="BALLOTS">以「總發票數」為準</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-primary fw-bold">本輪出席人數</label>
+                            <input type="number" class="form-control" id="tallyAttendingCount" min="0">
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">數位投票統計 (自動)</label>
+                            <div class="d-flex justify-content-between text-muted small">
+                                <span>已發金鑰：<span id="tallyDigitalIssued">0</span></span>
+                                <span>已投票數：<span id="tallyDigitalUsed">0</span></span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-success fw-bold">紙本發票數 (手動)</label>
+                            <input type="number" class="form-control border-success" id="tallyPaperIssued" min="0" value="0">
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light text-center">
+                        <h5 class="mb-1">過半當選門檻</h5>
+                        <h1 class="text-danger fw-bold m-0" id="tallyThreshold">0</h1>
+                        <small class="text-muted" id="tallyThresholdFormula">(0 / 2) + 1</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：開票計分板 -->
+            <div class="col-md-9">
+                <div class="card shadow-sm h-100 border-info">
+                    <div class="card-header bg-info text-white fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-list-ol"></i> 候選人得票統計 (應選：<span id="tallyQuota">0</span> 名)</span>
+                        <button class="btn btn-sm btn-light text-info fw-bold" id="btnSortTally"><i class="fas fa-sort-amount-down"></i> 重新排序</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="height: 60vh; overflow-y: auto;">
+                            <table class="table table-hover table-striped align-middle text-center mb-0" id="tallyTable">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th width="10%">號次</th>
+                                        <th width="20%">姓名</th>
+                                        <th width="15%">數位得票</th>
+                                        <th width="15%" class="text-success">紙本得票 (輸入)</th>
+                                        <th width="15%" class="text-primary fs-5">總得票</th>
+                                        <th width="10%">過半</th>
+                                        <th width="15%" class="bg-warning">確認當選</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tallyTableBody">
+                                    <tr><td colspan="7" class="text-muted py-5">載入中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between bg-white">
+        <div>
+            <button type="button" class="btn btn-outline-danger" id="btnEndVoting" style="display: none;"><i class="fas fa-stop-circle"></i> 結束數位投票並鎖定</button>
+            <button type="button" class="btn btn-outline-success" id="btnReopenVoting" style="display: none;"><i class="fas fa-play-circle"></i> 重新開放數位投票</button>
+        </div>
+        <div>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">先關閉視窗</button>
+            <button type="button" class="btn btn-primary" id="btnSaveTallyResults"><i class="fas fa-save"></i> 儲存開票數據</button>
+            <button type="button" class="btn btn-warning fw-bold" id="btnPublishTally"><i class="fas fa-bullhorn"></i> 確定發布當選</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 金鑰管理 Modal -->
+<div class="modal fade" id="manageKeysModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-secondary text-white">
+        <h5 class="modal-title"><i class="fas fa-key"></i> 輪次金鑰管理：<span id="manageKeysTitle"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <input type="hidden" id="manageKeysItemId">
+        <input type="hidden" id="manageKeysRoundId">
+        
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="text-primary" id="statKeysIssued">0</h2>
+                        <p class="text-muted mb-0">已發放金鑰</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="text-success" id="statKeysUsed">0</h2>
+                        <p class="text-muted mb-0">已使用投票</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="text-danger" id="statKeysInvalid">0</h2>
+                        <p class="text-muted mb-0">已作廢金鑰</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-bold">
+                <i class="fas fa-plus-circle text-success"></i> 批次發放新金鑰
+            </div>
+            <div class="card-body">
+                <div class="input-group">
+                    <span class="input-group-text">發放數量</span>
+                    <input type="number" class="form-control" id="generateKeysCount" min="1" placeholder="例如：120">
+                    <button class="btn btn-primary" id="btnGenerateKeys" type="button">產生金鑰</button>
+                </div>
+                <small class="text-muted mt-2 d-block">系統將會產生一組全新的隨機金鑰（六碼英數）。</small>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-list text-primary"></i> 金鑰清單與作廢管理</span>
+                <button class="btn btn-sm btn-outline-secondary" id="btnDownloadKeys"><i class="fas fa-download"></i> 匯出金鑰清單 (CSV)</button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-hover table-striped mb-0 text-center align-middle">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>金鑰代碼</th>
+                                <th>狀態</th>
+                                <th>產生時間</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="keysTableBody">
+                            <tr><td colspan="4" class="text-muted py-3">載入中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 下一輪晉級設定嚮導 Modal -->
+<div class="modal fade" id="nextRoundWizardModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-info">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title"><i class="fas fa-magic"></i> 晉級下一輪設定</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="wizardItemId">
+        <input type="hidden" id="wizardNextRoundId">
+        
+        <div class="alert alert-primary">
+            <h5>目前選情統計：</h5>
+            <ul class="mb-0">
+                <li>應選總名額：<strong id="wizardTotalQuota">0</strong> 名</li>
+                <li>已確認當選：<strong id="wizardElectedCount">0</strong> 名</li>
+                <li>剩餘待選名額：<strong id="wizardRemainingQuota" class="text-danger">0</strong> 名</li>
+            </ul>
+        </div>
+
+        <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-filter"></i> 下一輪候選人晉級篩選設定</h6>
+        <div class="list-group mb-3">
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="MULTIPLY" checked>
+                <span>
+                    <strong>N 倍數制</strong><br>
+                    <small class="text-muted">取剩餘名額的 N 倍人數晉級 (依本輪得票高低排序)。</small>
+                    <div class="input-group input-group-sm mt-2 w-50">
+                        <span class="input-group-text">N =</span>
+                        <input type="number" class="form-control" id="wizardFilterMultiplyN" value="2" min="1">
+                    </div>
+                </span>
+            </label>
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="ADD">
+                <span>
+                    <strong>N 加數制</strong><br>
+                    <small class="text-muted">取剩餘名額 + N 的人數晉級 (依本輪得票高低排序)。</small>
+                    <div class="input-group input-group-sm mt-2 w-50">
+                        <span class="input-group-text">N =</span>
+                        <input type="number" class="form-control" id="wizardFilterAddN" value="1" min="1">
+                    </div>
+                </span>
+            </label>
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="ALL">
+                <span>
+                    <strong>不進行自動篩選</strong><br>
+                    <small class="text-muted">直接將所有尚未當選的候選人帶入下一輪，再由您手動微調。</small>
+                </span>
+            </label>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">稍後設定</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmNextRound">產生下一輪名單</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 輪次名單微調 Modal (雙欄穿梭框) -->
+<div class="modal fade" id="adjustRoundCandidatesModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="fas fa-users-cog"></i> 調整輪次候選名單：<span id="adjustRoundTitle"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <input type="hidden" id="adjustItemId">
+        <input type="hidden" id="adjustRoundId">
+        
+        <div class="row align-items-stretch">
+            <!-- 左側：本輪候選區 -->
+            <div class="col-md-5">
+                <div class="card h-100 border-success shadow-sm">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">本輪候選區 (<span id="countSelected">0</span>)</span>
+                        <input type="text" class="form-control form-control-sm w-50" id="searchSelected" placeholder="搜尋姓名/編號">
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush shuttle-list" id="listSelected" style="height: 400px; overflow-y: auto;">
+                            <!-- JS 生成 -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中間：操作按鈕區 -->
+            <div class="col-md-2 d-flex flex-column justify-content-center align-items-center gap-2 py-3">
+                <button class="btn btn-outline-danger w-75" id="btnMoveToRight" title="移出所選">&gt;</button>
+                <button class="btn btn-danger w-75 fw-bold" id="btnMoveAllToRight" title="全部移出">&gt;&gt;</button>
+                <hr class="w-75 text-secondary">
+                <button class="btn btn-outline-success w-75" id="btnMoveToLeft" title="移入所選">&lt;</button>
+                <button class="btn btn-success w-75 fw-bold" id="btnMoveAllToLeft" title="全部移入">&lt;&lt;</button>
+            </div>
+
+            <!-- 右側：本輪排除區 -->
+            <div class="col-md-5">
+                <div class="card h-100 border-secondary shadow-sm">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">本輪非候選區 (<span id="countUnselected">0</span>)</span>
+                        <input type="text" class="form-control form-control-sm w-50" id="searchUnselected" placeholder="搜尋姓名/編號">
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush shuttle-list" id="listUnselected" style="height: 400px; overflow-y: auto;">
+                            <!-- JS 生成 -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="text-muted small me-auto"><i class="fas fa-info-circle"></i> 提示：若為「強制保障名額」或全域「不可被選者」，系統將鎖定該筆項目無法移動。</span>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveRoundCandidatesBtn">儲存輪次名單</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 全域選舉啟動 Modal -->
+<div class="modal fade" id="globalInitModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title"><i class="fas fa-rocket"></i> 正式啟動選舉</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+            <strong><i class="fas fa-exclamation-triangle"></i> 警告：一旦啟動即無法回頭！</strong><br>
+            啟動後，將無法再從 Excel 批次匯入候選人，也無法從資料庫刪除現有候選人。
+        </div>
+        <form id="globalInitForm">
+          <div class="mb-3">
+            <label class="form-label fw-bold">預設過半計算基準 <span class="text-danger">*</span></label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseAttending" value="ATTENDING" checked>
+              <label class="form-check-label" for="baseAttending">以「出席人數」為基準</label>
+            </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseBallots" value="BALLOTS">
+              <label class="form-check-label" for="baseBallots">以「發票數」為基準</label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">初始出席人數 (選填)</label>
+            <input type="number" class="form-control" id="globalInitAttending" placeholder="例如：120" min="0">
+            <small class="text-muted">若填寫，此數字會自動帶入後續所有輪次的預設出席人數。</small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-success" id="confirmStartElectionBtn">確認啟動</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
