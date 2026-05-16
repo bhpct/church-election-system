@@ -779,3 +779,28 @@ function handleLogout() {
         }
     });
 }
+
+// 側邊欄導覽切換邏輯
+document.querySelectorAll('.nav-link-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        // 更新按鈕 active 狀態
+        document.querySelectorAll('.nav-link-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // 隱藏所有 section
+        document.querySelectorAll('.nav-section').forEach(sec => sec.classList.remove('active'));
+        
+        // 顯示目標 section
+        const targetId = btn.getAttribute('data-target');
+        const targetSec = document.getElementById(targetId);
+        if (targetSec) {
+            targetSec.classList.add('active');
+            
+            // 如果是手機版，點擊後自動收起側邊欄 (如果有做 offcanvas 的話)
+            // const bsOffcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('sidebarMenu'));
+            // if (bsOffcanvas) bsOffcanvas.hide();
+        }
+    });
+});

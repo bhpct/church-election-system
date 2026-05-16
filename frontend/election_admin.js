@@ -664,8 +664,11 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
         const checkboxes = document.querySelectorAll('.district-checkbox:checked');
         checkboxes.forEach(cb => selectedDistricts.push(cb.value));
         
-        if (selectedDistricts.length !== seats) {
-            Swal.fire('錯誤', `此項次應選 ${seats} 名，您必須精準勾選 ${seats} 個不同的地區！\n目前已勾選：${selectedDistricts.length} 個。`, 'error');
+        let requiredDistrictsCount = isForced ? seats - 1 : seats;
+        if (requiredDistrictsCount < 0) requiredDistrictsCount = 0; // 防呆
+        
+        if (selectedDistricts.length !== requiredDistrictsCount) {
+            Swal.fire('錯誤', `此項次應選 ${seats} 名，${isForced ? '扣除保障名額 1 名後，' : ''}您必須精準勾選 ${requiredDistrictsCount} 個不同的地區！\n目前已勾選：${selectedDistricts.length} 個。`, 'error');
             return;
         }
     }

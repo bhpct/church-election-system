@@ -316,7 +316,11 @@
           </div>
           <div id="districtCheckboxesContainer" class="p-3 bg-light border rounded mb-3" style="display:none;">
             <!-- 動態產生分區勾選框 -->
-            <small class="text-muted">請勾選指定的分區 (勾選數量必須與應選名額相同)</small>
+            <small class="text-muted fw-bold text-primary">
+              勾選數量規則：<br>
+              1. 若無保障名額：勾選數量 = 應選名額。<br>
+              2. 若有保障名額：勾選數量 = 應選名額 - 1 (因為保障名額已佔一席)。
+            </small>
             <div id="districtCheckboxesList" class="row mt-2"></div>
           </div>
         </form>
@@ -436,7 +440,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyABw9ATwX7E0YxtkM4PK_YCpAEH98X0nBs",
@@ -457,7 +461,7 @@
     
     // Firestore Utils
     window.fs = {
-        doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch
+        doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch
     };
 </script>
 
