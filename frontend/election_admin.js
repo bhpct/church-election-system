@@ -1467,33 +1467,33 @@ function printBallotsA4(validKeys, itemId, roundId) {
         for (let j = 0; j < 4; j++) {
             if (i + j < validKeys.length) {
                 const k = validKeys[i + j];
-                const voteUrl = \`\${window.location.origin}/voter.html?eid=\${currentElectionId}&key=\${k.code}\`;
+                const voteUrl = `${window.location.origin}/voter.html?eid=${currentElectionId}&key=${k.code}`;
                 
-                const sealHtml = currentOrgData?.seal_url ? \`<img src="\${currentOrgData.seal_url}" class="watermark">\` : '';
+                const sealHtml = currentOrgData?.seal_url ? `<img src="${currentOrgData.seal_url}" class="watermark">` : '';
                 
-                html += \`
+                html += `
                 <div class="ballot">
-                    \${sealHtml}
+                    ${sealHtml}
                     <div class="content">
                         <div class="header">
-                            <h3>\${currentOrgData?.name || '教會機構'}</h3>
-                            <h2>\${currentElectionData?.name || '選舉'}</h2>
-                            <h4>\${item?.title} - \${round?.title}</h4>
+                            <h3>${currentOrgData?.name || '教會機構'}</h3>
+                            <h2>${currentElectionData?.name || '選舉'}</h2>
+                            <h4>${item?.title} - ${round?.title}</h4>
                         </div>
                         <div class="qr-container">
-                            <div id="qr-\${k.code}" class="qr-code"></div>
+                            <div id="qr-${k.code}" class="qr-code"></div>
                         </div>
                         <div class="footer">
                             <span>請掃描上方 QR Code 或於網頁輸入此金鑰</span>
-                            <strong>\${k.code}</strong>
+                            <strong>${k.code}</strong>
                         </div>
                         <div class="hint">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
                     </div>
                 </div>
                 <script>
                     setTimeout(() => {
-                        new QRCode(document.getElementById("qr-\${k.code}"), {
-                            text: "\${voteUrl}",
+                        new QRCode(document.getElementById("qr-${k.code}"), {
+                            text: "${voteUrl}",
                             width: 150,
                             height: 150,
                             colorDark : "#000000",
@@ -1502,20 +1502,20 @@ function printBallotsA4(validKeys, itemId, roundId) {
                         });
                     }, 100);
                 </script>
-                \`;
+                `;
             }
         }
         html += '</div>';
     }
 
-    html += \`
+    html += `
     <script>
         // 等待 QR Code 渲染完成後自動列印
         setTimeout(() => {
             window.print();
         }, 1000);
     </script>
-    </body></html>\`;
+    </body></html>`;
 
     printWindow.document.write(html);
     printWindow.document.close();
