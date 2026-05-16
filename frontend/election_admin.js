@@ -148,6 +148,7 @@ async function loadCandidates() {
 
     document.getElementById('statCandidates').textContent = allCandidates.length;
     renderCandidatesTable();
+    updateDynamicFormOptions(); // 更新 Modal 的動態選項 (資格、強制候選)
 }
 
 function renderCandidatesTable() {
@@ -179,7 +180,7 @@ function renderCandidatesTable() {
                 <td>${statusHtml}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="openEditCandidate('${c.id}')"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCandidate('${c.id}')"><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-cand-btn" onclick="deleteCandidate('${c.id}')" ${isElectionLocked ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                 </td>
             </tr>
         `;
@@ -397,7 +398,7 @@ document.getElementById('updateCandidateBtn').addEventListener('click', async ()
             district: document.getElementById('editCandDistrictInput').value.trim(),
             unit: document.getElementById('editCandUnitInput').value.trim(),
             qualification: document.getElementById('editCandQualInput').value.trim(),
-            elected_item: document.getElementById('editCandElectedItemInput').value.trim(),
+            // elected_item 保持唯讀不給更新
             is_ineligible: document.getElementById('editCandIneligibleInput').checked
         });
 
@@ -443,7 +444,6 @@ async function loadItems() {
         allItems.push(itemData);
     }
     
-    // 依 createdAt 排序
     allItems.sort((a, b) => {
         const tA = a.createdAt ? a.createdAt.toMillis() : 0;
         const tB = b.createdAt ? b.createdAt.toMillis() : 0;
@@ -452,6 +452,42 @@ async function loadItems() {
 
     document.getElementById('statItems').textContent = allItems.length;
     renderItemsAccordion();
+    checkElectionLockState(); // 檢查是否需要鎖定 Excel 匯入
+}
+
+// 檢查全域鎖定狀態
+let isElectionLocked = false;
+function checkElectionLockState() {
+    isElectionLocked = false;
+    for (const item of allItems) {
+        for (const round of item.rounds) {
+            if (round.status === 'ACTIVE' || round.status === 'CLOSED') {
+                isElectionLocked = true;
+                break;
+            }
+        }
+        if (isElectionLocked) break;
+    }
+
+    const excelBtn = document.getElementById('excelUpload').previousElementSibling; // 按鈕本身
+    const deleteBtns = document.querySelectorAll('.delete-cand-btn');
+    
+    if (isElectionLocked) {
+        excelBtn.disabled = true;
+        excelBtn.title = '選舉已開始，禁止批次匯入以免破壞資料結構';
+        deleteBtns.forEach(btn => btn.disabled = true);
+        
+        // 加上提示橫幅
+        let banner = document.getElementById('lockedBanner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'lockedBanner';
+            banner.className = 'alert alert-danger py-2 mb-3';
+            banner.innerHTML = '<i class="fas fa-lock"></i> <strong>鎖定中：</strong> 因為已有選舉輪次開始，為保護資料完整性，系統已停用「Excel 匯入」與「刪除候選人」功能。';
+            const candidateCard = document.querySelector('#section-candidates .card');
+            candidateCard.insertBefore(banner, candidateCard.children[1]);
+        }
+    }
 }
 
 function renderItemsAccordion() {
@@ -552,13 +588,70 @@ document.getElementById('itemDistrictReqInput').addEventListener('change', funct
     }
 });
 
+// 更新 Modal 內的動態選項清單 (動態資格、強制候選下拉)
+function updateDynamicFormOptions() {
+    // 1. 動態資格核取方塊
+    const qualContainer = document.getElementById('qualCheckboxesContainer');
+    let qualifications = [...new Set(allCandidates.filter(c => c.qualification).map(c => c.qualification))];
+    
+    qualContainer.innerHTML = '';
+    if (qualifications.length === 0) {
+        qualContainer.innerHTML = '<p class="text-danger mb-0">無任何資格資料可選</p>';
+    } else {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'row';
+        qualifications.forEach((q, idx) => {
+            rowDiv.innerHTML += `
+                <div class="col-md-6 mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input qual-checkbox" type="checkbox" value="${q}" id="qual_${idx}">
+                        <label class="form-check-label" for="qual_${idx}">${q}</label>
+                    </div>
+                </div>
+            `;
+        });
+        qualContainer.appendChild(rowDiv);
+    }
+
+    // 2. 強制候選人下拉選單
+    const forcedSelect = document.getElementById('itemForcedCandidateSelect');
+    forcedSelect.innerHTML = '<option value="">請選擇保留的候選人...</option>';
+    
+    // 只列出正常(非不可被選)的候選人
+    const eligibleCands = allCandidates.filter(c => !c.is_ineligible);
+    eligibleCands.forEach(c => {
+        const distText = c.district ? ` - ${c.district}` : '';
+        forcedSelect.innerHTML += `<option value="${c.id}">${c.number} ${c.name}${distText}</option>`;
+    });
+}
+
+// 顯示/隱藏強制候選人選單
+document.getElementById('itemForcedCandidateInput').addEventListener('change', function(e) {
+    document.getElementById('forcedCandidateSelectContainer').style.display = e.target.checked ? 'block' : 'none';
+});
+
 // 儲存項次與初始化三輪
 document.getElementById('saveItemBtn').addEventListener('click', async () => {
     const title = document.getElementById('itemTitleInput').value.trim();
     const seats = parseInt(document.getElementById('itemSeatsInput').value);
-    const qualifications = document.getElementById('itemQualificationsInput').value.trim();
+    
+    // 讀取動態勾選的資格
+    const qCheckboxes = document.querySelectorAll('.qual-checkbox:checked');
+    const qArray = Array.from(qCheckboxes).map(cb => cb.value);
+
     const reqDistrict = document.getElementById('itemDistrictReqInput').checked;
     const excludeElected = document.getElementById('itemExcludeElectedInput').checked;
+    
+    // 強制候選
+    const isForced = document.getElementById('itemForcedCandidateInput').checked;
+    let forcedCandidateId = null;
+    if (isForced) {
+        forcedCandidateId = document.getElementById('itemForcedCandidateSelect').value;
+        if (!forcedCandidateId) {
+            Swal.fire('錯誤', '您已開啟強制候選機制，請指定一位候選人！', 'error');
+            return;
+        }
+    }
     
     if (!title || isNaN(seats) || seats < 1) {
         Swal.fire('錯誤', '請填寫完整項次名稱與應選名額', 'error');
@@ -590,20 +683,15 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
         const newItemRef = await addDoc(itemsRef, {
             title: title,
             seats: seats,
-            qualifications: qualifications,
+            qualifications: qArray, // 改存陣列
             require_district: reqDistrict,
             selected_districts: selectedDistricts,
             exclude_elected: excludeElected,
+            forced_candidate_id: forcedCandidateId, // 寫入強制候選人 ID
             createdAt: serverTimestamp()
         });
 
-        // 2. 自動過濾出符合資格的候選人，作為第一輪的預設名單
-        let qArray = [];
-        if (qualifications) {
-            qArray = qualifications.split(',').map(s => s.trim()).filter(s => s);
-        }
-        
-        // 核心過濾邏輯
+        // 核心過濾邏輯 (為第一輪產生預設名單)
         let initialCandidateIds = allCandidates.filter(c => {
             // (1) 全域不可被選：直接剔除
             if (c.is_ineligible) return false;
@@ -616,6 +704,11 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
             
             return true;
         }).map(c => c.id);
+
+        // 如果有強制候選人，且他因為某些過濾條件被剔除了，要強硬把他加回來
+        if (forcedCandidateId && !initialCandidateIds.includes(forcedCandidateId)) {
+            initialCandidateIds.push(forcedCandidateId);
+        }
 
         // 3. 建立三輪 (round_1, round_2, round_3)
         const round1Ref = doc(db, 'elections', currentElectionId, 'items', newItemRef.id, 'rounds', 'round_1');
@@ -699,11 +792,45 @@ document.getElementById('btnGeneratePreview').addEventListener('click', () => {
     if (!round.candidate_ids || round.candidate_ids.length === 0) {
         listContainer.innerHTML = '<p class="text-center text-muted">此輪次目前沒有任何候選人。</p>';
     } else {
-        // 從全域抓資料並過濾掉不可被選者，然後排序 (依號次)
-        const roundCandidates = allCandidates.filter(c => round.candidate_ids.includes(c.id) && !c.is_ineligible);
+        // 從全域抓資料並過濾掉不可被選者
+        let roundCandidates = allCandidates.filter(c => round.candidate_ids.includes(c.id) && !c.is_ineligible);
+        
+        // 判斷是否有共識薦選保留候選
+        let forcedCandidate = null;
+        if (item.forced_candidate_id) {
+            const fIdx = roundCandidates.findIndex(c => c.id === item.forced_candidate_id);
+            if (fIdx > -1) {
+                forcedCandidate = roundCandidates[fIdx];
+                // 將他從一般清單中移出
+                roundCandidates.splice(fIdx, 1);
+            }
+        }
+        
         roundCandidates.sort((a, b) => (parseInt(a.number)||0) - (parseInt(b.number)||0));
         
-        if (roundCandidates.length === 0) {
+        if (forcedCandidate) {
+            const districtStr = forcedCandidate.district ? `<small class="text-muted d-block">${forcedCandidate.district}</small>` : '';
+            listContainer.innerHTML += `
+                <div class="col-12 mb-4">
+                    <div class="p-3 rounded" style="background-color: #fff3cd; border: 2px solid #ffecb5;">
+                        <h6 class="fw-bold text-warning mb-3"><i class="fas fa-star"></i> 共識薦選保留候選 (保障名額 1 名)</h6>
+                        <div class="row">
+                            <div class="col-6 col-md-4">
+                                <div class="bg-white border rounded p-3 text-center position-relative h-100 shadow-sm">
+                                    <div style="position:absolute; top:10px; right:10px; width:20px; height:20px; border:2px solid #ccc; border-radius:3px;"></div>
+                                    <h4 class="mb-0 fw-bold">${forcedCandidate.number}</h4>
+                                    <h5 class="mb-0 mt-2">${forcedCandidate.name}</h5>
+                                    ${districtStr}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 mb-2"><h6 class="fw-bold border-bottom pb-2">一般競選區 (應選 ${item.seats - 1} 名)</h6></div>
+            `;
+        }
+
+        if (roundCandidates.length === 0 && !forcedCandidate) {
              listContainer.innerHTML = '<p class="text-center text-muted">此輪次的名單皆為不可被選狀態。</p>';
         }
 

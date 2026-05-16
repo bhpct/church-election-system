@@ -288,8 +288,23 @@
             <input type="number" class="form-control" id="itemSeatsInput" min="1" value="1" required>
           </div>
           <div class="mb-3">
-            <label class="form-label">允許的候選資格 (過濾用，例如：牧師、長老) <span class="text-muted">用逗號分隔，空白代表不限制</span></label>
-            <input type="text" class="form-control" id="itemQualificationsInput" placeholder="例如：牧師, 長老">
+            <label class="form-label">允許的候選資格 (過濾用)</label>
+            <div id="qualCheckboxesContainer" class="p-3 bg-light border rounded">
+                <small class="text-muted">載入中...</small>
+            </div>
+            <small class="text-muted d-block mt-1">請勾選允許參與此項次的資格，空白代表不限制。</small>
+          </div>
+          <hr>
+          <h6 class="fw-bold mb-3 text-primary">進階篩選與保障機制</h6>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input bg-warning" type="checkbox" id="itemForcedCandidateInput">
+            <label class="form-check-label text-warning fw-bold" for="itemForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
+            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。</div>
+          </div>
+          <div class="mb-3" id="forcedCandidateSelectContainer" style="display:none;">
+            <select class="form-select" id="itemForcedCandidateSelect">
+                <option value="">請選擇保留的候選人...</option>
+            </select>
           </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" id="itemExcludeElectedInput" checked>
@@ -395,8 +410,8 @@
           
           <div class="mb-3">
             <label class="form-label">已當選項次</label>
-            <input type="text" class="form-control" id="editCandElectedItemInput" placeholder="若未當選請留空">
-            <small class="text-muted">填寫後，若新項次開啟「排除已當選者」，此人將不會出現在名單中。</small>
+            <input type="text" class="form-control" id="editCandElectedItemInput" placeholder="尚未當選任何項次" readonly>
+            <small class="text-muted">此欄位為唯讀，將由開票中心自動於選舉結束後填入。</small>
           </div>
           
           <div class="form-check form-switch mb-3 mt-3">
