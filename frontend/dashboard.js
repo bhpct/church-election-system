@@ -49,7 +49,7 @@ async function loadUserProfile(user) {
 
     } catch (error) {
         console.error("載入權限失敗:", error);
-        Swal.fire('錯誤', '無法載入您的權限資料', 'error');
+        Swal.fire('錯誤', '無法載入您的權限資料: ' + error.message + '\n' + error.stack, 'error');
     }
 }
 
@@ -724,6 +724,8 @@ function applyRoleUI(role, org_ids) {
             btn.textContent = '儲存授權';
         }
     });
+
+}
 
 // ==========================================
 // 依據角色啟動對應功能
