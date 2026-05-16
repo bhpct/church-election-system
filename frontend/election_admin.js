@@ -1520,8 +1520,6 @@ function printBallotsA4(validKeys, itemId, roundId) {
     printWindow.document.write(html);
     printWindow.document.close();
 }
-});
-
 window.invalidateKey = function(keyId) {
     Swal.fire({
         title: '確定要作廢此金鑰嗎？',
