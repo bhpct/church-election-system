@@ -725,9 +725,15 @@ function applyRoleUI(role, org_ids) {
         }
     });
 
-    // ==========================================
-    // 依據角色啟動對應功能
-    // ==========================================
+// ==========================================
+// 依據角色啟動對應功能
+// ==========================================
+function applyRoleUI(role, org_ids) {
+    const roleNameEl = document.getElementById('navUserRole');
+    const displayRoleNameEl = document.getElementById('displayRoleName');
+    const contentEl = document.getElementById('dashboardContent');
+    const noAccessEl = document.getElementById('noAccessContent');
+
     if (role === 'SUPER_ADMIN') {
         roleNameEl.textContent = '系統超級管理員';
         roleNameEl.className = 'badge bg-danger';
