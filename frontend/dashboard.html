@@ -148,8 +148,9 @@
                 </div>
 
                 <!-- 歡迎面板 -->
+                <div id="dashboardContent" style="display: none;">
                     <div id="section-overview" class="nav-section active">
-                        <div class="row">
+                        <div class="row mb-4">
                             <div class="col-12">
                                 <div class="card p-4 bg-primary text-white">
                                     <h3>歡迎登入教會數位選舉系統</h3>
@@ -157,10 +158,47 @@
                                 </div>
                             </div>
                         </div>
-                    
+
+                        <!-- 當前機構設定與選舉管理 -->
+                        <div class="row role-super-admin role-org-admin" id="orgContextArea">
+                            <!-- 選舉場次列表 -->
+                            <div class="col-md-8 mb-4">
+                                <div class="card p-4 h-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="m-0"><i class="fas fa-list-ul text-primary"></i> <span class="current-org-name-display">當前機構</span> - 選舉場次</h5>
+                                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createElectionModal" id="btnOpenCreateElection">新增選舉</button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover align-middle">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>選舉名稱</th>
+                                                    <th>狀態</th>
+                                                    <th>建立日期</th>
+                                                    <th>操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="electionTableBody">
+                                                <tr><td colspan="4" class="text-center text-muted py-3">載入中...</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 公印設定 -->
+                            <div class="col-md-4 mb-4">
+                                <div class="card p-4 h-100 text-center">
+                                    <h5><i class="fas fa-stamp text-danger"></i> 機構公印</h5>
+                                    <p class="text-muted small">請上傳去背 PNG 檔，將用於選票浮水印套印。</p>
+                                    <div class="my-3">
+                                        <img id="orgSealPreview" src="https://via.placeholder.com/150?text=未設定" alt="公印預覽" class="img-thumbnail" style="max-width: 150px; max-height: 150px; object-fit: contain;">
+                                    </div>
+                                    <input type="file" id="sealFileInput" class="form-control form-control-sm mb-2" accept="image/png, image/jpeg">
+                                    <button class="btn btn-sm btn-outline-danger w-100" id="uploadSealBtn">上傳/更新公印</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
                     </div> <!-- /section-overview -->
 
                     <!-- ============================================== -->
