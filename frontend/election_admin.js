@@ -589,14 +589,17 @@ function renderItemsAccordion() {
             const statusColor = round.status === 'PENDING' ? 'secondary' : (round.status === 'ACTIVE' ? 'success' : 'dark');
             const statusText = round.status === 'PENDING' ? '未開始' : (round.status === 'ACTIVE' ? '投票中' : '已結束');
             
+            const displaySeats = round.seats !== undefined ? round.seats : item.seats;
+            
             roundsHtml += `
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                     <div>
-                        <strong>${getRoundName(round.id)}</strong> <small class="text-muted ms-1">(本項次應選 ${item.seats} 名)</small>
+                        <strong>${getRoundName(round.id)}</strong> <small class="text-muted ms-1">(本輪應選 ${displaySeats} 席)</small>
                         <span class="badge bg-${statusColor} ms-2">${statusText}</span>
                     </div>
                     <div>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="openKeyManagement('${item.id}', '${round.id}')"><i class="fas fa-key"></i> 金鑰</button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="openEditRoundModal('${item.id}', '${round.id}')"><i class="fas fa-edit"></i> 修改參數</button>
+                        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="openKeyManagement('${item.id}', '${round.id}')"><i class="fas fa-key"></i> 金鑰</button>
                         <button class="btn btn-sm btn-outline-primary ms-1" onclick="openRoundCandidates('${item.id}', '${round.id}')">調整名單 (${round.candidate_ids ? round.candidate_ids.length : 0}人在候選區)</button>
                         <button class="btn btn-sm btn-success ms-1" onclick="startRound('${item.id}', '${round.id}')" ${round.status !== 'PENDING' ? 'disabled' : ''}>開始投票</button>
                         <button class="btn btn-sm btn-info text-white ms-1" onclick="openTallyCenter('${item.id}', '${round.id}')" style="display: ${round.status !== 'PENDING' ? 'inline-block' : 'none'};">開票中心</button>
@@ -673,7 +676,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('tallyTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
                 document.getElementById('tallyItemId').value = itemId;
                 document.getElementById('tallyRoundId').value = roundId;
-                document.getElementById('tallyQuota').textContent = item.seats || 0;
+                const effectiveSeats = round.seats !== undefined ? round.seats : item.seats;
+                document.getElementById('tallyQuota').textContent = effectiveSeats || 0;
 
                 const badge = document.getElementById('tallyStatusBadge');
                 const btnEnd = document.getElementById('btnEndVoting');
@@ -1042,6 +1046,192 @@ document.getElementById('btnGeneratePreview').addEventListener('click', () => {
 // ==========================================
 // 輪次微調名單 (Shuttle Box 雙欄穿梭)
 // ==========================================
+window.openEditRoundModal = function(itemId, roundId) {
+    const item = allItems.find(i => i.id === itemId);
+    if (!item) return;
+    const round = item.rounds.find(r => r.id === roundId);
+    if (!round) return;
+
+    if (round.status !== 'PENDING') {
+        Swal.fire('系統鎖定', '該輪次已開始或已結束，無法再修改參數！', 'warning');
+        return;
+    }
+
+    document.getElementById('editRoundItemId').value = itemId;
+    document.getElementById('editRoundRoundId').value = roundId;
+    document.getElementById('editRoundTitleDisplay').textContent = `${item.title} - ${getRoundName(round.id)}`;
+
+    // 載入參數 (若輪次無設定，讀取項次預設值)
+    const effectiveSeats = round.seats !== undefined ? round.seats : item.seats;
+    document.getElementById('editRoundSeatsInput').value = effectiveSeats;
+    
+    const effectiveQuals = round.qualifications !== undefined ? round.qualifications : (item.qualifications || []);
+    
+    // 渲染資格勾選框 (Edit Round)
+    const container = document.getElementById('editRoundQualCheckboxesContainer');
+    container.innerHTML = '';
+    const uniqueQuals = [...new Set(allCandidates.map(c => c.qualification).filter(Boolean))];
+    if (uniqueQuals.length === 0) {
+        container.innerHTML = '<small class="text-muted">目前沒有可用的候選資格分類。</small>';
+    } else {
+        uniqueQuals.forEach((q, idx) => {
+            const isChecked = effectiveQuals.includes(q) ? 'checked' : '';
+            container.innerHTML += `
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input edit-round-qual-checkbox" type="checkbox" id="edit_round_qual_${idx}" value="${q}" ${isChecked}>
+                    <label class="form-check-label" for="edit_round_qual_${idx}">${q}</label>
+                </div>
+            `;
+        });
+    }
+
+    const effectiveForcedId = round.forced_candidate_id !== undefined ? round.forced_candidate_id : item.forced_candidate_id;
+    const forcedInput = document.getElementById('editRoundForcedCandidateInput');
+    const forcedSelectContainer = document.getElementById('editRoundForcedCandidateSelectContainer');
+    const forcedSelect = document.getElementById('editRoundForcedCandidateSelect');
+    
+    forcedSelect.innerHTML = '<option value="">請選擇保留的候選人...</option>';
+    const eligibleCands = allCandidates.filter(c => !c.is_ineligible);
+    eligibleCands.forEach(c => {
+        const distText = c.district ? ` - ${c.district}` : '';
+        forcedSelect.innerHTML += `<option value="${c.id}">${c.number} ${c.name}${distText}</option>`;
+    });
+
+    if (effectiveForcedId) {
+        forcedInput.checked = true;
+        forcedSelectContainer.style.display = 'block';
+        forcedSelect.value = effectiveForcedId;
+    } else {
+        forcedInput.checked = false;
+        forcedSelectContainer.style.display = 'none';
+        forcedSelect.value = '';
+    }
+
+    const effectiveExclude = round.exclude_elected !== undefined ? round.exclude_elected : (item.exclude_elected !== false);
+    document.getElementById('editRoundExcludeElectedInput').checked = effectiveExclude;
+
+    const effectiveReqDist = round.require_district !== undefined ? round.require_district : item.require_district;
+    const distReqInput = document.getElementById('editRoundDistrictReqInput');
+    const distContainer = document.getElementById('editRoundDistrictCheckboxesContainer');
+    const distList = document.getElementById('editRoundDistrictCheckboxesList');
+    
+    const effectiveSelectedDistricts = round.selected_districts !== undefined ? round.selected_districts : (item.selected_districts || []);
+
+    if (effectiveReqDist) {
+        distReqInput.checked = true;
+        distContainer.style.display = 'block';
+    } else {
+        distReqInput.checked = false;
+        distContainer.style.display = 'none';
+    }
+
+    distList.innerHTML = '';
+    const uniqueDists = [...new Set(allCandidates.map(c => c.district).filter(Boolean))];
+    uniqueDists.forEach((d, idx) => {
+        const isChecked = effectiveSelectedDistricts.includes(d) ? 'checked' : '';
+        distList.innerHTML += `
+            <div class="col-md-4 mb-2">
+                <div class="form-check">
+                    <input class="form-check-input edit-round-district-checkbox" type="checkbox" value="${d}" id="edit_round_dist_${idx}" ${isChecked}>
+                    <label class="form-check-label" for="edit_round_dist_${idx}">${d}</label>
+                </div>
+            </div>
+        `;
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('editRoundModal'));
+    modal.show();
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 顯示/隱藏強制候選人選單 (Edit Round)
+    document.getElementById('editRoundForcedCandidateInput')?.addEventListener('change', function(e) {
+        document.getElementById('editRoundForcedCandidateSelectContainer').style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    // 動態顯示分區勾選清單 (Edit Round)
+    document.getElementById('editRoundDistrictReqInput')?.addEventListener('change', function(e) {
+        document.getElementById('editRoundDistrictCheckboxesContainer').style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    // 儲存修改輪次參數
+    document.getElementById('saveEditRoundBtn')?.addEventListener('click', async () => {
+        const itemId = document.getElementById('editRoundItemId').value;
+        const roundId = document.getElementById('editRoundRoundId').value;
+        const seats = parseInt(document.getElementById('editRoundSeatsInput').value);
+        
+        if (isNaN(seats) || seats < 1) {
+            Swal.fire('錯誤', '應選名額必須大於 0', 'error');
+            return;
+        }
+
+        const qCheckboxes = document.querySelectorAll('.edit-round-qual-checkbox:checked');
+        const qArray = Array.from(qCheckboxes).map(cb => cb.value);
+
+        const reqDistrict = document.getElementById('editRoundDistrictReqInput').checked;
+        const excludeElected = document.getElementById('editRoundExcludeElectedInput').checked;
+        
+        const isForced = document.getElementById('editRoundForcedCandidateInput').checked;
+        let forcedCandidateId = null;
+        if (isForced) {
+            forcedCandidateId = document.getElementById('editRoundForcedCandidateSelect').value;
+            if (!forcedCandidateId) {
+                Swal.fire('錯誤', '您已開啟強制候選機制，請指定一位候選人！', 'error');
+                return;
+            }
+        }
+
+        let selectedDistricts = [];
+        if (reqDistrict) {
+            const checkboxes = document.querySelectorAll('.edit-round-district-checkbox:checked');
+            checkboxes.forEach(cb => selectedDistricts.push(cb.value));
+            
+            let requiredDistrictsCount = isForced ? seats - 1 : seats;
+            if (requiredDistrictsCount < 0) requiredDistrictsCount = 0;
+            
+            if (selectedDistricts.length !== requiredDistrictsCount) {
+                Swal.fire('錯誤', `此輪應選 ${seats} 席，${isForced ? '扣除保障名額 1 名後，' : ''}您必須精準勾選 ${requiredDistrictsCount} 個不同的地區！\n目前已勾選：${selectedDistricts.length} 個。`, 'error');
+                return;
+            }
+        }
+
+        try {
+            const btn = document.getElementById('saveEditRoundBtn');
+            btn.disabled = true;
+            btn.textContent = '儲存中...';
+
+            const { doc, updateDoc, serverTimestamp } = window.fs;
+            const db = window.firebaseDb;
+
+            const roundRef = doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId);
+            await updateDoc(roundRef, {
+                seats: seats,
+                qualifications: qArray,
+                require_district: reqDistrict,
+                selected_districts: selectedDistricts,
+                exclude_elected: excludeElected,
+                forced_candidate_id: forcedCandidateId,
+                updatedAt: serverTimestamp()
+            });
+
+            Swal.fire('成功', '輪次專屬設定已更新！', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editRoundModal')).hide();
+            await loadItems();
+
+        } catch (error) {
+            console.error("更新輪次參數失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+        } finally {
+            const btn = document.getElementById('saveEditRoundBtn');
+            if(btn) {
+                btn.disabled = false;
+                btn.textContent = '儲存輪次專屬設定';
+            }
+        }
+    });
+});
+
+// ==========================================
 window.openRoundCandidates = function(itemId, roundId) {
     const item = allItems.find(i => i.id === itemId);
     if (!item) return;
@@ -1055,12 +1245,15 @@ window.openRoundCandidates = function(itemId, roundId) {
         return;
     }
 
-    document.getElementById('adjustRoundTitle').textContent = `${item.title} - ${getRoundName(round.id)} (應選 ${item.seats} 名)`;
+    const effectiveSeats = round.seats !== undefined ? round.seats : item.seats;
+    document.getElementById('adjustRoundTitle').textContent = `${item.title} - ${getRoundName(round.id)} (應選 ${effectiveSeats} 席)`;
     document.getElementById('adjustItemId').value = itemId;
     document.getElementById('adjustRoundId').value = roundId;
 
     const selectedIds = round.candidate_ids || [];
-    const forceId = item.forced_candidate_id || null;
+    const forceId = round.forced_candidate_id !== undefined ? round.forced_candidate_id : item.forced_candidate_id;
+    const effectiveQuals = round.qualifications !== undefined ? round.qualifications : item.qualifications;
+    const effectiveExclude = round.exclude_elected !== undefined ? round.exclude_elected : item.exclude_elected;
     
     // 清空並重建清單
     const listSelected = document.getElementById('listSelected');
@@ -1070,11 +1263,11 @@ window.openRoundCandidates = function(itemId, roundId) {
 
     // 解析允許資格 (若有)
     let allowedQuals = [];
-    if (item.qualifications) {
-        if (Array.isArray(item.qualifications)) {
-            allowedQuals = item.qualifications;
-        } else if (typeof item.qualifications === 'string') {
-            allowedQuals = item.qualifications.split(',').map(s => s.trim()).filter(Boolean);
+    if (effectiveQuals) {
+        if (Array.isArray(effectiveQuals)) {
+            allowedQuals = effectiveQuals;
+        } else if (typeof effectiveQuals === 'string') {
+            allowedQuals = effectiveQuals.split(',').map(s => s.trim()).filter(Boolean);
         }
     }
 
@@ -1097,8 +1290,8 @@ window.openRoundCandidates = function(itemId, roundId) {
             isSelected = true;
             isDisabled = true;
             badgeHtml = '<span class="badge bg-warning text-dark float-end">保障名額</span>';
-        } else if (c.elected_item && item.exclude_elected) {
-            // 如果該項次設定排除已當選者，且該人已經有當選頭銜
+        } else if (c.elected_item && effectiveExclude) {
+            // 如果設定排除已當選者，且該人已經有當選頭銜
             isSelected = false;
             isDisabled = true;
             badgeHtml = `<span class="badge bg-secondary float-end">已當選: ${c.elected_item}</span>`;

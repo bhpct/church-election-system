@@ -663,6 +663,70 @@
   </div>
 </div>
 
+<!-- 修改輪次參數 Modal -->
+<div class="modal fade" id="editRoundModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-primary">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="fas fa-edit"></i> 修改輪次參數：<span id="editRoundTitleDisplay"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <input type="hidden" id="editRoundItemId">
+        <input type="hidden" id="editRoundRoundId">
+        <form id="editRoundForm">
+          <div class="alert alert-info py-2 small">
+              <i class="fas fa-info-circle"></i> 在此修改的參數將會覆寫該項次的預設值，且僅對此「單一輪次」生效。
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">本輪應選名額 <span class="text-danger">*</span></label>
+            <input type="number" class="form-control border-primary" id="editRoundSeatsInput" min="1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">允許的候選資格 (過濾用)</label>
+            <div id="editRoundQualCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm">
+                <small class="text-muted">載入中...</small>
+            </div>
+            <small class="text-muted d-block mt-1">請勾選允許參與此項次的資格，空白代表不限制。</small>
+          </div>
+          <hr>
+          <h6 class="fw-bold mb-3 text-primary">進階篩選與保障機制</h6>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input bg-warning" type="checkbox" id="editRoundForcedCandidateInput">
+            <label class="form-check-label text-warning fw-bold" for="editRoundForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
+            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。</div>
+          </div>
+          <div class="mb-3" id="editRoundForcedCandidateSelectContainer" style="display:none;">
+            <select class="form-select border-warning" id="editRoundForcedCandidateSelect">
+                <option value="">請選擇保留的候選人...</option>
+            </select>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="editRoundExcludeElectedInput" checked>
+            <label class="form-check-label" for="editRoundExcludeElectedInput"><strong>自動排除已當選者</strong></label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="editRoundDistrictReqInput">
+            <label class="form-check-label" for="editRoundDistrictReqInput"><strong>強制分區競選限制</strong></label>
+          </div>
+          <div id="editRoundDistrictCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm mb-3" style="display:none;">
+            <small class="text-muted fw-bold text-primary">
+              勾選數量規則：<br>
+              1. 若無保障名額：勾選數量 = 應選名額。<br>
+              2. 若有保障名額：勾選數量 = 應選名額 - 1。
+            </small>
+            <div id="editRoundDistrictCheckboxesList" class="row mt-2"></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveEditRoundBtn">儲存輪次專屬設定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 新增候選人 Modal -->
 <div class="modal fade" id="addCandidateModal" tabindex="-1">
   <div class="modal-dialog">
