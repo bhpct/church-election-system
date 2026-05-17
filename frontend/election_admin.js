@@ -294,33 +294,43 @@ document.getElementById('excelUpload').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, {type: 'array'});
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // 轉為 JSON 陣列， header: 1 表示將第一列視為陣列，不使用物件 key
-        const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-        
-        if (rows.length < 2) {
-            Swal.fire('錯誤', 'Excel 內容為空或無有效標題', 'error');
-            return;
-        }
+    Swal.fire({
+        title: '確定要匯入覆蓋？',
+        text: '這將會【清空】目前資料庫中所有的候選人名單，並完全替換為本次上傳的檔案。若有正在進行的投票將受影響，確定要繼續嗎？',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: '確定覆蓋',
+        cancelButtonText: '取消'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // 轉為 JSON 陣列， header: 1 表示將第一列視為陣列，不使用物件 key
+                const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                
+                if (rows.length < 2) {
+                    Swal.fire('錯誤', 'Excel 內容為空或無有效標題', 'error');
+                    return;
+                }
 
-        processExcelData(rows);
-    };
-    reader.readAsArrayBuffer(file);
-    // 重置 input，允許重複上傳同一個檔案
-    this.value = '';
+                processExcelData(rows);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        // 重置 input，允許重複上傳同一個檔案
+        e.target.value = '';
+    });
 });
 
 async function processExcelData(rows) {
-    // 假設格式: 編號, 姓名, 分區, 單位, 候選資格
-    // 第 0 列是標題，從第 1 列開始
     let validCount = 0;
-    
     Swal.fire({
         title: '匯入中...',
         allowOutsideClick: false,
@@ -328,11 +338,28 @@ async function processExcelData(rows) {
     });
 
     try {
-        const { collection, addDoc, serverTimestamp } = window.fs;
+        const { collection, doc, writeBatch, serverTimestamp, getDocs } = window.fs;
         const db = window.firebaseDb;
         const candidatesRef = collection(db, 'elections', currentElectionId, 'candidates');
 
-        // TODO: 為了效能，這裡可以使用 batch 寫入，但此處簡單逐筆上傳
+        // 1. 刪除舊有候選人資料
+        const existingSnap = await getDocs(candidatesRef);
+        if (!existingSnap.empty) {
+            let deleteBatch = writeBatch(db);
+            let delCount = 0;
+            existingSnap.forEach(docSnap => {
+                deleteBatch.delete(docSnap.ref);
+                delCount++;
+                // 若未來刪除超過500筆，需分批，此處假設一般教會選舉不會單次超過500名候選人
+            });
+            await deleteBatch.commit();
+        }
+
+        // 2. 批次寫入新候選人資料
+        let insertBatch = writeBatch(db);
+        let batchOpCount = 0;
+        const batches = [insertBatch];
+
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (!row || row.length < 2 || !row[1]) continue; // 姓名不能為空
@@ -346,13 +373,26 @@ async function processExcelData(rows) {
                 createdAt: serverTimestamp()
             };
             
-            await addDoc(candidatesRef, candidateData);
+            const newRef = doc(candidatesRef);
+            insertBatch.set(newRef, candidateData);
+            
             validCount++;
+            batchOpCount++;
+
+            if (batchOpCount >= 450) {
+                insertBatch = writeBatch(db);
+                batches.push(insertBatch);
+                batchOpCount = 0;
+            }
         }
+
+        for (const b of batches) {
+            await b.commit();
+        }
+
+        Swal.fire('成功', `已清空舊資料並成功匯入 ${validCount} 筆新候選人資料！`, 'success');
         
-        await loadCandidates();
-        Swal.fire('成功', `已成功匯入 ${validCount} 筆候選人資料！`, 'success');
-        
+        await loadCandidates(); // 重新載入列表
     } catch (error) {
         console.error("匯入失敗:", error);
         Swal.fire('錯誤', '匯入過程中發生錯誤: ' + error.message, 'error');
