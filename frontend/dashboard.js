@@ -280,21 +280,7 @@ async function loadAdminDashboard() {
     }
 }
 
-function applyRoleUI(role, org_ids) {
-    currentUserRole = role;
-    const roleNameEl = document.getElementById('navUserRole');
-    const displayRoleNameEl = document.getElementById('displayRoleName');
-    const contentEl = document.getElementById('dashboardContent');
-    const noAccessEl = document.getElementById('noAccessContent');
 
-    // 隱藏所有特定權限區塊
-    document.querySelectorAll('.role-super-admin, .role-org-admin').forEach(el => {
-        el.style.display = 'none';
-    });
-
-    // ==========================================
-    // 舊版函數已移除
-    // ==========================================
 
     // ==========================================
     // Phase 4: 機構設定與公印管理 (Cropper + 去背 + Base64)
@@ -725,16 +711,22 @@ function applyRoleUI(role, org_ids) {
         }
     });
 
-}
+
 
 // ==========================================
 // 依據角色啟動對應功能
 // ==========================================
 function applyRoleUI(role, org_ids) {
+    currentUserRole = role;
     const roleNameEl = document.getElementById('navUserRole');
     const displayRoleNameEl = document.getElementById('displayRoleName');
     const contentEl = document.getElementById('dashboardContent');
     const noAccessEl = document.getElementById('noAccessContent');
+
+    // 隱藏所有特定權限區塊
+    document.querySelectorAll('.role-super-admin, .role-org-admin').forEach(el => {
+        el.style.display = 'none';
+    });
 
     if (role === 'SUPER_ADMIN') {
         roleNameEl.textContent = '系統超級管理員';
