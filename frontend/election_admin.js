@@ -252,9 +252,9 @@ window.syncPendingRoundsWithGlobalCandidates = async function() {
 
             // 針對該項次下所有 PENDING 狀態的輪次進行同步
             if (item.rounds) {
-                for (const [roundId, roundData] of Object.entries(item.rounds)) {
+                for (const roundData of item.rounds) {
                     if (roundData.status === 'PENDING') {
-                        const roundRef = doc(db, 'elections', currentElectionId, 'items', item.id, 'rounds', roundId);
+                        const roundRef = doc(db, 'elections', currentElectionId, 'items', item.id, 'rounds', roundData.id);
                         batch.update(roundRef, { candidate_ids: initialCandidateIds });
                         updatesCount++;
                         
@@ -347,6 +347,17 @@ document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
 document.getElementById('excelUpload').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
+
+    // 檢查是否有項次設定了保障名額，若有則禁止匯入 (因為匯入會清空原本的候選人，導致保障名額 ID 遺失)
+    if (allItems && allItems.length > 0) {
+        const itemsWithForced = allItems.filter(i => i.forced_candidate_id);
+        if (itemsWithForced.length > 0) {
+            const itemNames = itemsWithForced.map(i => i.title).join('、');
+            Swal.fire('錯誤', `目前有項次（${itemNames}）設定了保障名額，匯入 Excel 會清空舊資料導致保障名額遺失而發生錯誤！請先至「選舉項次」移除這些保障設定後，再執行匯入。`, 'error');
+            e.target.value = '';
+            return;
+        }
+    }
 
     Swal.fire({
         title: '確定要匯入覆蓋？',
@@ -454,6 +465,16 @@ async function processExcelData(rows) {
 }
 
 window.deleteCandidate = async function(id) {
+    // 檢查是否為保障名額，若是則不允許刪除
+    if (allItems && allItems.length > 0) {
+        for (const item of allItems) {
+            if (item.forced_candidate_id === id) {
+                Swal.fire('錯誤', `此候選人已被設定為【${item.title}】的保障名額，無法刪除！若要刪除，請先至該項次移除保障設定。`, 'error');
+                return;
+            }
+        }
+    }
+
     const result = await Swal.fire({
         title: '確定刪除？',
         text: "刪除後無法復原，是否確定？",
@@ -550,6 +571,18 @@ document.getElementById('updateCandidateBtn').addEventListener('click', async ()
     }
 
     try {
+        const isIneligible = document.getElementById('editCandIneligibleInput').checked;
+        
+        // 檢查是否為保障名額，若是則不允許設為不可被選
+        if (isIneligible && allItems && allItems.length > 0) {
+            for (const item of allItems) {
+                if (item.forced_candidate_id === id) {
+                    Swal.fire('錯誤', `此候選人已被設定為【${item.title}】的保障名額，無法將其設為不可被選！若要修改，請先至該項次移除保障設定。`, 'error');
+                    return;
+                }
+            }
+        }
+
         const btn = document.getElementById('updateCandidateBtn');
         btn.disabled = true;
         btn.textContent = '儲存中...';
@@ -565,7 +598,7 @@ document.getElementById('updateCandidateBtn').addEventListener('click', async ()
             unit: document.getElementById('editCandUnitInput').value.trim(),
             qualification: document.getElementById('editCandQualInput').value.trim(),
             // elected_item 保持唯讀不給更新
-            is_ineligible: document.getElementById('editCandIneligibleInput').checked
+            is_ineligible: isIneligible
         });
 
         Swal.fire('成功', '更新候選人資料成功！', 'success');
