@@ -38,12 +38,27 @@ service cloud.firestore {
     // Elections 集合與其所有子集合 (candidates, items, rounds 等)
     // ==========================================
     match /elections/{electionId} {
-      allow read, write: if isSuperAdmin() || isOrgAdmin(resource.data.org_id);
+      // 允許公開讀取選舉資訊 (給投影機與選民)
+      allow read: if true;
+      allow write: if isSuperAdmin() || isOrgAdmin(resource.data.org_id);
       allow create: if isSuperAdmin() || isOrgAdmin(request.resource.data.org_id);
       
+      match /keys/{keyId} {
+        allow read: if true;
+        allow update: if true; // 允許選民更新金鑰狀態
+        allow write: if isSuperAdmin() || isOrgAdmin(get(/databases/$(database)/documents/elections/$(electionId)).data.org_id);
+      }
+      
+      match /votes/{voteId} {
+        allow read: if true;
+        allow create: if true; // 允許選民寫入選票
+        allow write: if isSuperAdmin() || isOrgAdmin(get(/databases/$(database)/documents/elections/$(electionId)).data.org_id);
+      }
+
       // 遞迴允許所有子集合存取 (繼承父選舉的權限)
       match /{document=**} {
-        allow read, write: if isSuperAdmin() || isOrgAdmin(get(/databases/$(database)/documents/elections/$(electionId)).data.org_id);
+        allow read: if true; // 允許公開讀取 (候選人、輪次、項次等)
+        allow write: if isSuperAdmin() || isOrgAdmin(get(/databases/$(database)/documents/elections/$(electionId)).data.org_id);
       }
     }
   }

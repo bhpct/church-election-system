@@ -1599,9 +1599,16 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 產生中...';
 
-            const { collection, doc, writeBatch } = window.fs;
+            const { collection, doc, writeBatch, query, where, getDocs } = window.fs;
             const db = window.firebaseDb;
             const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+            
+            // 防呆：檢查是否已經產生過金鑰
+            const q = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                throw new Error("此輪次已經產生過金鑰，為確保選票唯一性，不可重複產生！");
+            }
             
             // Firebase Batch 最多 500 筆，超過需分批，這裡簡單處理，一般選舉不太會單輪超過500
             if (count > 450) {
