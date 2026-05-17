@@ -221,6 +221,60 @@ async function loadCandidates() {
     document.getElementById('statCandidates').textContent = allCandidates.length;
     renderCandidatesTable();
     updateDynamicFormOptions(); // 更新 Modal 的動態選項 (資格、強制候選)
+    
+    // 自動同步最新名單到所有尚未開始的輪次
+    await window.syncPendingRoundsWithGlobalCandidates();
+}
+
+window.syncPendingRoundsWithGlobalCandidates = async function() {
+    if (!allItems || allItems.length === 0) return; // 頁面初次載入時還沒有 items，直接跳過
+    if (typeof isElectionLocked !== 'undefined' && isElectionLocked) return; // 若選舉已鎖定，跳過
+
+    try {
+        const { doc, writeBatch } = window.fs;
+        const db = window.firebaseDb;
+        const batch = writeBatch(db);
+        let updatesCount = 0;
+
+        for (const item of allItems) {
+            // 計算這個 item 該有的預設候選人
+            let initialCandidateIds = allCandidates.filter(c => {
+                if (c.is_ineligible) return false; // 全域不可被選
+                if (item.exclude_elected && c.elected_item && c.elected_item.trim() !== '') return false; // 排除已當選
+                if (item.qualifications && item.qualifications.length > 0 && !item.qualifications.includes(c.qualification)) return false; // 資格不符
+                return true;
+            }).map(c => c.id);
+
+            // 若有保障名額，強制加入
+            if (item.forced_candidate_id && !initialCandidateIds.includes(item.forced_candidate_id)) {
+                initialCandidateIds.push(item.forced_candidate_id);
+            }
+
+            // 針對該項次下所有 PENDING 狀態的輪次進行同步
+            if (item.rounds) {
+                for (const [roundId, roundData] of Object.entries(item.rounds)) {
+                    if (roundData.status === 'PENDING') {
+                        const roundRef = doc(db, 'elections', currentElectionId, 'items', item.id, 'rounds', roundId);
+                        batch.update(roundRef, { candidate_ids: initialCandidateIds });
+                        updatesCount++;
+                        
+                        // 更新記憶體資料
+                        roundData.candidate_ids = initialCandidateIds; 
+                    }
+                }
+            }
+        }
+        
+        if (updatesCount > 0) {
+            await batch.commit();
+            console.log(`自動同步：已將全域候選人名單更新至 ${updatesCount} 個未開始的輪次`);
+            if (typeof renderItemsList === 'function') {
+                renderItemsList(); // 重新渲染畫面以顯示正確的候選人數
+            }
+        }
+    } catch (error) {
+        console.error("自動同步輪次候選人失敗:", error);
+    }
 }
 
 function renderCandidatesTable() {
@@ -949,8 +1003,8 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
         const round3Ref = doc(db, 'elections', currentElectionId, 'items', newItemRef.id, 'rounds', 'round_3');
 
         await setDoc(round1Ref, { status: 'PENDING', candidate_ids: initialCandidateIds });
-        await setDoc(round2Ref, { status: 'PENDING', candidate_ids: [] });
-        await setDoc(round3Ref, { status: 'PENDING', candidate_ids: [] });
+        await setDoc(round2Ref, { status: 'PENDING', candidate_ids: initialCandidateIds });
+        await setDoc(round3Ref, { status: 'PENDING', candidate_ids: initialCandidateIds });
 
         Swal.fire('成功', '已建立項次並初始化三輪', 'success');
         bootstrap.Modal.getInstance(document.getElementById('addItemModal')).hide();
