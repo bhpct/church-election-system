@@ -64,7 +64,20 @@
             border-bottom: 3px solid #198754;
             padding-bottom: 0.5rem;
             margin-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
             text-align: center;
+        }
+        
+        .masonry-layout {
+            column-count: 1;
+            column-gap: 1.5rem;
+        }
+        @media (min-width: 768px) { .masonry-layout { column-count: 2; } }
+        @media (min-width: 1200px) { .masonry-layout { column-count: 3; } }
+        .masonry-item {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            margin-bottom: 1.5rem;
         }
         
         .candidate-card {
@@ -241,7 +254,7 @@
                       `;
 
                       // 設定標題與統計數字
-                      const roundNames = { 'round1': '第一輪', 'round2': '第二輪', 'round3': '第三輪' };
+                      const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
                       const rName = roundNames[roundId] || roundId;
                       document.getElementById('displayTitle').textContent = `${itemData.title} - ${rName} 開票結果`;
                       
@@ -316,8 +329,12 @@
                       // 僅保留有得票的人 (得票數 > 0) 或者已當選的人
                       processedCandidates = processedCandidates.filter(c => c.total_votes > 0 || c.is_elected);
 
-                      // 依據得票數排序
-                      processedCandidates.sort((a, b) => b.total_votes - a.total_votes);
+                      // 依據當選與得票數排序
+                      processedCandidates.sort((a, b) => {
+                          if (a.is_elected && !b.is_elected) return -1;
+                          if (!a.is_elected && b.is_elected) return 1;
+                          return b.total_votes - a.total_votes;
+                      });
 
                       // 分組邏輯
                       const reqDistrict = roundData.require_district !== undefined ? roundData.require_district : itemData.require_district;
@@ -357,9 +374,11 @@
                               if (groupCands.length === 0) {
                                   html += `<div class="text-center text-muted fs-5 mt-4">無人得票</div>`;
                               } else {
+                                  html += `<div class="masonry-layout">`;
                                   groupCands.forEach(c => {
-                                      html += generateCandidateCard(c);
+                                      html += `<div class="masonry-item">${generateCandidateCard(c)}</div>`;
                                   });
+                                  html += `</div>`;
                               }
                               
                               html += `</div></div>`;
@@ -370,14 +389,17 @@
                           const html = `
                               <div class="col-12">
                                   <div class="district-col">
-                                      <div class="row">
+                                      <div class="masonry-layout" id="masonryContainer">
+                                      </div>
+                                  </div>
+                              </div>
                           `;
                           grid.innerHTML = html;
                           
-                          const rowContainer = grid.querySelector('.row');
+                          const rowContainer = grid.querySelector('#masonryContainer');
                           processedCandidates.forEach(c => {
                               const div = document.createElement('div');
-                              div.className = 'col-md-6 col-lg-4';
+                              div.className = 'masonry-item';
                               div.innerHTML = generateCandidateCard(c);
                               rowContainer.appendChild(div);
                           });
