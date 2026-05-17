@@ -1071,7 +1071,11 @@ window.openRoundCandidates = function(itemId, roundId) {
     // 解析允許資格 (若有)
     let allowedQuals = [];
     if (item.qualifications) {
-        allowedQuals = item.qualifications.split(',').map(s => s.trim()).filter(Boolean);
+        if (Array.isArray(item.qualifications)) {
+            allowedQuals = item.qualifications;
+        } else if (typeof item.qualifications === 'string') {
+            allowedQuals = item.qualifications.split(',').map(s => s.trim()).filter(Boolean);
+        }
     }
 
     allCandidates.forEach(c => {
@@ -1865,7 +1869,9 @@ window.openTallyCenter = async function(itemId, roundId) {
 
     document.getElementById('tallyTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
     document.getElementById('tallyItemId').value = itemId;
+    document.getElementById('tallyItemSelect').value = itemId;
     document.getElementById('tallyRoundId').value = roundId;
+    document.getElementById('tallyRoundSelect').value = roundId;
     document.getElementById('tallyQuota').textContent = item.seats || 0;
 
     // 狀態設定
