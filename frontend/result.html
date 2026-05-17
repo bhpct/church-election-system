@@ -173,17 +173,16 @@
 
     <!-- 主程式邏輯 -->
     <script>
-        // 初始化 Firebase (需替換為您的設定)
-        fetch('/api/firebase-config')
-            .then(response => response.json())
-            .then(config => {
-                firebase.initializeApp(config);
-                loadResults();
-            })
-            .catch(error => {
-                console.error('Firebase config load error:', error);
-                alert('無法載入系統設定檔，請聯絡管理員。');
-            });
+        const firebaseConfig = {
+            apiKey: "AIzaSyABw9ATwX7E0YxtkM4PK_YCpAEH98X0nBs",
+            authDomain: "church-election-system-7c674.firebaseapp.com",
+            projectId: "church-election-system-7c674",
+            storageBucket: "church-election-system-7c674.firebasestorage.app",
+            messagingSenderId: "107251562289",
+            appId: "1:107251562289:web:a9cd450302d7c235aa6210"
+        };
+        firebase.initializeApp(firebaseConfig);
+        loadResults();
 
         async function loadResults() {
             try {

@@ -966,6 +966,8 @@ window.deleteItem = async function(itemId) {
 }
 
 window.startRound = function(itemId, roundId) {
+    if (checkAnyActiveRound(itemId, roundId)) return;
+
     Swal.fire({
         title: '確定要啟動此輪投票嗎？',
         text: '啟動後，將無法再調整名單。',
@@ -1591,6 +1593,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const itemId = document.getElementById('manageKeysItemId').value;
         const roundId = document.getElementById('manageKeysRoundId').value;
+        
+        if (checkAnyActiveRound(itemId, roundId)) return;
+
         const btn = document.getElementById('btnGenerateKeys');
 
         try {
@@ -2374,6 +2379,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 重新開放
     document.getElementById('btnReopenVoting')?.addEventListener('click', async () => {
+        const itemId = currentTallyData.itemId;
+        const roundId = currentTallyData.roundId;
+        if (checkAnyActiveRound(itemId, roundId)) return;
+        
         await updateRoundStatus('ACTIVE', '確定要重新開放數位投票嗎？');
     });
 
@@ -2492,6 +2501,29 @@ async function updateRoundStatus(newStatus, confirmMsg) {
         }
     });
 }
+
+// 檢查是否已有 ACTIVE 輪次
+window.checkAnyActiveRound = function(excludeItemId = null, excludeRoundId = null) {
+    let hasActiveRound = false;
+    let activeRoundName = '';
+    for (const item of allItems) {
+        for (const round of item.rounds) {
+            if (round.status === 'ACTIVE' && (item.id !== excludeItemId || round.id !== excludeRoundId)) {
+                hasActiveRound = true;
+                activeRoundName = `${item.title} - ${getRoundName(round.id)}`;
+                break;
+            }
+        }
+        if (hasActiveRound) break;
+    }
+
+    if (hasActiveRound) {
+        Swal.fire('錯誤', `目前有尚未結束的投票（${activeRoundName}）。同一時間只能有一個輪次進行投票，請先結束該輪投票再開啟新輪次。`, 'error');
+        return true;
+    }
+    return false;
+}
+
 
 // ==========================================
 // 晉級下一輪設定嚮導 (Next Round Wizard)
