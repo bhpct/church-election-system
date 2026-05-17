@@ -1475,7 +1475,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const term = e.target.value.toLowerCase();
             document.querySelectorAll(`#${listId} .list-group-item`).forEach(li => {
                 const text = li.textContent.toLowerCase();
-                li.style.display = text.includes(term) ? '' : 'none';
+                if (text.includes(term)) {
+                    li.classList.remove('d-none');
+                } else {
+                    li.classList.add('d-none');
+                }
             });
         });
     };
