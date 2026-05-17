@@ -268,8 +268,8 @@ window.syncPendingRoundsWithGlobalCandidates = async function() {
         if (updatesCount > 0) {
             await batch.commit();
             console.log(`自動同步：已將全域候選人名單更新至 ${updatesCount} 個未開始的輪次`);
-            if (typeof renderItemsList === 'function') {
-                renderItemsList(); // 重新渲染畫面以顯示正確的候選人數
+            if (typeof renderItemsAccordion === 'function') {
+                renderItemsAccordion(); // 重新渲染畫面以顯示正確的候選人數
             }
         }
     } catch (error) {
@@ -477,7 +477,7 @@ window.deleteCandidate = async function(id) {
 
     const result = await Swal.fire({
         title: '確定刪除？',
-        text: "刪除後無法復原，是否確定？",
+        text: "【注意】這將會同步從所有未開始投票的選舉輪次中移除此候選人！刪除後無法復原，是否確定？",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -509,6 +509,16 @@ document.getElementById('saveCandidateBtn').addEventListener('click', async () =
         Swal.fire('錯誤', '「姓名」與「候選資格」為必填欄位', 'error');
         return;
     }
+
+    const result = await Swal.fire({
+        title: '新增候選人',
+        text: "【注意】新增後，系統將自動把此人同步加入到符合資格且尚未開始的輪次中。確定要新增嗎？",
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: '確定新增',
+        cancelButtonText: '取消'
+    });
+    if (!result.isConfirmed) return;
 
     try {
         const btn = document.getElementById('saveCandidateBtn');
@@ -569,6 +579,16 @@ document.getElementById('updateCandidateBtn').addEventListener('click', async ()
         Swal.fire('錯誤', '「姓名」為必填欄位', 'error');
         return;
     }
+
+    const result = await Swal.fire({
+        title: '儲存變更',
+        text: "【注意】變更候選人資料或資格後，系統會自動重新計算並覆蓋所有未開始的輪次名單！確定要儲存嗎？",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '確定儲存',
+        cancelButtonText: '取消'
+    });
+    if (!result.isConfirmed) return;
 
     try {
         const isIneligible = document.getElementById('editCandIneligibleInput').checked;
