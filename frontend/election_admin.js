@@ -1137,8 +1137,16 @@ window.startRound = function(itemId, roundId) {
                     updatedAt: window.fs.serverTimestamp()
                 }, { merge: true });
 
-                Swal.fire('成功', '投票已正式啟動！', 'success');
-                await loadItems();
+                Swal.fire({
+                    title: '成功',
+                    text: '投票已正式啟動！即將進入開票中心...',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(async () => {
+                    await loadItems();
+                    openTallyCenter(itemId, roundId);
+                });
             } catch (error) {
                 console.error("啟動失敗:", error);
                 Swal.fire('錯誤', error.message, 'error');
