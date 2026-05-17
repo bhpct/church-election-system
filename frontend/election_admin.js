@@ -172,6 +172,15 @@ async function loadElectionData() {
             statusBadge.className = status === 'ACTIVE' ? 'badge bg-success me-2' : 'badge bg-warning text-dark me-2';
         }
 
+        // 初始化進階設定的表單值
+        if (currentElectionData.quorum_base) {
+            const radioBtn = document.querySelector(`input[name="globalQuorumBase"][value="${currentElectionData.quorum_base}"]`);
+            if (radioBtn) radioBtn.checked = true;
+        }
+        if (currentElectionData.init_attending_count !== undefined && currentElectionData.init_attending_count !== null) {
+            document.getElementById('globalInitAttending').value = currentElectionData.init_attending_count;
+        }
+
         // 防呆保護：若已經啟動，隱藏匯入與新增按鈕
         if (status !== 'PENDING') {
             const importBtn = document.getElementById('btnExcelImport');
