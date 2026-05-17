@@ -1593,9 +1593,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const itemId = document.getElementById('manageKeysItemId').value;
         const roundId = document.getElementById('manageKeysRoundId').value;
-        
-        if (checkAnyActiveRound(itemId, roundId)) return;
-
         const btn = document.getElementById('btnGenerateKeys');
 
         try {
