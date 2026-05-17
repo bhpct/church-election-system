@@ -597,7 +597,7 @@ function renderItemsAccordion() {
                     </div>
                     <div>
                         <button class="btn btn-sm btn-outline-secondary" onclick="openKeyManagement('${item.id}', '${round.id}')"><i class="fas fa-key"></i> 金鑰</button>
-                        <button class="btn btn-sm btn-outline-primary ms-1" onclick="openRoundCandidates('${item.id}', '${round.id}')">調整名單 (${round.candidate_ids ? round.candidate_ids.length : 0}人)</button>
+                        <button class="btn btn-sm btn-outline-primary ms-1" onclick="openRoundCandidates('${item.id}', '${round.id}')">調整名單 (${round.candidate_ids ? round.candidate_ids.length : 0}人在候選區)</button>
                         <button class="btn btn-sm btn-success ms-1" onclick="startRound('${item.id}', '${round.id}')" ${round.status !== 'PENDING' ? 'disabled' : ''}>開始投票</button>
                         <button class="btn btn-sm btn-info text-white ms-1" onclick="openTallyCenter('${item.id}', '${round.id}')" style="display: ${round.status !== 'PENDING' ? 'inline-block' : 'none'};">開票中心</button>
                     </div>
@@ -1105,7 +1105,9 @@ window.openRoundCandidates = function(itemId, roundId) {
         }
 
         const li = document.createElement('li');
-        li.className = `list-group-item d-flex justify-content-between align-items-center ${isDisabled ? 'disabled' : ''}`;
+        // 加入 list-group-item-danger class 讓非候選區有紅色背景以示區別，但不可被選(disabled)的保持預設灰色
+        const itemClass = isDisabled ? 'disabled' : (isSelected ? '' : 'list-group-item-danger');
+        li.className = `list-group-item d-flex justify-content-between align-items-center ${itemClass}`;
         li.dataset.id = c.id;
         li.innerHTML = `
             <div>
@@ -1164,6 +1166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetList = document.getElementById('listUnselected');
         selected.forEach(li => {
             li.classList.remove('active');
+            li.classList.add('list-group-item-danger'); // 移出時加上紅色標示
             targetList.appendChild(li);
         });
         updateShuttleCounts();
@@ -1175,6 +1178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetList = document.getElementById('listUnselected');
         all.forEach(li => {
             li.classList.remove('active');
+            li.classList.add('list-group-item-danger'); // 移出時加上紅色標示
             targetList.appendChild(li);
         });
         updateShuttleCounts();
@@ -1186,6 +1190,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetList = document.getElementById('listSelected');
         selected.forEach(li => {
             li.classList.remove('active');
+            li.classList.remove('list-group-item-danger'); // 移入時移除紅色標示
             targetList.appendChild(li);
         });
         updateShuttleCounts();
@@ -1197,6 +1202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetList = document.getElementById('listSelected');
         all.forEach(li => {
             li.classList.remove('active');
+            li.classList.remove('list-group-item-danger'); // 移入時移除紅色標示
             targetList.appendChild(li);
         });
         updateShuttleCounts();
