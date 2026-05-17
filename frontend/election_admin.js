@@ -153,16 +153,19 @@ async function loadElectionData() {
 
         const status = currentElectionData.status || 'PENDING';
         const statusBadge = document.getElementById('globalElectionStatusBadge');
-        const startBtn = document.getElementById('btnStartElectionGlobal');
+        const confirmStartBtn = document.getElementById('confirmStartElectionBtn');
         
         if (status === 'PENDING') {
             statusBadge.textContent = '準備中';
             statusBadge.className = 'badge bg-secondary me-2';
-            startBtn.style.display = 'inline-block';
+            if (confirmStartBtn) confirmStartBtn.disabled = false;
         } else {
             statusBadge.textContent = status === 'ACTIVE' ? '投票中' : (status === 'CLOSED' ? '開票中' : '結果發布');
             statusBadge.className = status === 'ACTIVE' ? 'badge bg-success me-2' : 'badge bg-warning text-dark me-2';
-            startBtn.style.display = 'none';
+            if (confirmStartBtn) {
+                confirmStartBtn.disabled = true;
+                confirmStartBtn.textContent = '選舉已啟動';
+            }
         }
 
         // 防呆保護：若已經啟動，隱藏匯入與新增按鈕
