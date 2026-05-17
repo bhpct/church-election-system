@@ -297,12 +297,9 @@ async function handleSubmitVote() {
     document.querySelectorAll('.ballot-vote-val').forEach(el => {
         if (el.value) selectedIds.push(el.value);
     });
-
-    // 檢查是否有選 (至少要選 1 人，保障名額已預設填入)
-    // 實務上也可以允許投廢票(全空)，但一般數位投票系統為避免誤觸，要求至少選1個。
+    // 允許投空白票 (全空)
     if (selectedIds.length === 0) {
-        Swal.fire('提示', '請至少圈選一位候選人。', 'warning');
-        return;
+        // 不阻擋，允許送出空白票
     }
 
     // 驗證強制分區
@@ -374,9 +371,8 @@ async function handleSubmitVote() {
 
         await batch.commit();
 
-        // 成功！進入等候大廳
-        switchView('view-waiting');
-        listenToRoundResult();
+        // 成功！直接跳轉到 result.html 頁面
+        window.location.href = `result.html?election_id=${currentElectionId}&item_id=${itemData.id}&round_id=${roundData.id}`;
 
     } catch (error) {
         console.error(error);

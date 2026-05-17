@@ -198,164 +198,195 @@
 
                 const db = firebase.firestore();
                 
-                // 讀取項次與輪次資料
+                // 讀取項次資料 (單次讀取)
                 const itemDoc = await db.collection('elections').doc(electionId).collection('items').doc(itemId).get();
                 if (!itemDoc.exists) throw new Error("找不到項次資料");
                 const itemData = itemDoc.data();
 
-                const roundDoc = await db.collection('elections').doc(electionId).collection('items').doc(itemId).collection('rounds').doc(roundId).get();
-                if (!roundDoc.exists) throw new Error("找不到輪次資料");
-                const roundData = roundDoc.data();
+                // 監聽輪次資料 (即時更新)
+                db.collection('elections').doc(electionId).collection('items').doc(itemId).collection('rounds').doc(roundId)
+                  .onSnapshot(async (roundDoc) => {
+                      if (!roundDoc.exists) {
+                          document.getElementById('loadingSpinner').innerHTML = '<h2 class="text-danger">找不到輪次資料</h2>';
+                          return;
+                      }
+                      const roundData = roundDoc.data();
+                      const status = roundData.status || 'PENDING';
 
-                // 設定標題與統計數字
-                const roundNames = { 'round1': '第一輪', 'round2': '第二輪', 'round3': '第三輪' };
-                const rName = roundNames[roundId] || roundId;
-                document.getElementById('displayTitle').textContent = `${itemData.title} - ${rName} 開票結果`;
-                
-                const effectiveSeats = roundData.seats !== undefined ? roundData.seats : itemData.seats;
-                document.getElementById('displaySeats').textContent = effectiveSeats;
+                      if (status !== 'PUBLISHED') {
+                          // 顯示等待畫面
+                          let msg = '選舉進行中...';
+                          let icon = 'fa-spinner fa-spin text-primary';
+                          if (status === 'CLOSED') {
+                              msg = '投票已結束，開票結算中...';
+                              icon = 'fa-calculator text-warning';
+                          } else if (status === 'ACTIVE') {
+                              msg = '投票進行中...請大家踴躍投票';
+                              icon = 'fa-person-booth text-success';
+                          }
+                          
+                          document.getElementById('loadingSpinner').innerHTML = `
+                              <i class="fas ${icon}" style="font-size: 5rem; margin-bottom: 2rem;"></i>
+                              <h1 class="fw-bold" style="font-size: 3rem;">${itemData.title}</h1>
+                              <h2 class="mt-2 text-muted fs-1">${msg}</h2>
+                          `;
+                          document.getElementById('loadingSpinner').style.display = 'flex';
+                          document.getElementById('mainContent').style.display = 'none';
+                          return;
+                      }
 
-                const digitalIssued = roundData.digital_issued || 0;
-                const paperIssued = roundData.paper_issued || 0;
-                document.getElementById('displayTotalIssued').textContent = digitalIssued + paperIssued;
+                      // 狀態為 PUBLISHED，開始渲染結果
+                      document.getElementById('loadingSpinner').innerHTML = `
+                          <div class="spinner-border text-primary" style="width: 5rem; height: 5rem;" role="status"></div>
+                          <h2 class="mt-4 text-muted">正在載入選舉結果...</h2>
+                      `;
 
-                // 總收票數需計算 digitalUsed
-                const keysSnap = await db.collection('elections').doc(electionId).collection('keys')
-                    .where('item_id', '==', itemId).where('round_id', '==', roundId).where('status', '==', 'USED').get();
-                const digitalUsed = keysSnap.size;
-                const paperReceived = roundData.paper_received || 0;
-                document.getElementById('displayTotalReceived').textContent = digitalUsed + paperReceived;
+                      // 設定標題與統計數字
+                      const roundNames = { 'round1': '第一輪', 'round2': '第二輪', 'round3': '第三輪' };
+                      const rName = roundNames[roundId] || roundId;
+                      document.getElementById('displayTitle').textContent = `${itemData.title} - ${rName} 開票結果`;
+                      
+                      const effectiveSeats = roundData.seats !== undefined ? roundData.seats : itemData.seats;
+                      document.getElementById('displaySeats').textContent = effectiveSeats;
 
-                const paperBlank = roundData.paper_blank || 0;
-                // 計算數位空白票
-                const votesSnap = await db.collection('elections').doc(electionId).collection('votes')
-                    .where('item_id', '==', itemId).where('round_id', '==', roundId).get();
-                let digitalBlank = 0;
-                let digitalVotesMap = {};
-                votesSnap.forEach(doc => {
-                    const d = doc.data();
-                    if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
-                        if (d.candidate_ids.length === 0) {
-                            digitalBlank++;
-                        } else {
-                            d.candidate_ids.forEach(cid => {
-                                digitalVotesMap[cid] = (digitalVotesMap[cid] || 0) + 1;
-                            });
-                        }
-                    }
-                });
-                document.getElementById('displayTotalBlank').textContent = digitalBlank + paperBlank;
+                      const digitalIssued = roundData.digital_issued || 0;
+                      const paperIssued = roundData.paper_issued || 0;
+                      document.getElementById('displayTotalIssued').textContent = digitalIssued + paperIssued;
 
-                // 取得候選人並計算總票數
-                const candidateIds = roundData.candidate_ids || [];
-                if (candidateIds.length === 0) {
-                    document.getElementById('resultsGrid').innerHTML = '<div class="col-12 text-center text-muted fs-3">此輪次無候選人</div>';
-                    document.getElementById('loadingSpinner').style.display = 'none';
-                    document.getElementById('mainContent').style.display = 'block';
-                    return;
-                }
+                      // 總收票數需計算 digitalUsed
+                      const keysSnap = await db.collection('elections').doc(electionId).collection('keys')
+                          .where('item_id', '==', itemId).where('round_id', '==', roundId).where('status', '==', 'USED').get();
+                      const digitalUsed = keysSnap.size;
+                      const paperReceived = roundData.paper_received || 0;
+                      document.getElementById('displayTotalReceived').textContent = digitalUsed + paperReceived;
 
-                // 分批讀取候選人資料 (避免超過 10 個 in 的限制)
-                const candidates = [];
-                for (let i = 0; i < candidateIds.length; i += 10) {
-                    const batchIds = candidateIds.slice(i, i + 10);
-                    const cSnap = await db.collection('elections').doc(electionId).collection('candidates')
-                        .where(firebase.firestore.FieldPath.documentId(), 'in', batchIds).get();
-                    cSnap.forEach(d => {
-                        candidates.push({ id: d.id, ...d.data() });
-                    });
-                }
+                      const paperBlank = roundData.paper_blank || 0;
+                      // 計算數位空白票
+                      const votesSnap = await db.collection('elections').doc(electionId).collection('votes')
+                          .where('item_id', '==', itemId).where('round_id', '==', roundId).get();
+                      let digitalBlank = 0;
+                      let digitalVotesMap = {};
+                      votesSnap.forEach(doc => {
+                          const d = doc.data();
+                          if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
+                              if (d.candidate_ids.length === 0) {
+                                  digitalBlank++;
+                              } else {
+                                  d.candidate_ids.forEach(cid => {
+                                      digitalVotesMap[cid] = (digitalVotesMap[cid] || 0) + 1;
+                                  });
+                              }
+                          }
+                      });
+                      document.getElementById('displayTotalBlank').textContent = digitalBlank + paperBlank;
 
-                const electedIds = roundData.elected_ids || [];
-                const forcedId = roundData.forced_candidate_id !== undefined ? roundData.forced_candidate_id : itemData.forced_candidate_id;
-                
-                let processedCandidates = candidates.map(c => {
-                    const dVotes = digitalVotesMap[c.id] || 0;
-                    const pVotes = (roundData.paper_votes && roundData.paper_votes[c.id]) ? parseInt(roundData.paper_votes[c.id]) : 0;
-                    return {
-                        ...c,
-                        total_votes: dVotes + pVotes,
-                        is_elected: electedIds.includes(c.id),
-                        is_forced: c.id === forcedId
-                    };
-                });
+                      // 取得候選人並計算總票數
+                      const candidateIds = roundData.candidate_ids || [];
+                      if (candidateIds.length === 0) {
+                          document.getElementById('resultsGrid').innerHTML = '<div class="col-12 text-center text-muted fs-3">此輪次無候選人</div>';
+                          document.getElementById('loadingSpinner').style.display = 'none';
+                          document.getElementById('mainContent').style.display = 'block';
+                          return;
+                      }
 
-                // 僅保留有得票的人 (得票數 > 0) 或者已當選的人
-                processedCandidates = processedCandidates.filter(c => c.total_votes > 0 || c.is_elected);
+                      // 分批讀取候選人資料
+                      const candidates = [];
+                      for (let i = 0; i < candidateIds.length; i += 10) {
+                          const batchIds = candidateIds.slice(i, i + 10);
+                          const cSnap = await db.collection('elections').doc(electionId).collection('candidates')
+                              .where(firebase.firestore.FieldPath.documentId(), 'in', batchIds).get();
+                          cSnap.forEach(d => {
+                              candidates.push({ id: d.id, ...d.data() });
+                          });
+                      }
 
-                // 依據得票數排序
-                processedCandidates.sort((a, b) => b.total_votes - a.total_votes);
+                      const electedIds = roundData.elected_ids || [];
+                      const forcedId = roundData.forced_candidate_id !== undefined ? roundData.forced_candidate_id : itemData.forced_candidate_id;
+                      
+                      let processedCandidates = candidates.map(c => {
+                          const dVotes = digitalVotesMap[c.id] || 0;
+                          const pVotes = (roundData.paper_votes && roundData.paper_votes[c.id]) ? parseInt(roundData.paper_votes[c.id]) : 0;
+                          return {
+                              ...c,
+                              total_votes: dVotes + pVotes,
+                              is_elected: electedIds.includes(c.id),
+                              is_forced: c.id === forcedId
+                          };
+                      });
 
-                // 分組邏輯 (若有分區，且勾選了強制分區限制)
-                const reqDistrict = roundData.require_district !== undefined ? roundData.require_district : itemData.require_district;
-                
-                const grid = document.getElementById('resultsGrid');
-                grid.innerHTML = '';
+                      // 僅保留有得票的人 (得票數 > 0) 或者已當選的人
+                      processedCandidates = processedCandidates.filter(c => c.total_votes > 0 || c.is_elected);
 
-                if (reqDistrict || forcedId) {
-                    // 有分區或保障名額，進行分欄顯示
-                    const groups = {};
-                    
-                    if (forcedId) {
-                        groups['保障名額'] = processedCandidates.filter(c => c.is_forced);
-                    }
-                    
-                    const others = processedCandidates.filter(c => !c.is_forced);
-                    if (reqDistrict) {
-                        others.forEach(c => {
-                            const dist = c.district || '未分區';
-                            if (!groups[dist]) groups[dist] = [];
-                            groups[dist].push(c);
-                        });
-                    } else {
-                        groups['候選人名單'] = others;
-                    }
+                      // 依據得票數排序
+                      processedCandidates.sort((a, b) => b.total_votes - a.total_votes);
 
-                    // 確保沒有人的組別不顯示，但保障名額除外 (如果保障名額沒得票也得顯示)
-                    const colClass = Object.keys(groups).length > 2 ? 'col-md-4' : 'col-md-6';
-                    
-                    for (const [groupName, groupCands] of Object.entries(groups)) {
-                        if (groupCands.length === 0 && groupName !== '保障名額') continue;
-                        
-                        let html = `
-                            <div class="${colClass} mb-4">
-                                <div class="district-col">
-                                    <div class="district-title">${groupName}</div>
-                        `;
-                        
-                        if (groupCands.length === 0) {
-                            html += `<div class="text-center text-muted fs-5 mt-4">無人得票</div>`;
-                        } else {
-                            groupCands.forEach(c => {
-                                html += generateCandidateCard(c);
-                            });
-                        }
-                        
-                        html += `</div></div>`;
-                        grid.innerHTML += html;
-                    }
+                      // 分組邏輯
+                      const reqDistrict = roundData.require_district !== undefined ? roundData.require_district : itemData.require_district;
+                      
+                      const grid = document.getElementById('resultsGrid');
+                      grid.innerHTML = '';
 
-                } else {
-                    // 一般列表，不分欄，直接滿版顯示
-                    const html = `
-                        <div class="col-12">
-                            <div class="district-col">
-                                <div class="row">
-                    `;
-                    grid.innerHTML = html;
-                    
-                    const rowContainer = grid.querySelector('.row');
-                    processedCandidates.forEach(c => {
-                        const div = document.createElement('div');
-                        div.className = 'col-md-6 col-lg-4';
-                        div.innerHTML = generateCandidateCard(c);
-                        rowContainer.appendChild(div);
-                    });
-                }
+                      if (reqDistrict || forcedId) {
+                          const groups = {};
+                          
+                          if (forcedId) {
+                              groups['保障名額'] = processedCandidates.filter(c => c.is_forced);
+                          }
+                          
+                          const others = processedCandidates.filter(c => !c.is_forced);
+                          if (reqDistrict) {
+                              others.forEach(c => {
+                                  const dist = c.district || '未分區';
+                                  if (!groups[dist]) groups[dist] = [];
+                                  groups[dist].push(c);
+                              });
+                          } else {
+                              groups['候選人名單'] = others;
+                          }
 
+                          const colClass = Object.keys(groups).length > 2 ? 'col-md-4' : 'col-md-6';
+                          
+                          for (const [groupName, groupCands] of Object.entries(groups)) {
+                              if (groupCands.length === 0 && groupName !== '保障名額') continue;
+                              
+                              let html = `
+                                  <div class="${colClass} mb-4">
+                                      <div class="district-col">
+                                          <div class="district-title">${groupName}</div>
+                              `;
+                              
+                              if (groupCands.length === 0) {
+                                  html += `<div class="text-center text-muted fs-5 mt-4">無人得票</div>`;
+                              } else {
+                                  groupCands.forEach(c => {
+                                      html += generateCandidateCard(c);
+                                  });
+                              }
+                              
+                              html += `</div></div>`;
+                              grid.innerHTML += html;
+                          }
 
-                document.getElementById('loadingSpinner').style.display = 'none';
-                document.getElementById('mainContent').style.display = 'block';
+                      } else {
+                          const html = `
+                              <div class="col-12">
+                                  <div class="district-col">
+                                      <div class="row">
+                          `;
+                          grid.innerHTML = html;
+                          
+                          const rowContainer = grid.querySelector('.row');
+                          processedCandidates.forEach(c => {
+                              const div = document.createElement('div');
+                              div.className = 'col-md-6 col-lg-4';
+                              div.innerHTML = generateCandidateCard(c);
+                              rowContainer.appendChild(div);
+                          });
+                      }
+
+                      document.getElementById('loadingSpinner').style.display = 'none';
+                      document.getElementById('mainContent').style.display = 'block';
+                  });
 
             } catch (error) {
                 console.error("載入失敗:", error);

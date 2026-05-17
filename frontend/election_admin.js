@@ -2063,7 +2063,14 @@ window.openTallyCenter = async function(itemId, roundId) {
 
     document.getElementById('tallyTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
     document.getElementById('tallyItemId').value = itemId;
-    document.getElementById('tallyItemSelect').value = itemId;
+    
+    // 建立下拉選單選項
+    const itemSelect = document.getElementById('tallyItemSelect');
+    itemSelect.innerHTML = '<option value="">請選擇...</option>';
+    allItems.forEach(i => {
+        itemSelect.innerHTML += `<option value="${i.id}">${i.title}</option>`;
+    });
+    itemSelect.value = itemId;
     document.getElementById('tallyRoundId').value = roundId;
     document.getElementById('tallyRoundSelect').value = roundId;
     document.getElementById('tallyQuota').textContent = item.seats || 0;
@@ -2175,6 +2182,66 @@ async function loadTallyStats(itemId, roundId) {
     
     currentTallyData.digitalBlank = digitalBlankCount;
     document.getElementById('tallyDigitalBlank').textContent = digitalBlankCount;
+}
+
+async function doSaveTallyData(itemId, roundId) {
+    try {
+        const { doc, setDoc } = window.fs;
+        const db = window.firebaseDb;
+
+        const paperVotesMap = {};
+        const electedIds = [];
+
+        document.querySelectorAll('.paper-vote-input').forEach(input => {
+            const val = parseInt(input.value) || 0;
+            if (val > 0) paperVotesMap[input.dataset.id] = val;
+        });
+        document.querySelectorAll('.elected-checkbox:checked').forEach(chk => {
+            electedIds.push(chk.dataset.id);
+        });
+
+        // 正確更新子集合中的 round 文件
+        await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+            quorum_base: document.getElementById('tallyQuorumBase').value,
+            attending_count: parseInt(document.getElementById('tallyAttendingCount').value) || 0,
+            digital_issued: parseInt(document.getElementById('tallyDigitalIssued').value) || 0,
+            paper_issued: parseInt(document.getElementById('tallyPaperIssued').value) || 0,
+            paper_received: parseInt(document.getElementById('tallyPaperReceived').value) || 0,
+            paper_blank: parseInt(document.getElementById('tallyPaperBlank').value) || 0,
+            paper_votes: paperVotesMap,
+            elected_ids: electedIds,
+            updatedAt: window.fs.serverTimestamp()
+        }, { merge: true });
+
+        // 寫回 candidates 總表 (儲存即同步總表)
+        const { writeBatch } = window.fs;
+        const batch = writeBatch(db);
+        const item = allItems.find(i => i.id === itemId);
+        
+        // 找出所有此輪的候選人，根據是否被勾選當選來更新
+        currentTallyData.candidates.forEach(c => {
+            const isElectedNow = electedIds.includes(c.id);
+            const candRef = doc(db, 'elections', currentElectionId, 'candidates', c.id);
+            if (isElectedNow) {
+                batch.update(candRef, {
+                    elected_item: item.title,
+                    updatedAt: window.fs.serverTimestamp()
+                });
+            } else if (c.elected_item === item.title) {
+                // 如果原本有當選此項次，但現在被取消勾選，則清空
+                batch.update(candRef, {
+                    elected_item: null,
+                    updatedAt: window.fs.serverTimestamp()
+                });
+            }
+        });
+        await batch.commit();
+        
+        return true;
+    } catch (error) {
+        console.error("儲存失敗:", error);
+        throw error;
+    }
 }
 
 function updateTallyThreshold() {
@@ -2310,73 +2377,33 @@ document.addEventListener('DOMContentLoaded', () => {
         await updateRoundStatus('ACTIVE', '確定要重新開放數位投票嗎？');
     });
 
+    // 開啟投影畫面按鈕
+    document.getElementById('btnOpenProjector')?.addEventListener('click', () => {
+        const itemId = currentTallyData.itemId;
+        const roundId = currentTallyData.roundId;
+        if (!itemId || !roundId) {
+            Swal.fire('錯誤', '請先選擇要操作的選舉與輪次', 'error');
+            return;
+        }
+        const resultUrl = `result.html?election_id=${currentElectionId}&item_id=${itemId}&round_id=${roundId}`;
+        window.open(resultUrl, '_blank', 'width=1200,height=800');
+    });
+
     // 儲存開票數據
     document.getElementById('btnSaveTallyResults')?.addEventListener('click', async () => {
+        const itemId = document.getElementById('tallyItemId').value;
+        const roundId = document.getElementById('tallyRoundId').value;
+        if (!itemId || !roundId) return;
+
         const btn = document.getElementById('btnSaveTallyResults');
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
 
         try {
-            const { doc, setDoc } = window.fs;
-            const db = window.firebaseDb;
-
-            const itemId = currentTallyData.itemId;
-            const roundId = currentTallyData.roundId;
-
-            const paperVotesMap = {};
-            const electedIds = [];
-
-            // 讀取當前畫面資料
-            document.querySelectorAll('.paper-vote-input').forEach(input => {
-                const val = parseInt(input.value) || 0;
-                if (val > 0) paperVotesMap[input.dataset.id] = val;
-            });
-            document.querySelectorAll('.elected-checkbox:checked').forEach(chk => {
-                electedIds.push(chk.dataset.id);
-            });
-
-            // 正確更新子集合中的 round 文件
-            await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
-                quorum_base: document.getElementById('tallyQuorumBase').value,
-                attending_count: parseInt(document.getElementById('tallyAttendingCount').value) || 0,
-                digital_issued: parseInt(document.getElementById('tallyDigitalIssued').value) || 0,
-                paper_issued: parseInt(document.getElementById('tallyPaperIssued').value) || 0,
-                paper_received: parseInt(document.getElementById('tallyPaperReceived').value) || 0,
-                paper_blank: parseInt(document.getElementById('tallyPaperBlank').value) || 0,
-                paper_votes: paperVotesMap,
-                elected_ids: electedIds,
-                updatedAt: window.fs.serverTimestamp()
-            }, { merge: true });
-
-            // 寫回 candidates 總表 (儲存即同步總表)
-            const { writeBatch } = window.fs;
-            const batch = writeBatch(db);
-            const item = allItems.find(i => i.id === itemId);
-            
-            // 找出所有此輪的候選人，根據是否被勾選當選來更新
-            currentTallyData.candidates.forEach(c => {
-                const isElectedNow = electedIds.includes(c.id);
-                const candRef = doc(db, 'elections', currentElectionId, 'candidates', c.id);
-                if (isElectedNow) {
-                    batch.update(candRef, {
-                        elected_item: item.title,
-                        updatedAt: window.fs.serverTimestamp()
-                    });
-                } else if (c.elected_item === item.title) {
-                    // 如果原本有當選此項次，但現在被取消勾選，則清空
-                    batch.update(candRef, {
-                        elected_item: null,
-                        updatedAt: window.fs.serverTimestamp()
-                    });
-                }
-            });
-            await batch.commit();
-
+            await doSaveTallyData(itemId, roundId);
             Swal.fire('成功', '開票數據已儲存！', 'success');
             await loadItems(); // 重新載入最新資料
-            
         } catch (error) {
-            console.error("儲存失敗:", error);
             Swal.fire('錯誤', error.message, 'error');
         } finally {
             btn.disabled = false;
@@ -2388,7 +2415,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnPublishTally')?.addEventListener('click', async () => {
         Swal.fire({
             title: '確定要發布選舉結果嗎？',
-            text: `發布後，系統會將本輪狀態設為「結果已發布」，並開啟投影畫面。請確認您已經先按下【儲存開票數據】。`,
+            text: `發布前系統會自動幫您儲存最新開票數據。發布後，投影畫面將會自動切換為顯示選舉結果。`,
             icon: 'info',
             showCancelButton: true,
             confirmButtonColor: '#ffc107',
@@ -2397,22 +2424,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const { doc, setDoc } = window.fs;
-                    const db = window.firebaseDb;
-
                     const itemId = currentTallyData.itemId;
                     const roundId = currentTallyData.roundId;
 
-                    // 更新狀態為 PUBLISHED
+                    // 1. 自動儲存
+                    await doSaveTallyData(itemId, roundId);
+
+                    const { doc, setDoc } = window.fs;
+                    const db = window.firebaseDb;
+
+                    // 2. 更新狀態為 PUBLISHED
                     await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
                         status: 'PUBLISHED',
                         updatedAt: window.fs.serverTimestamp()
                     }, { merge: true });
 
                     Swal.fire('發布成功', '狀態已更新。', 'success').then(() => {
-                        bootstrap.Modal.getInstance(document.getElementById('tallyCenterModal')).hide();
-                        
-                        // 開啟大字體投影畫面
+                        // 開啟大字體投影畫面 (若尚未開啟)
                         const resultUrl = `result.html?election_id=${currentElectionId}&item_id=${itemId}&round_id=${roundId}`;
                         window.open(resultUrl, '_blank', 'width=1200,height=800');
                         
