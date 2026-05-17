@@ -2136,26 +2136,18 @@ async function loadTallyStats(itemId, roundId) {
     const { collection, query, where, getDocs } = window.fs;
     const db = window.firebaseDb;
 
-    // 1. 取得金鑰統計
+    // 1. 取得金鑰統計 (僅用於內部參考或顯示，不再用於預設發票數)
     const keysRef = collection(db, 'elections', currentElectionId, 'keys');
     const qKeys = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
     const snapKeys = await getDocs(qKeys);
     
-    let digitalIssued = 0, digitalUsed = 0;
+    let digitalUsed = 0;
     snapKeys.forEach(doc => {
         const d = doc.data();
-        if (d.status === 'VALID' || d.status === 'USED') digitalIssued++;
         if (d.status === 'USED') digitalUsed++;
     });
     
     currentTallyData.digitalUsed = digitalUsed;
-    
-    // 將系統抓到的 digitalIssued 設為預設建議值 (只有在輸入框為空或 0 的時候才覆蓋，避免吃掉手動修改)
-    const currentDigitalIssuedInput = document.getElementById('tallyDigitalIssued');
-    if (!currentDigitalIssuedInput.value || parseInt(currentDigitalIssuedInput.value) === 0) {
-        currentDigitalIssuedInput.value = digitalIssued;
-    }
-    
     document.getElementById('tallyDigitalUsed').textContent = digitalUsed;
 
     // 2. 取得選票統計 (分組計算每個人的得票)
