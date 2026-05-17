@@ -181,22 +181,6 @@ async function loadElectionData() {
             document.getElementById('globalInitAttending').value = currentElectionData.init_attending_count;
         }
 
-        // 防呆保護：若已經啟動，隱藏匯入與新增按鈕
-        if (status !== 'PENDING') {
-            const importBtn = document.getElementById('btnExcelImport');
-            if (importBtn) importBtn.style.display = 'none';
-            const clearBtn = document.getElementById('btnDeleteAllCandidates');
-            if (clearBtn) clearBtn.style.display = 'none';
-            
-            // 加入選舉保護橫幅 (已在先前的 PR 實作過，確保安全)
-            if (!document.getElementById('electionProtectedBanner')) {
-                const alertDiv = document.createElement('div');
-                alertDiv.id = 'electionProtectedBanner';
-                alertDiv.className = 'alert alert-danger mb-3';
-                alertDiv.innerHTML = '<i class="fas fa-lock"></i> <strong>系統已鎖定：</strong> 選舉已正式啟動，為了防止資料錯亂，禁止再從 Excel 匯入或刪除現有候選人資料。';
-                document.getElementById('section-candidates').prepend(alertDiv);
-            }
-        }
 
         // 5. 載入子集合資料
         await loadCandidates();
