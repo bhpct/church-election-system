@@ -193,11 +193,11 @@
 
                     <!-- 1.5 選舉進階設定 -->
                     <div id="section-settings" class="nav-section">
-                        <div class="card p-4 border-warning">
-                            <h5 class="mb-4 text-warning"><i class="fas fa-rocket"></i> 正式啟動選舉</h5>
-                            <div class="alert alert-warning">
-                                <strong><i class="fas fa-exclamation-triangle"></i> 警告：一旦啟動即無法回頭！</strong><br>
-                                啟動後，將無法再從 Excel 批次匯入候選人，也無法從資料庫刪除現有候選人。
+                        <div class="card p-4 border-info">
+                            <h5 class="mb-4 text-info"><i class="fas fa-cog"></i> 選舉進階參數設定</h5>
+                            <div class="alert alert-secondary">
+                                <strong><i class="fas fa-info-circle"></i> 參數同步說明</strong><br>
+                                此處儲存的設定，將會自動同步為「所有輪次」的預設參數。各別輪次在開票中心仍可微調這些數字。
                             </div>
                             <form id="globalInitForm">
                                 <div class="mb-3">
@@ -214,10 +214,9 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">初始出席人數 (選填)</label>
                                     <input type="number" class="form-control" id="globalInitAttending" placeholder="例如：120" min="0">
-                                    <small class="text-muted">若填寫，此數字會自動帶入後續所有輪次的預設出席人數。</small>
                                 </div>
                                 <div class="text-end">
-                                    <button type="button" class="btn btn-success" id="confirmStartElectionBtn">確認啟動</button>
+                                    <button type="button" class="btn btn-primary" id="confirmSaveSettingsBtn"><i class="fas fa-save"></i> 儲存設定</button>
                                 </div>
                             </form>
                         </div>

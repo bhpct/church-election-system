@@ -47,43 +47,54 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
 });
 
-// 全域選舉啟動邏輯
+// 全域選舉進階設定儲存邏輯
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('confirmStartElectionBtn')?.addEventListener('click', async () => {
+    document.getElementById('confirmSaveSettingsBtn')?.addEventListener('click', async () => {
         try {
-            const { doc, updateDoc } = window.fs;
+            const { doc, updateDoc, writeBatch } = window.fs;
             const db = window.firebaseDb;
             
-            const btn = document.getElementById('confirmStartElectionBtn');
+            const btn = document.getElementById('confirmSaveSettingsBtn');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 啟動中...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
 
             const baseElement = document.querySelector('input[name="globalQuorumBase"]:checked');
             const quorumBase = baseElement ? baseElement.value : 'ATTENDING';
             const initAttending = parseInt(document.getElementById('globalInitAttending').value) || null;
 
-            // 檢查是否有至少一個項次與一輪
-            if (allItems.length === 0) {
-                throw new Error("請先建立至少一個選舉項次！");
-            }
-
+            // 1. 寫入全域選舉設定 (不更動 status)
             await updateDoc(doc(db, 'elections', currentElectionId), {
-                status: 'ACTIVE',
                 quorum_base: quorumBase,
                 init_attending_count: initAttending,
                 updatedAt: window.fs.serverTimestamp()
             });
 
-            Swal.fire('啟動成功', '選舉已正式啟動！資料已全域鎖定。', 'success').then(() => {
+            // 2. 連動更新所有已建立的輪次
+            if (allItems.length > 0) {
+                const batch = writeBatch(db);
+                for (const item of allItems) {
+                    for (const round of item.rounds) {
+                        const roundRef = doc(db, 'elections', currentElectionId, 'items', item.id, 'rounds', round.id);
+                        batch.set(roundRef, {
+                            quorum_base: quorumBase,
+                            attending_count: initAttending || 0,
+                            updatedAt: window.fs.serverTimestamp()
+                        }, { merge: true });
+                    }
+                }
+                await batch.commit();
+            }
+
+            Swal.fire('儲存成功', '預設參數已更新，並成功同步至所有輪次！', 'success').then(() => {
                 window.location.reload();
             });
 
         } catch (error) {
-            console.error("啟動選舉失敗:", error);
+            console.error("儲存參數失敗:", error);
             Swal.fire('錯誤', error.message, 'error');
-            const btn = document.getElementById('confirmStartElectionBtn');
+            const btn = document.getElementById('confirmSaveSettingsBtn');
             btn.disabled = false;
-            btn.innerHTML = '確認啟動';
+            btn.innerHTML = '<i class="fas fa-save"></i> 儲存設定';
         }
     });
 });
@@ -153,19 +164,12 @@ async function loadElectionData() {
 
         const status = currentElectionData.status || 'PENDING';
         const statusBadge = document.getElementById('globalElectionStatusBadge');
-        const confirmStartBtn = document.getElementById('confirmStartElectionBtn');
-        
         if (status === 'PENDING') {
             statusBadge.textContent = '準備中';
             statusBadge.className = 'badge bg-secondary me-2';
-            if (confirmStartBtn) confirmStartBtn.disabled = false;
         } else {
             statusBadge.textContent = status === 'ACTIVE' ? '投票中' : (status === 'CLOSED' ? '開票中' : '結果發布');
             statusBadge.className = status === 'ACTIVE' ? 'badge bg-success me-2' : 'badge bg-warning text-dark me-2';
-            if (confirmStartBtn) {
-                confirmStartBtn.disabled = true;
-                confirmStartBtn.textContent = '選舉已啟動';
-            }
         }
 
         // 防呆保護：若已經啟動，隱藏匯入與新增按鈕
