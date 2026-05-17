@@ -326,7 +326,37 @@
                     <!-- 5. 金鑰與選票發放 -->
                     <div id="section-keys" class="nav-section">
                         <div class="card p-4">
-                            <h5 class="mb-4"><i class="fas fa-key text-secondary"></i> 輪次金鑰與選票發放</h5>
+                            <h5 class="mb-4"><i class="fas fa-key text-warning"></i> 金鑰與選票發放</h5>
+                            
+                            <!-- 全域作業 -->
+                            <div class="card shadow-sm mb-4 border-warning">
+                                <div class="card-header bg-warning text-dark fw-bold">
+                                    <i class="fas fa-globe"></i> 全域作業 (批次處理所有項次與輪次)
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 border-end">
+                                            <h6 class="fw-bold">全域金鑰發放</h6>
+                                            <p class="text-muted small mb-2">系統將自動掃描所有「尚無金鑰」的項次與輪次，並統一發放。已發放過的輪次會被略過，不影響既有選票。</p>
+                                            <div class="input-group">
+                                                <span class="input-group-text">每輪發放張數</span>
+                                                <input type="number" class="form-control" id="globalKeysCount" min="1" placeholder="例如：120">
+                                                <button class="btn btn-warning fw-bold" id="btnGlobalGenerateKeys" type="button">一鍵發放金鑰</button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="fw-bold">多層級選票列印</h6>
+                                            <p class="text-muted small mb-2">列印不限次數。不同輪次的選票會自動換頁分隔，確保實體紙張不會混雜。</p>
+                                            <div class="d-flex gap-2 flex-wrap mt-3">
+                                                <button class="btn btn-primary shadow-sm" id="btnGlobalPrintAll"><i class="fas fa-print"></i> 1. 一鍵列印「所有輪次」選票</button>
+                                                <button class="btn btn-outline-primary" id="btnItemPrintAll"><i class="fas fa-print"></i> 2. 僅列印「下方所選項次 (三輪)」</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h6 class="fw-bold mb-3"><i class="fas fa-search"></i> 單一輪次檢視與管理</h6>
                             <div class="row mb-4 bg-light p-3 rounded">
                                 <div class="col-md-4">
                                     <label class="form-label">選擇要操作的項次</label>
@@ -343,7 +373,7 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4 d-flex align-items-end">
-                                    <button class="btn btn-primary" id="btnLoadKeys">載入金鑰資料</button>
+                                    <button class="btn btn-secondary" id="btnLoadKeys">載入該輪次金鑰</button>
                                 </div>
                             </div>
 
@@ -380,17 +410,17 @@
 
                                 <div class="card shadow-sm mb-4">
                                     <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-plus-circle text-success"></i> 發放與列印新金鑰</span>
+                                        <span><i class="fas fa-plus-circle text-success"></i> 單一輪次金鑰補發與列印</span>
                                         <button class="btn btn-sm btn-outline-danger" id="btnDestroyAllKeys" style="display: none;"><i class="fas fa-trash-alt"></i> 銷毀所有未使用金鑰解除鎖定</button>
                                     </div>
                                     <div class="card-body">
                                         <div class="input-group mb-2">
                                             <span class="input-group-text">發放數量</span>
                                             <input type="number" class="form-control" id="generateKeysCount" min="1" placeholder="例如：120">
-                                            <button class="btn btn-primary" id="btnGenerateKeys" type="button">產生金鑰</button>
-                                            <button class="btn btn-success fw-bold ms-2 rounded" id="btnPrintBallots" type="button" style="display: none;"><i class="fas fa-print"></i> 列印實體選票 (A4套印)</button>
+                                            <button class="btn btn-primary" id="btnGenerateKeys" type="button">產生本輪金鑰</button>
+                                            <button class="btn btn-success fw-bold ms-2 rounded" id="btnPrintBallots" type="button" style="display: none;"><i class="fas fa-print"></i> 3. 僅列印本輪選票</button>
                                         </div>
-                                        <small class="text-muted d-block" id="generateKeyHint">系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦執行列印，將會鎖定產生功能，避免印出的選票失效。</strong></small>
+                                        <small class="text-muted d-block" id="generateKeyHint">系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦發放金鑰，該輪次即鎖定產生功能，若要重配需先銷毀。</strong></small>
                                     </div>
                                 </div>
 

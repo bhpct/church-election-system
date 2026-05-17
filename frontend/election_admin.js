@@ -595,7 +595,7 @@ function renderItemsAccordion() {
             roundsHtml += `
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                     <div>
-                        <strong>${getRoundName(round.id)}</strong>
+                        <strong>${getRoundName(round.id)}</strong> <small class="text-muted ms-1">(本項次應選 ${item.seats} 名)</small>
                         <span class="badge bg-${statusColor} ms-2">${statusText}</span>
                     </div>
                     <div>
@@ -928,9 +928,40 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
 });
 
 window.deleteItem = async function(itemId) {
-    // TODO: 需實作連鎖刪除 (刪除 items/{itemId} 及其 rounds)
-    // 因 Firestore 前端 SDK 不易遞迴刪除集合，建議呼叫後端 API，目前先提供提示。
-    Swal.fire('提醒', '徹底刪除項次功能將於後續版本提供。', 'info');
+    Swal.fire({
+        title: '確定要刪除此項次嗎？',
+        text: '刪除後，該項次底下所有的輪次設定將一併被刪除。',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '確定刪除',
+        cancelButtonText: '取消'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const { doc, writeBatch } = window.fs;
+                const db = window.firebaseDb;
+                const batch = writeBatch(db);
+                
+                // 刪除子集合 rounds
+                batch.delete(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', 'round_1'));
+                batch.delete(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', 'round_2'));
+                batch.delete(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', 'round_3'));
+                
+                // 刪除 item 本身
+                batch.delete(doc(db, 'elections', currentElectionId, 'items', itemId));
+                
+                await batch.commit();
+
+                Swal.fire('已刪除', '該項次已成功刪除。', 'success');
+                await loadItems();
+            } catch (error) {
+                console.error("刪除失敗:", error);
+                Swal.fire('錯誤', '刪除失敗: ' + error.message, 'error');
+            }
+        }
+    });
 }
 
 window.startRound = function(itemId, roundId) {
@@ -944,19 +975,17 @@ window.startRound = function(itemId, roundId) {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                const { doc, updateDoc } = window.fs;
+                const { doc, setDoc } = window.fs;
                 const db = window.firebaseDb;
 
                 const item = allItems.find(i => i.id === itemId);
-                const roundIndex = item.rounds.findIndex(r => r.id === roundId);
+                if (!item) return;
 
-                const updatedRounds = [...item.rounds];
-                updatedRounds[roundIndex].status = 'ACTIVE';
-
-                await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
-                    rounds: updatedRounds,
+                // 正確更新子集合中的 round 文件
+                await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+                    status: 'ACTIVE',
                     updatedAt: window.fs.serverTimestamp()
-                });
+                }, { merge: true });
 
                 Swal.fire('成功', '投票已正式啟動！', 'success');
                 await loadItems();
@@ -1095,7 +1124,7 @@ window.openRoundCandidates = function(itemId, roundId) {
         return;
     }
 
-    document.getElementById('adjustRoundTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
+    document.getElementById('adjustRoundTitle').textContent = `${item.title} - ${getRoundName(round.id)} (應選 ${item.seats} 名)`;
     document.getElementById('adjustItemId').value = itemId;
     document.getElementById('adjustRoundId').value = roundId;
 
@@ -1352,23 +1381,21 @@ async function loadKeys(itemId, roundId) {
             return timeB - timeA;
         });
 
-        // 檢查是否已列印鎖定
-        const item = allItems.find(i => i.id === itemId);
-        const round = item?.rounds.find(r => r.id === roundId);
-        const isPrinted = round?.keys_printed === true;
+        // 檢查是否已發放金鑰 (鎖定發放功能)
+        const isIssued = currentKeys.length > 0;
         
-        if (isPrinted) {
+        if (isIssued) {
             document.getElementById('btnGenerateKeys').disabled = true;
             document.getElementById('generateKeysCount').disabled = true;
             document.getElementById('btnDestroyAllKeys').style.display = 'inline-block';
             document.getElementById('btnPrintBallots').style.display = 'inline-block';
-            document.getElementById('generateKeyHint').innerHTML = '<strong class="text-danger"><i class="fas fa-lock"></i> 產生金鑰功能已鎖定，因為選票已經列印。若要重新配發，請先銷毀所有未使用金鑰。</strong>';
+            document.getElementById('generateKeyHint').innerHTML = '<strong class="text-danger"><i class="fas fa-lock"></i> 產生金鑰功能已鎖定，因為本輪次已經發放過金鑰。若要重新配發，請先銷毀所有未使用金鑰。</strong>';
         } else {
             document.getElementById('btnGenerateKeys').disabled = false;
             document.getElementById('generateKeysCount').disabled = false;
             document.getElementById('btnDestroyAllKeys').style.display = 'none';
-            document.getElementById('btnPrintBallots').style.display = currentKeys.length > 0 ? 'inline-block' : 'none';
-            document.getElementById('generateKeyHint').innerHTML = '系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦執行列印，將會鎖定產生功能，避免印出的選票失效。</strong>';
+            document.getElementById('btnPrintBallots').style.display = 'none';
+            document.getElementById('generateKeyHint').innerHTML = '系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦發放金鑰，該輪次即鎖定產生功能，若要重配需先銷毀。</strong>';
         }
 
         renderKeysTable();
@@ -1480,11 +1507,114 @@ document.addEventListener('DOMContentLoaded', () => {
             Swal.fire('錯誤', error.message, 'error');
         } finally {
             btn.disabled = false;
-            btn.textContent = '產生金鑰';
+            btn.textContent = '產生本輪金鑰';
         }
     });
 
-    // 列印實體選票 (A4套印)
+    // 全域批次產生金鑰
+    document.getElementById('btnGlobalGenerateKeys')?.addEventListener('click', async () => {
+        const count = parseInt(document.getElementById('globalKeysCount').value);
+        if (!count || count <= 0) {
+            Swal.fire('錯誤', '請輸入有效的發放數量', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btnGlobalGenerateKeys');
+        
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 全域掃描發放中...';
+
+            const { collection, getDocs, doc, writeBatch } = window.fs;
+            const db = window.firebaseDb;
+            const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+            
+            // 1. 取得現有所有金鑰，用以比對唯一性與過濾已發放的輪次
+            const keysSnap = await getDocs(keysRef);
+            const existingCodes = new Set();
+            const issuedRounds = new Set(); // 記錄已發放過的 "itemId_roundId"
+
+            keysSnap.forEach(d => {
+                const data = d.data();
+                existingCodes.add(data.code);
+                issuedRounds.add(`${data.item_id}_${data.round_id}`);
+            });
+
+            let totalGenerated = 0;
+            let currentBatch = writeBatch(db);
+            let batchOpCount = 0;
+            const BATCH_LIMIT = 450;
+            const batches = [currentBatch];
+
+            // 2. 掃描所有項次與輪次
+            for (const item of allItems) {
+                for (const round of item.rounds) {
+                    const roundKey = `${item.id}_${round.id}`;
+                    
+                    // 若該輪次尚無金鑰，才發放
+                    if (!issuedRounds.has(roundKey)) {
+                        for (let i = 0; i < count; i++) {
+                            let code;
+                            do {
+                                code = generateRandomCode();
+                            } while (existingCodes.has(code));
+                            
+                            existingCodes.add(code);
+                            
+                            const newRef = doc(keysRef);
+                            currentBatch.set(newRef, {
+                                code: code,
+                                item_id: item.id,
+                                round_id: round.id,
+                                status: 'VALID',
+                                created_at: window.fs.serverTimestamp(),
+                                used_at: null
+                            });
+                            
+                            totalGenerated++;
+                            batchOpCount++;
+                            
+                            // 若達到批次上限，開新的 batch
+                            if (batchOpCount >= BATCH_LIMIT) {
+                                currentBatch = writeBatch(db);
+                                batches.push(currentBatch);
+                                batchOpCount = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (totalGenerated === 0) {
+                Swal.fire('提示', '目前沒有任何「尚未發放金鑰」的新項次或新輪次！所有輪次都已經有金鑰了。', 'info');
+                return;
+            }
+
+            // 3. 執行寫入
+            for (const b of batches) {
+                await b.commit();
+            }
+
+            Swal.fire('產生成功', `已成功為未發放的輪次產生總計 ${totalGenerated} 組全域金鑰！`, 'success');
+            document.getElementById('globalKeysCount').value = '';
+            
+            // 若目前畫面剛好停在某個輪次，重新載入該輪次金鑰
+            const currentItemId = document.getElementById('manageKeysItemId').value;
+            const currentRoundId = document.getElementById('manageKeysRoundId').value;
+            if (currentItemId && currentRoundId) {
+                await loadKeys(currentItemId, currentRoundId);
+            }
+
+        } catch (error) {
+            console.error("全域產生金鑰失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '一鍵發放金鑰';
+        }
+    });
+
+    // 列印實體選票 (單一輪次)
     document.getElementById('btnPrintBallots')?.addEventListener('click', async () => {
         if (currentKeys.length === 0) {
             Swal.fire('提示', '目前沒有金鑰可供列印', 'info');
@@ -1497,28 +1627,82 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const itemId = document.getElementById('manageKeysItemId').value;
-        const roundId = document.getElementById('manageKeysRoundId').value;
+        // 直接呼叫列印函數 (不再鎖定 keys_printed)
+        printBallotsA4(validKeys);
+    });
 
-        // 鎖定狀態
+    // 一鍵列印所有未結束輪次選票
+    document.getElementById('btnGlobalPrintAll')?.addEventListener('click', async () => {
         try {
-            const { doc, updateDoc } = window.fs;
+            const btn = document.getElementById('btnGlobalPrintAll');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 載入中...';
+
+            const { collection, getDocs, query, where } = window.fs;
             const db = window.firebaseDb;
-            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
-                keys_printed: true,
-                updatedAt: window.fs.serverTimestamp()
-            });
+            
+            // 找出全域所有 VALID 金鑰
+            const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+            const q = query(keysRef, where('status', '==', 'VALID'));
+            const snap = await getDocs(q);
+            
+            const validKeys = [];
+            snap.forEach(doc => validKeys.push({ id: doc.id, ...doc.data() }));
 
-            // 重新載入，套用鎖定UI
-            await loadItems();
-            await loadKeys(itemId, roundId);
+            if (validKeys.length === 0) {
+                Swal.fire('提示', '目前沒有任何「可使用」狀態的金鑰可供列印', 'info');
+                return;
+            }
 
-            // 呼叫列印函數 (稍後實作)
-            printBallotsA4(validKeys, itemId, roundId);
+            printBallotsA4(validKeys);
 
         } catch (error) {
-            console.error('鎖定列印失敗', error);
-            Swal.fire('錯誤', '無法更新列印狀態', 'error');
+            console.error('列印失敗', error);
+            Swal.fire('錯誤', '載入選票失敗: ' + error.message, 'error');
+        } finally {
+            const btn = document.getElementById('btnGlobalPrintAll');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-print"></i> 1. 一鍵列印「所有輪次」選票';
+        }
+    });
+
+    // 列印單一項次(三輪)
+    document.getElementById('btnItemPrintAll')?.addEventListener('click', async () => {
+        const itemId = document.getElementById('keysItemSelect').value;
+        if (!itemId) {
+            Swal.fire('提示', '請先在下方「選擇要操作的項次」下拉選單中選擇項次！', 'warning');
+            return;
+        }
+
+        try {
+            const btn = document.getElementById('btnItemPrintAll');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 載入中...';
+
+            const { collection, getDocs, query, where } = window.fs;
+            const db = window.firebaseDb;
+            
+            const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+            const q = query(keysRef, where('item_id', '==', itemId), where('status', '==', 'VALID'));
+            const snap = await getDocs(q);
+            
+            const validKeys = [];
+            snap.forEach(doc => validKeys.push({ id: doc.id, ...doc.data() }));
+
+            if (validKeys.length === 0) {
+                Swal.fire('提示', '此項次目前沒有任何「可使用」狀態的金鑰', 'info');
+                return;
+            }
+
+            printBallotsA4(validKeys);
+
+        } catch (error) {
+            console.error('列印失敗', error);
+            Swal.fire('錯誤', '載入選票失敗: ' + error.message, 'error');
+        } finally {
+            const btn = document.getElementById('btnItemPrintAll');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-print"></i> 2. 僅列印「下方所選項次 (三輪)」';
         }
     });
 
@@ -1555,13 +1739,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         await batch.commit();
                     }
 
-                    // 2. 解除 keys_printed 鎖定
-                    await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
-                        keys_printed: false,
-                        updatedAt: window.fs.serverTimestamp()
-                    });
-
-                    Swal.fire('成功', '所有未使用金鑰已銷毀，列印鎖定已解除。', 'success');
+                    // 取消 keys_printed 邏輯，作廢後只重新載入金鑰列表
+                    Swal.fire('成功', '所有未使用金鑰已銷毀。', 'success');
                     
                     await loadItems();
                     await loadKeys(itemId, roundId);
@@ -1575,14 +1754,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-function printBallotsA4(validKeys, itemId, roundId) {
-    const item = allItems.find(i => i.id === itemId);
-    const round = item?.rounds.find(r => r.id === roundId);
-    
-    // 建立列印用的隱藏 iframe 或新開視窗
+function printBallotsA4(keysToPrint) {
+    if (!keysToPrint || keysToPrint.length === 0) return;
+
+    // 將金鑰依據項次與輪次分組，確保不同輪次絕對不會印在同一頁
+    const groupedKeys = {};
+    keysToPrint.forEach(k => {
+        const groupKey = `${k.item_id}__${k.round_id}`;
+        if (!groupedKeys[groupKey]) groupedKeys[groupKey] = [];
+        groupedKeys[groupKey].push(k);
+    });
+
     const printWindow = window.open('', '_blank');
     
-    // 載入 QR Code 生成庫 (使用 CDN)
     let html = `
     <!DOCTYPE html>
     <html>
@@ -1610,25 +1794,34 @@ function printBallotsA4(validKeys, itemId, roundId) {
     <body>
     `;
 
-    // 生成每一頁 (4張選票一頁)
-    for (let i = 0; i < validKeys.length; i += 4) {
-        html += '<div class="page">';
-        for (let j = 0; j < 4; j++) {
-            if (i + j < validKeys.length) {
-                const k = validKeys[i + j];
-                const voteUrl = `${window.location.origin}/voter.html?eid=${currentElectionId}&key=${k.code}`;
-                
-                const sealHtml = currentOrgData?.seal_url ? `<img src="${currentOrgData.seal_url}" class="watermark">` : '';
-                
-                html += `
-                <div class="ballot">
-                    ${sealHtml}
-                    <div class="content">
-                        <div class="header">
-                            <h3>${currentOrgData?.name || '教會機構'}</h3>
-                            <h2>${currentElectionData?.name || '選舉'}</h2>
-                            <h4>${item?.title} - ${round?.title}</h4>
-                        </div>
+    // 依序處理每個輪次的群組
+    for (const groupKey in groupedKeys) {
+        const group = groupedKeys[groupKey];
+        const firstKey = group[0];
+        
+        // 查找對應的名稱
+        const item = allItems.find(i => i.id === firstKey.item_id);
+        const roundTitle = getRoundName(firstKey.round_id);
+        const itemTitle = item ? item.title : '未知項次';
+
+        // 生成該群組的頁面 (4張選票一頁)
+        for (let i = 0; i < group.length; i += 4) {
+            html += '<div class="page">';
+            for (let j = 0; j < 4; j++) {
+                if (i + j < group.length) {
+                    const k = group[i + j];
+                    const voteUrl = `${window.location.origin}/voter.html?eid=${currentElectionId}&key=${k.code}`;
+                    const sealHtml = currentOrgData?.seal_url ? `<img src="${currentOrgData.seal_url}" class="watermark">` : '';
+                    
+                    html += `
+                    <div class="ballot">
+                        ${sealHtml}
+                        <div class="content">
+                            <div class="header">
+                                <h3>${currentOrgData?.name || '教會機構'}</h3>
+                                <h2>${currentElectionData?.name || '選舉'}</h2>
+                                <h4>${itemTitle} - ${roundTitle}</h4>
+                            </div>
                         <div class="qr-container">
                             <div id="qr-${k.code}" class="qr-code"></div>
                         </div>
@@ -1652,9 +1845,10 @@ function printBallotsA4(validKeys, itemId, roundId) {
                     }, 100);
                 </script>
                 `;
+                }
             }
+            html += '</div>';
         }
-        html += '</div>';
     }
 
     html += `
@@ -1957,13 +2151,11 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
 
         try {
-            const { doc, updateDoc } = window.fs;
+            const { doc, setDoc } = window.fs;
             const db = window.firebaseDb;
 
             const itemId = currentTallyData.itemId;
             const roundId = currentTallyData.roundId;
-            const item = allItems.find(i => i.id === itemId);
-            const roundIndex = item.rounds.findIndex(r => r.id === roundId);
 
             const paperVotesMap = {};
             const electedIds = [];
@@ -1977,21 +2169,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 electedIds.push(chk.dataset.id);
             });
 
-            // 準備更新資料
-            const updatedRounds = [...item.rounds];
-            updatedRounds[roundIndex] = {
-                ...updatedRounds[roundIndex],
+            // 正確更新子集合中的 round 文件
+            await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
                 quorum_base: document.getElementById('tallyQuorumBase').value,
                 attending_count: parseInt(document.getElementById('tallyAttendingCount').value) || 0,
                 paper_issued: parseInt(document.getElementById('tallyPaperIssued').value) || 0,
                 paper_votes: paperVotesMap,
-                elected_ids: electedIds
-            };
-
-            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
-                rounds: updatedRounds,
+                elected_ids: electedIds,
                 updatedAt: window.fs.serverTimestamp()
-            });
+            }, { merge: true });
 
             Swal.fire('成功', '開票數據已儲存！', 'success');
             await loadItems(); // 重新載入最新資料
@@ -2029,22 +2215,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 等待一下讓儲存完成 (簡單做法)
                 setTimeout(async () => {
                     try {
-                        const { doc, updateDoc, writeBatch } = window.fs;
+                        const { doc, setDoc, writeBatch } = window.fs;
                         const db = window.firebaseDb;
 
                         const itemId = currentTallyData.itemId;
                         const roundId = currentTallyData.roundId;
                         const item = allItems.find(i => i.id === itemId);
-                        const roundIndex = item.rounds.findIndex(r => r.id === roundId);
 
                         // 更新狀態為 PUBLISHED
-                        const updatedRounds = [...item.rounds];
-                        updatedRounds[roundIndex].status = 'PUBLISHED';
-
-                        await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
-                            rounds: updatedRounds,
+                        await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+                            status: 'PUBLISHED',
                             updatedAt: window.fs.serverTimestamp()
-                        });
+                        }, { merge: true });
 
                         // 寫回 candidates 總表
                         const batch = writeBatch(db);
@@ -2085,21 +2267,16 @@ async function updateRoundStatus(newStatus, confirmMsg) {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                const { doc, updateDoc } = window.fs;
+                const { doc, setDoc } = window.fs;
                 const db = window.firebaseDb;
 
                 const itemId = currentTallyData.itemId;
                 const roundId = currentTallyData.roundId;
-                const item = allItems.find(i => i.id === itemId);
-                const roundIndex = item.rounds.findIndex(r => r.id === roundId);
 
-                const updatedRounds = [...item.rounds];
-                updatedRounds[roundIndex].status = newStatus;
-
-                await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
-                    rounds: updatedRounds,
+                await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+                    status: newStatus,
                     updatedAt: window.fs.serverTimestamp()
-                });
+                }, { merge: true });
 
                 Swal.fire('狀態更新成功', '', 'success');
                 await loadItems();
