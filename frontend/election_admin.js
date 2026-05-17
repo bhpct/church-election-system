@@ -1042,72 +1042,6 @@ document.getElementById('btnGeneratePreview').addEventListener('click', () => {
     document.getElementById('previewOrgName').textContent = currentOrgData ? currentOrgData.name : '未知機構';
     document.getElementById('previewElectionName').textContent = currentElectionData.name;
     document.getElementById('previewItemRoundName').textContent = `${item.title} - ${getRoundName(round.id)}`;
-    document.getElementById('previewSeats').textContent = item.seats;
-    document.getElementById('previewDistrictReq').textContent = item.require_district ? ' (強制分區)' : '';
-
-    // 渲染候選人清單
-    const listContainer = document.getElementById('previewCandidatesList');
-    listContainer.innerHTML = '';
-    
-    if (!round.candidate_ids || round.candidate_ids.length === 0) {
-        listContainer.innerHTML = '<p class="text-center text-muted">此輪次目前沒有任何候選人。</p>';
-    } else {
-        // 從全域抓資料並過濾掉不可被選者
-        let roundCandidates = allCandidates.filter(c => round.candidate_ids.includes(c.id) && !c.is_ineligible);
-        
-        // 判斷是否有共識薦選保留候選
-        let forcedCandidate = null;
-        if (item.forced_candidate_id) {
-            const fIdx = roundCandidates.findIndex(c => c.id === item.forced_candidate_id);
-            if (fIdx > -1) {
-                forcedCandidate = roundCandidates[fIdx];
-                // 將他從一般清單中移出
-                roundCandidates.splice(fIdx, 1);
-            }
-        }
-        
-        roundCandidates.sort((a, b) => (parseInt(a.number)||0) - (parseInt(b.number)||0));
-        
-        if (forcedCandidate) {
-            const districtStr = forcedCandidate.district ? `<small class="text-muted d-block">${forcedCandidate.district}</small>` : '';
-            listContainer.innerHTML += `
-                <div class="col-12 mb-4">
-                    <div class="p-3 rounded" style="background-color: #fff3cd; border: 2px solid #ffecb5;">
-                        <h6 class="fw-bold text-warning mb-3"><i class="fas fa-star"></i> 共識薦選保留候選 (保障名額 1 名)</h6>
-                        <div class="row">
-                            <div class="col-6 col-md-4">
-                                <div class="bg-white border rounded p-3 text-center position-relative h-100 shadow-sm">
-                                    <div style="position:absolute; top:10px; right:10px; width:20px; height:20px; border:2px solid #ccc; border-radius:3px;"></div>
-                                    <h4 class="mb-0 fw-bold">${forcedCandidate.number}</h4>
-                                    <h5 class="mb-0 mt-2">${forcedCandidate.name}</h5>
-                                    ${districtStr}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 mb-2"><h6 class="fw-bold border-bottom pb-2">一般競選區 (應選 ${item.seats - 1} 名)</h6></div>
-            `;
-        }
-
-        if (roundCandidates.length === 0 && !forcedCandidate) {
-             listContainer.innerHTML = '<p class="text-center text-muted">此輪次的名單皆為不可被選狀態。</p>';
-        }
-
-        roundCandidates.forEach(c => {
-            const districtStr = c.district ? `<small class="text-muted d-block">${c.district}</small>` : '';
-            listContainer.innerHTML += `
-                <div class="col-6 col-md-4 mb-3">
-                    <div class="border rounded p-3 text-center position-relative h-100">
-                        <div style="position:absolute; top:10px; right:10px; width:20px; height:20px; border:2px solid #ccc; border-radius:3px;"></div>
-                        <h4 class="mb-0 fw-bold">${c.number}</h4>
-                        <h5 class="mb-0 mt-2">${c.name}</h5>
-                        ${districtStr}
-                    </div>
-                </div>
-            `;
-        });
-    }
 
     // 處理浮水印
     const watermark = document.getElementById('ballotSealWatermark');
@@ -1786,21 +1720,21 @@ function printBallotsA4(keysToPrint) {
     <head>
         <title>列印選票</title>
         <style>
-            @page { size: A4 portrait; margin: 0; }
+            @page { size: A4 portrait; margin: 5mm; }
             body { margin: 0; padding: 0; background: #fff; font-family: '微軟正黑體', sans-serif; }
-            .page { width: 210mm; height: 297mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 10mm; }
-            .ballot { width: 50%; height: 50%; padding: 10mm; box-sizing: border-box; border: 1px dashed #ccc; position: relative; overflow: hidden; }
-            .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.15; z-index: 0; pointer-events: none; }
-            .content { position: relative; z-index: 1; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
-            .header h3 { margin: 0 0 5px 0; font-size: 20px; color: #333; }
-            .header h2 { margin: 0 0 10px 0; font-size: 26px; color: #000; }
-            .header h4 { margin: 0; font-size: 18px; color: #555; }
-            .qr-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; margin: 15px 0; }
-            .qr-code { width: 150px; height: 150px; }
-            .footer { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 2px solid #333; }
-            .footer span { font-size: 16px; color: #666; display: block; margin-bottom: 5px; }
-            .footer strong { font-size: 32px; letter-spacing: 5px; color: #000; }
-            .hint { font-size: 14px; margin-top: 10px; font-weight: bold; }
+            .page { width: 200mm; height: 287mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 0; gap: 4mm; margin: 0 auto; justify-content: center; align-content: flex-start; }
+            /* 2x2 Grid: each ballot is approx 95mm x 135mm (A6 size) */
+            .ballot { width: calc(50% - 2mm); height: 140mm; padding: 8mm; box-sizing: border-box; border: 1px dashed #999; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: #fff; }
+            .watermark { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); width: 60%; opacity: 0.15; z-index: 0; pointer-events: none; }
+            .content { position: relative; z-index: 1; text-align: center; display: flex; flex-direction: column; height: 100%; justify-content: space-between; }
+            .header h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
+            .header h2 { margin: 0 0 10px 0; font-size: 20px; color: #000; font-weight: bold; }
+            .header h4 { margin: 0; font-size: 14px; color: #555; }
+            .qr-container { display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid #333; border-radius: 8px; padding: 10px; background: #f8f9fa; margin-top: auto; }
+            .qr-container span { font-size: 12px; color: #666; margin-bottom: 5px; }
+            .qr-container strong { font-size: 24px; letter-spacing: 5px; color: #000; margin-bottom: 10px; }
+            .qr-code { width: 120px; height: 120px; background: #fff; padding: 5px; border: 1px solid #ddd; }
+            .hint { font-size: 11px; margin-top: 10px; font-weight: bold; text-align: center; }
         </style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     </head>
@@ -1835,33 +1769,30 @@ function printBallotsA4(keysToPrint) {
                                 <h2>${currentElectionData?.name || '選舉'}</h2>
                                 <h4>${itemTitle} - ${roundTitle}</h4>
                             </div>
-                        <div class="qr-container">
-                            <div id="qr-${k.code}" class="qr-code"></div>
+                            <div class="qr-container">
+                                <span>請掃描下方 QR Code 或於網頁輸入此金鑰</span>
+                                <strong>${k.code}</strong>
+                                <div id="qr-${k.code}" class="qr-code"></div>
+                            </div>
+                            <div class="hint">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
                         </div>
-                        <div class="footer">
-                            <span>請掃描上方 QR Code 或於網頁輸入此金鑰</span>
-                            <strong>${k.code}</strong>
-                        </div>
-                        <div class="hint">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
                     </div>
-                </div>
-                <script>
-                    setTimeout(() => {
-                        new QRCode(document.getElementById("qr-${k.code}"), {
-                            text: "${voteUrl}",
-                            width: 150,
-                            height: 150,
-                            colorDark : "#000000",
-                            colorLight : "#ffffff",
-                            correctLevel : QRCode.CorrectLevel.M
-                        });
-                    }, 100);
-                </script>
-                `;
+                    <script>
+                        setTimeout(() => {
+                            new QRCode(document.getElementById("qr-${k.code}"), {
+                                text: "${voteUrl}",
+                                width: 110,
+                                height: 110,
+                                colorDark : "#000000",
+                                colorLight : "#ffffff",
+                                correctLevel : QRCode.CorrectLevel.M
+                            });
+                        }, 100);
+                    </script>
+                    `;
                 }
             }
             html += '</div>';
-        }
     }
 
     html += `

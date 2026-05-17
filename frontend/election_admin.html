@@ -304,17 +304,33 @@
                                 </div>
                             </div>
 
-                            <div class="ballot-preview rounded" id="ballotPreviewContainer" style="display:none;">
-                                <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印">
-                                <div class="ballot-content">
-                                    <div class="text-center border-bottom pb-3 mb-4">
-                                        <h3 id="previewOrgName" class="fw-bold">機構名稱</h3>
-                                        <h4 id="previewElectionName" class="text-primary">選舉名稱</h4>
-                                        <h5 id="previewItemRoundName" class="text-success mt-2">項次 - 輪次</h5>
-                                        <p class="mb-0 mt-2 fw-bold text-danger">應選 <span id="previewSeats"></span> 名<span id="previewDistrictReq"></span></p>
+                            <div class="ballot-preview rounded mt-4" id="ballotPreviewContainer" style="display:none; background-color: #f8f9fa; padding: 20px;">
+                                <!-- 模擬單張 A5 直式比例的選票 -->
+                                <div class="ballot-content position-relative shadow bg-white" style="width: 148mm; height: 210mm; margin: 0 auto; border: 2px dashed #999; padding: 15mm; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
+                                    
+                                    <!-- 浮水印 (正中間偏上，在文字後方) -->
+                                    <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印" style="position: absolute; top: 15%; left: 50%; transform: translateX(-50%); width: 60%; opacity: 0.15; z-index: 0; pointer-events: none;">
+                                    
+                                    <!-- 上方標題區 -->
+                                    <div class="text-center position-relative" style="z-index: 1;">
+                                        <h3 id="previewOrgName" class="fw-bold text-dark mb-3" style="font-size: 24px;">機構名稱</h3>
+                                        <h2 id="previewElectionName" class="text-dark mb-4 fw-bold" style="font-size: 32px;">選舉名稱</h2>
+                                        <h4 id="previewItemRoundName" class="text-secondary mt-2" style="font-size: 22px;">項次 - 輪次</h4>
                                     </div>
-                                    <div class="row" id="previewCandidatesList">
-                                        <!-- 候選人預覽格 -->
+                                    
+                                    <!-- 下方 QR Code 與金鑰區 -->
+                                    <div class="position-relative d-flex flex-column justify-content-center align-items-center mt-auto" style="z-index: 1;">
+                                        <div class="qr-container bg-light p-4 border rounded text-center w-100" style="border: 2px solid #333 !important;">
+                                            <span class="d-block text-muted mb-2" style="font-size: 18px;">請掃描下方 QR Code 或於網頁輸入此金鑰</span>
+                                            <!-- 模擬的 8 碼金鑰 -->
+                                            <strong class="d-block mb-4" style="font-size: 38px; letter-spacing: 8px; color: #000;">A1B2C3D4</strong>
+                                            
+                                            <!-- 模擬的 QR Code -->
+                                            <div id="previewQrCode" class="mx-auto bg-white border p-2" style="width: 180px; height: 180px; display: flex; align-items: center; justify-content: center;">
+                                                <i class="fas fa-qrcode fa-5x text-secondary"></i>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 text-center fw-bold" style="font-size: 16px;">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
                                     </div>
                                 </div>
                             </div>
