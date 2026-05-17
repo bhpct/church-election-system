@@ -847,35 +847,64 @@
             <div class="col-md-3">
                 <div class="card shadow-sm h-100">
                     <div class="card-header bg-white fw-bold"><i class="fas fa-cog text-secondary"></i> 選務參數設定</div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">過半計算基準</label>
-                            <select class="form-select border-primary" id="tallyQuorumBase">
+                    <div class="card-body p-2">
+                        <div class="mb-2">
+                            <label class="form-label fw-bold small mb-1">過半計算基準</label>
+                            <select class="form-select form-select-sm border-primary" id="tallyQuorumBase">
                                 <option value="ATTENDING">以「出席人數」為準</option>
                                 <option value="BALLOTS">以「總發票數」為準</option>
                             </select>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label text-primary fw-bold">本輪出席人數</label>
-                            <input type="number" class="form-control" id="tallyAttendingCount" min="0">
+                        <div class="mb-2">
+                            <label class="form-label text-primary fw-bold small mb-1">出席人數</label>
+                            <input type="number" class="form-control form-control-sm" id="tallyAttendingCount" min="0">
                         </div>
-                        <hr>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">數位投票統計 (自動)</label>
-                            <div class="d-flex justify-content-between text-muted small">
-                                <span>已發金鑰：<span id="tallyDigitalIssued">0</span></span>
-                                <span>已投票數：<span id="tallyDigitalUsed">0</span></span>
+                        <hr class="my-2">
+                        
+                        <!-- 總發票數 -->
+                        <div class="mb-2 bg-light p-2 rounded">
+                            <label class="form-label fw-bold text-dark small mb-1">總發票數 <span class="badge bg-secondary ms-1" id="tallyTotalIssued">0</span></label>
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="small text-muted me-2" style="width: 80px;">發票數(數位)</span>
+                                <input type="number" class="form-control form-control-sm border-info" id="tallyDigitalIssued" min="0" value="0">
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="small text-muted me-2" style="width: 80px;">發票數(手寫)</span>
+                                <input type="number" class="form-control form-control-sm border-success" id="tallyPaperIssued" min="0" value="0">
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label text-success fw-bold">紙本發票數 (手動)</label>
-                            <input type="number" class="form-control border-success" id="tallyPaperIssued" min="0" value="0">
+
+                        <!-- 總收票數 -->
+                        <div class="mb-2 bg-light p-2 rounded border-start border-4 border-warning">
+                            <label class="form-label fw-bold text-dark small mb-1">總收票數(含空白票) <span class="badge bg-warning text-dark ms-1" id="tallyTotalReceived">0</span></label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small text-muted">收票數(數位) <i class="fas fa-robot text-secondary" title="系統自動計算"></i></span>
+                                <span class="badge bg-light text-dark border" id="tallyDigitalUsed">0</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="small text-muted me-2" style="width: 80px;">收票數(手寫)</span>
+                                <input type="number" class="form-control form-control-sm border-warning" id="tallyPaperReceived" min="0" value="0">
+                            </div>
                         </div>
+
+                        <!-- 總空白票 -->
+                        <div class="mb-2 bg-light p-2 rounded border-start border-4 border-secondary">
+                            <label class="form-label fw-bold text-dark small mb-1">總空白票 <span class="badge bg-secondary ms-1" id="tallyTotalBlank">0</span></label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small text-muted">空白票(數位) <i class="fas fa-robot text-secondary" title="未勾選任何候選人"></i></span>
+                                <span class="badge bg-light text-dark border" id="tallyDigitalBlank">0</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="small text-muted me-2" style="width: 80px;">空白票(手寫)</span>
+                                <input type="number" class="form-control form-control-sm border-secondary" id="tallyPaperBlank" min="0" value="0">
+                            </div>
+                        </div>
+
                     </div>
-                    <div class="card-footer bg-light text-center">
-                        <h5 class="mb-1">過半當選門檻</h5>
-                        <h1 class="text-danger fw-bold m-0" id="tallyThreshold">0</h1>
-                        <small class="text-muted" id="tallyThresholdFormula">(0 / 2) + 1</small>
+                    <div class="card-footer bg-light text-center py-2">
+                        <h6 class="mb-1 text-muted">過半當選門檻</h6>
+                        <h2 class="text-danger fw-bold m-0" id="tallyThreshold">0</h2>
+                        <small class="text-muted" style="font-size:0.7em" id="tallyThresholdFormula">(0 / 2) + 1</small>
                     </div>
                 </div>
             </div>
@@ -919,7 +948,7 @@
         <div>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">先關閉視窗</button>
             <button type="button" class="btn btn-primary" id="btnSaveTallyResults"><i class="fas fa-save"></i> 儲存開票數據</button>
-            <button type="button" class="btn btn-warning fw-bold" id="btnPublishTally"><i class="fas fa-bullhorn"></i> 確定發布當選</button>
+            <button type="button" class="btn btn-warning fw-bold" id="btnPublishTally"><i class="fas fa-bullhorn"></i> 發布選舉結果</button>
         </div>
       </div>
     </div>

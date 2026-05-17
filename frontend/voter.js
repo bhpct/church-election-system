@@ -104,7 +104,13 @@ async function handleVerifyKey() {
         roundData = { id: roundSnap.id, ...roundSnap.data() };
 
         if (roundData.status === 'PENDING') throw new Error("此輪次尚未開放投票，請稍候。");
-        if (roundData.status === 'CLOSED' || roundData.status === 'PUBLISHED') throw new Error("此輪次已結束投票。");
+        if (roundData.status === 'CLOSED') throw new Error("此輪次已結束投票，正在開票中。");
+        
+        // 若已發布結果，直接跳轉到投影畫面 (給選民看響應式結果)
+        if (roundData.status === 'PUBLISHED') {
+            window.location.href = `result.html?election_id=${currentElectionId}&item_id=${itemId}&round_id=${roundId}`;
+            return; // 終止後續
+        }
 
         // 3. 載入候選人資料
         await loadCandidatesForBallot(roundData.candidate_ids);
