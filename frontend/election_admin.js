@@ -624,7 +624,119 @@ function renderItemsAccordion() {
             </div>
         `;
     });
+
+    // 觸發更新 Keys 和 Tally 的下拉選單
+    updateKeysAndTallySelects();
 }
+
+function updateKeysAndTallySelects() {
+    const keysItemSelect = document.getElementById('keysItemSelect');
+    const tallyItemSelect = document.getElementById('tallyItemSelect');
+    
+    if (!keysItemSelect || !tallyItemSelect) return;
+
+    // 清空並重新加入選項
+    keysItemSelect.innerHTML = '<option value="">請選擇...</option>';
+    tallyItemSelect.innerHTML = '<option value="">請選擇...</option>';
+
+    allItems.forEach(item => {
+        keysItemSelect.innerHTML += `<option value="${item.id}">${item.title}</option>`;
+        tallyItemSelect.innerHTML += `<option value="${item.id}">${item.title}</option>`;
+    });
+}
+
+// 監聽 keys 和 tally 下拉選單變化，自動觸發載入
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btnLoadKeys')?.addEventListener('click', () => {
+        const itemId = document.getElementById('keysItemSelect').value;
+        const roundId = document.getElementById('keysRoundSelect').value;
+        if (itemId && roundId) {
+            document.getElementById('keysContentContainer').style.display = 'block';
+            document.getElementById('manageKeysItemId').value = itemId;
+            document.getElementById('manageKeysRoundId').value = roundId;
+            loadKeys(itemId, roundId);
+        } else {
+            Swal.fire('提示', '請先選擇項次與輪次', 'info');
+        }
+    });
+
+    document.getElementById('btnLoadTally')?.addEventListener('click', async () => {
+        const itemId = document.getElementById('tallyItemSelect').value;
+        const roundId = document.getElementById('tallyRoundSelect').value;
+        if (itemId && roundId) {
+            // 透過模擬點擊或直接呼叫開啟邏輯 (為了更新 UI 狀態)
+            const item = allItems.find(i => i.id === itemId);
+            const round = item?.rounds.find(r => r.id === roundId);
+            
+            if (item && round) {
+                // 設定狀態等 UI 元素
+                document.getElementById('tallyTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
+                document.getElementById('tallyItemId').value = itemId;
+                document.getElementById('tallyRoundId').value = roundId;
+                document.getElementById('tallyQuota').textContent = item.seats || 0;
+
+                const badge = document.getElementById('tallyStatusBadge');
+                const btnEnd = document.getElementById('btnEndVoting');
+                const btnReopen = document.getElementById('btnReopenVoting');
+                const btnPublish = document.getElementById('btnPublishTally');
+
+                if (round.status === 'ACTIVE') {
+                    badge.textContent = '狀態：投票進行中';
+                    badge.className = 'badge bg-success fs-6';
+                    btnEnd.style.display = 'inline-block';
+                    btnReopen.style.display = 'none';
+                    btnPublish.disabled = true;
+                } else if (round.status === 'CLOSED') {
+                    badge.textContent = '狀態：開票結算中';
+                    badge.className = 'badge bg-warning text-dark fs-6';
+                    btnEnd.style.display = 'none';
+                    btnReopen.style.display = 'inline-block';
+                    btnPublish.disabled = false;
+                } else {
+                    badge.textContent = '狀態：結果已發布';
+                    badge.className = 'badge bg-secondary fs-6';
+                    btnEnd.style.display = 'none';
+                    btnReopen.style.display = 'none';
+                    btnPublish.disabled = true;
+                }
+
+                document.getElementById('tallyQuorumBase').value = round.quorum_base || currentElectionData.quorum_base || 'ATTENDING';
+                document.getElementById('tallyAttendingCount').value = round.attending_count || currentElectionData.init_attending_count || 0;
+                document.getElementById('tallyPaperIssued').value = round.paper_issued || 0;
+
+                document.getElementById('tallyContentContainer').style.display = 'block';
+
+                currentTallyData.itemId = itemId;
+                currentTallyData.roundId = roundId;
+                currentTallyData.candidates = [];
+                currentTallyData.digitalVotesMap = {};
+
+                await loadTallyStats(itemId, roundId);
+                
+                const candidateIds = round.candidate_ids || [];
+                currentTallyData.candidates = allCandidates.filter(c => candidateIds.includes(c.id)).map(c => {
+                    const digi = currentTallyData.digitalVotesMap[c.id] || 0;
+                    const paper = (round.paper_votes && round.paper_votes[c.id]) ? parseInt(round.paper_votes[c.id]) : 0;
+                    const isElected = round.elected_ids ? round.elected_ids.includes(c.id) : false;
+                    return {
+                        ...c,
+                        digital_votes: digi,
+                        paper_votes: paper,
+                        total_votes: digi + paper,
+                        is_elected: isElected
+                    };
+                });
+
+                updateTallyThreshold();
+                renderTallyTable();
+            } else {
+                Swal.fire('錯誤', '找不到對應的項次或輪次資料', 'error');
+            }
+        } else {
+            Swal.fire('提示', '請先選擇項次與輪次', 'info');
+        }
+    });
+});
 
 function getRoundName(roundId) {
     if (roundId === 'round_1') return '第一輪';
@@ -818,13 +930,39 @@ window.deleteItem = async function(itemId) {
     Swal.fire('提醒', '徹底刪除項次功能將於後續版本提供。', 'info');
 }
 
-window.openRoundCandidates = function(itemId, roundId) {
-    // 未來實作：打開 Modal，列出所有人，打勾的代表參與這輪
-    Swal.fire('提醒', '調整名單 Modal 正在開發中，將於下一階段上線。', 'info');
-}
-
 window.startRound = function(itemId, roundId) {
-    Swal.fire('提醒', '啟動投票功能正在開發中，將於後續開票中心模組上線。', 'info');
+    Swal.fire({
+        title: '確定要啟動此輪投票嗎？',
+        text: '啟動後，將無法再調整名單。',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        confirmButtonText: '確定啟動'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const { doc, updateDoc } = window.fs;
+                const db = window.firebaseDb;
+
+                const item = allItems.find(i => i.id === itemId);
+                const roundIndex = item.rounds.findIndex(r => r.id === roundId);
+
+                const updatedRounds = [...item.rounds];
+                updatedRounds[roundIndex].status = 'ACTIVE';
+
+                await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
+                    rounds: updatedRounds,
+                    updatedAt: window.fs.serverTimestamp()
+                });
+
+                Swal.fire('成功', '投票已正式啟動！', 'success');
+                await loadItems();
+            } catch (error) {
+                console.error("啟動失敗:", error);
+                Swal.fire('錯誤', error.message, 'error');
+            }
+        }
+    });
 }
 
 // ==========================================
@@ -1152,16 +1290,24 @@ window.openKeyManagement = async function(itemId, roundId) {
     const round = item.rounds.find(r => r.id === roundId);
     if (!round) return;
 
-    document.getElementById('manageKeysTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
     document.getElementById('manageKeysItemId').value = itemId;
     document.getElementById('manageKeysRoundId').value = roundId;
+
+    // 將下拉選單設定為目標
+    const itemSelect = document.getElementById('keysItemSelect');
+    if (itemSelect) itemSelect.value = itemId;
+    const roundSelect = document.getElementById('keysRoundSelect');
+    if (roundSelect) roundSelect.value = roundId;
 
     // 預設發放數量為全域設定的出席人數 (如果有)
     const defaultCount = currentElectionData.init_attending_count || '';
     document.getElementById('generateKeysCount').value = defaultCount;
 
-    const modal = new bootstrap.Modal(document.getElementById('manageKeysModal'));
-    modal.show();
+    // 觸發側邊欄切換
+    document.querySelector('.nav-link-btn[data-target="section-keys"]').click();
+
+    // 顯示內容區塊 (原本隱藏)
+    document.getElementById('keysContentContainer').style.display = 'block';
 
     await loadKeys(itemId, roundId);
 };
@@ -1579,7 +1725,7 @@ window.openTallyCenter = async function(itemId, roundId) {
     document.getElementById('tallyTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
     document.getElementById('tallyItemId').value = itemId;
     document.getElementById('tallyRoundId').value = roundId;
-    document.getElementById('tallyQuota').textContent = item.quota || 0;
+    document.getElementById('tallyQuota').textContent = item.seats || 0;
 
     // 狀態設定
     const badge = document.getElementById('tallyStatusBadge');
@@ -1612,8 +1758,11 @@ window.openTallyCenter = async function(itemId, roundId) {
     document.getElementById('tallyAttendingCount').value = round.attending_count || currentElectionData.init_attending_count || 0;
     document.getElementById('tallyPaperIssued').value = round.paper_issued || 0;
 
-    const modal = new bootstrap.Modal(document.getElementById('tallyCenterModal'));
-    modal.show();
+    // 觸發側邊欄切換
+    document.querySelector('.nav-link-btn[data-target="section-tally"]').click();
+
+    // 顯示內容區塊 (原本隱藏)
+    document.getElementById('tallyContentContainer').style.display = 'block';
 
     // 非同步載入金鑰統計與數位選票
     await loadTallyStats(itemId, roundId);
@@ -1984,10 +2133,10 @@ window.checkNextRoundWizard = async function(itemId, currentRoundId) {
 
     // 計算已當選人數
     const electedCount = allCandidates.filter(c => c.elected_item === item.title).length;
-    const remainingQuota = (item.quota || 0) - electedCount;
+    const remainingQuota = (item.seats || 0) - electedCount;
 
     if (remainingQuota <= 0) {
-        Swal.fire('選舉結束', `【${item.title}】的應選名額 (${item.quota}名) 已滿，無須進行下一輪！`, 'success');
+        Swal.fire('選舉結束', `【${item.title}】的應選名額 (${item.seats}名) 已滿，無須進行下一輪！`, 'success');
         return;
     }
 
@@ -1995,7 +2144,7 @@ window.checkNextRoundWizard = async function(itemId, currentRoundId) {
     document.getElementById('wizardItemId').value = itemId;
     document.getElementById('wizardNextRoundId').value = nextRound.id;
     
-    document.getElementById('wizardTotalQuota').textContent = item.quota || 0;
+    document.getElementById('wizardTotalQuota').textContent = item.seats || 0;
     document.getElementById('wizardElectedCount').textContent = electedCount;
     document.getElementById('wizardRemainingQuota').textContent = remainingQuota;
 
