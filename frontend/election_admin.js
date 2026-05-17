@@ -1712,7 +1712,19 @@ function printBallotsA4(keysToPrint) {
         groupedKeys[groupKey].push(k);
     });
 
-    const printWindow = window.open('', '_blank');
+    // 建立隱藏的 iframe 進行列印，避免彈出視窗被阻擋或右鍵無法列印的問題
+    let printIframe = document.getElementById('ballotPrintIframe');
+    if (!printIframe) {
+        printIframe = document.createElement('iframe');
+        printIframe.id = 'ballotPrintIframe';
+        // 使用 visibility hidden 和絕對定位，避免 display:none 導致 QR Code 無法渲染
+        printIframe.style.position = 'absolute';
+        printIframe.style.top = '-10000px';
+        printIframe.style.left = '-10000px';
+        printIframe.style.width = '210mm';
+        printIframe.style.height = '297mm';
+        document.body.appendChild(printIframe);
+    }
     
     let html = `
     <!DOCTYPE html>
@@ -1793,19 +1805,23 @@ function printBallotsA4(keysToPrint) {
                 }
             }
             html += '</div>';
+        }
     }
 
     html += `
     <script>
-        // 等待 QR Code 渲染完成後自動列印
+        // 等待 QR Code 渲染完成後自動觸發 iframe 的列印
         setTimeout(() => {
             window.print();
-        }, 1000);
+        }, 1500);
     </script>
     </body></html>`;
 
-    printWindow.document.write(html);
-    printWindow.document.close();
+    // 寫入 iframe 並關閉文件流
+    const doc = printIframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
 }
 window.invalidateKey = function(keyId) {
     Swal.fire({
