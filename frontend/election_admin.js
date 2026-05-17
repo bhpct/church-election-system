@@ -1224,14 +1224,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const { doc, updateDoc } = window.fs;
             const db = window.firebaseDb;
             
-            // 找到該 item，更新 rounds 陣列中的 candidate_ids
-            const item = allItems.find(i => i.id === itemId);
-            const rounds = [...item.rounds];
-            const roundIndex = rounds.findIndex(r => r.id === roundId);
-            rounds[roundIndex].candidate_ids = finalIds;
-            
-            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
-                rounds: rounds,
+            // 寫入到 rounds 子集合對應的 roundId 文件中
+            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+                candidate_ids: finalIds,
                 updatedAt: window.fs.serverTimestamp()
             });
             
