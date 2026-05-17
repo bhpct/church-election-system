@@ -60,6 +60,11 @@
             justify-content: space-between;
             align-items: center;
         }
+        .shuttle-list .list-group-item.active {
+            background-color: #0d6efd !important;
+            color: white !important;
+            border-color: #0d6efd !important;
+        }
         .nav-section {
             display: none;
         }
@@ -1038,6 +1043,7 @@
                 <hr class="w-75 text-secondary">
                 <button class="btn btn-outline-success w-75" id="btnMoveToLeft" title="移入所選">&lt;</button>
                 <button class="btn btn-success w-75 fw-bold" id="btnMoveAllToLeft" title="全部移入">&lt;&lt;</button>
+                <small class="text-muted mt-2 text-center" style="font-size: 0.8em;">(選取後請按箭頭移動)</small>
             </div>
 
             <!-- 右側：本輪排除區 -->
