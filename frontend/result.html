@@ -225,25 +225,53 @@
                       const roundData = roundDoc.data();
                       const status = roundData.status || 'PENDING';
 
+                      const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+                      const rName = roundNames[roundId] || roundId;
+
+                      if (window.voteTimerInterval) clearInterval(window.voteTimerInterval);
+
                       if (status !== 'PUBLISHED') {
                           // 顯示等待畫面
                           let msg = '選舉進行中...';
                           let icon = 'fa-spinner fa-spin text-primary';
+                          let timerHtml = '';
+
                           if (status === 'CLOSED') {
                               msg = '投票已結束，開票結算中...';
                               icon = 'fa-calculator text-warning';
                           } else if (status === 'ACTIVE') {
                               msg = '投票進行中...請大家踴躍投票';
                               icon = 'fa-person-booth text-success';
+                              if (roundData.updatedAt) {
+                                  window.activeStartTime = roundData.updatedAt.toMillis();
+                                  timerHtml = '<div id="voteTimer" class="mt-4 fw-bold text-danger" style="font-size: 2.5rem; letter-spacing: 2px;"></div>';
+                              }
                           }
                           
                           document.getElementById('loadingSpinner').innerHTML = `
                               <i class="fas ${icon}" style="font-size: 5rem; margin-bottom: 2rem;"></i>
-                              <h1 class="fw-bold" style="font-size: 3rem;">${itemData.title}</h1>
-                              <h2 class="mt-2 text-muted fs-1">${msg}</h2>
+                              <h1 class="fw-bold" style="font-size: 3rem;">${itemData.title} <span class="text-primary">- ${rName}</span></h1>
+                              <h2 class="mt-3 text-muted fs-1">${msg}</h2>
+                              ${timerHtml}
                           `;
                           document.getElementById('loadingSpinner').style.display = 'flex';
                           document.getElementById('mainContent').style.display = 'none';
+
+                          if (status === 'ACTIVE' && window.activeStartTime) {
+                              window.voteTimerInterval = setInterval(() => {
+                                  const now = Date.now();
+                                  const diff = now - window.activeStartTime;
+                                  if (diff < 0) return;
+                                  const m = Math.floor(diff / 60000);
+                                  const s = Math.floor((diff % 60000) / 1000);
+                                  const timerEl = document.getElementById('voteTimer');
+                                  if (timerEl) {
+                                      timerEl.textContent = `已進行：${m} 分 ${s.toString().padStart(2, '0')} 秒`;
+                                  } else {
+                                      clearInterval(window.voteTimerInterval);
+                                  }
+                              }, 1000);
+                          }
                           return;
                       }
 
@@ -254,8 +282,6 @@
                       `;
 
                       // 設定標題與統計數字
-                      const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
-                      const rName = roundNames[roundId] || roundId;
                       document.getElementById('displayTitle').textContent = `${itemData.title} - ${rName} 開票結果`;
                       
                       const effectiveSeats = roundData.seats !== undefined ? roundData.seats : itemData.seats;
