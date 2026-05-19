@@ -2364,6 +2364,15 @@ window.openTallyCenter = async function(itemId, roundId) {
     document.getElementById('tallyPaperReceived').value = round.paper_received || 0;
     document.getElementById('tallyPaperBlank').value = round.paper_blank || 0;
 
+    // 若投票進行中，鎖定左側手動輸入的紙本數據以防誤填或洩密
+    const isVotingActive = (round.status === 'ACTIVE');
+    document.getElementById('tallyPaperIssued').disabled = isVotingActive;
+    document.getElementById('tallyPaperReceived').disabled = isVotingActive;
+    document.getElementById('tallyPaperBlank').disabled = isVotingActive;
+    document.getElementById('tallyDigitalIssued').disabled = isVotingActive;
+    document.getElementById('tallyQuorumBase').disabled = isVotingActive;
+    document.getElementById('tallyAttendingCount').disabled = isVotingActive;
+
     // 觸發側邊欄切換
     document.querySelector('.nav-link-btn[data-target="section-tally"]').click();
 
@@ -2387,6 +2396,10 @@ window.openTallyCenter = async function(itemId, roundId) {
             is_elected: isElected
         };
     });
+
+    if (round.status === 'CLOSED' || round.status === 'PUBLISHED') {
+        currentTallyData.candidates.sort((a, b) => b.total_votes - a.total_votes);
+    }
 
     updateTallyThreshold();
     renderTallyTable();
@@ -2560,9 +2573,11 @@ function renderTallyTable(threshold) {
         return;
     }
 
+    const isVotingActive = currentTallyData.status === 'ACTIVE';
+
     currentTallyData.candidates.forEach((c, index) => {
         const isPassed = c.total_votes >= threshold;
-        const passBadge = isPassed ? '<span class="badge bg-danger"><i class="fas fa-check"></i> 達標</span>' : '<span class="badge bg-secondary">未過半</span>';
+        const passBadge = isVotingActive ? '<span class="badge bg-secondary"><i class="fas fa-lock"></i> 投票中</span>' : (isPassed ? '<span class="badge bg-danger"><i class="fas fa-check"></i> 達標</span>' : '<span class="badge bg-secondary">未過半</span>');
         
         // 判斷是否為保障名額
         const item = allItems.find(i => i.id === currentTallyData.itemId);
@@ -2572,25 +2587,32 @@ function renderTallyTable(threshold) {
         // 取出目前的紙本得票 (供綁定 input)
         const paperVal = c.paper_votes || 0;
         
+        const digitalDisplay = isVotingActive ? '<i class="fas fa-lock text-muted"></i>' : c.digital_votes;
+        const paperDisplay = isVotingActive ? 
+            '<input type="number" class="form-control form-control-sm text-center border-secondary" disabled value="0" style="width: 80px; margin: 0 auto; background: #e9ecef;">' : 
+            `<input type="number" class="form-control form-control-sm text-center border-success paper-vote-input" data-id="${c.id}" value="${paperVal}" min="0" style="width: 80px; margin: 0 auto;">`;
+        const totalDisplay = isVotingActive ? '<i class="fas fa-lock text-muted"></i>' : c.total_votes;
+        const checkboxDisplay = isVotingActive ? 
+            `<input class="form-check-input" type="checkbox" disabled style="transform: scale(1.5);">` : 
+            `<input class="form-check-input elected-checkbox" type="checkbox" data-id="${c.id}" style="transform: scale(1.5);" ${c.is_elected ? 'checked' : ''}>`;
+
         tbody.innerHTML += `
-            <tr data-id="${c.id}">
+            <tr data-id="${c.id}" class="${isVotingActive ? 'table-light text-muted' : ''}">
                 <td class="fw-bold">${c.number || ''}</td>
                 <td>
                     <div class="fw-bold fs-6">${c.name}</div>
                     ${c.district ? `<small class="text-muted">[${c.district}]</small>` : ''}
                     ${forceBadge}
                 </td>
-                <td class="fs-5 text-secondary">${c.digital_votes}</td>
+                <td class="fs-5 text-secondary">${digitalDisplay}</td>
                 <td>
-                    <input type="number" class="form-control form-control-sm text-center border-success paper-vote-input" 
-                           data-id="${c.id}" value="${paperVal}" min="0" style="width: 80px; margin: 0 auto;">
+                    ${paperDisplay}
                 </td>
-                <td class="fs-4 fw-bold text-primary total-vote-display">${c.total_votes}</td>
+                <td class="fs-4 fw-bold text-primary total-vote-display">${totalDisplay}</td>
                 <td>${passBadge}</td>
                 <td>
                     <div class="form-check d-flex justify-content-center">
-                        <input class="form-check-input elected-checkbox" type="checkbox" data-id="${c.id}" 
-                               style="transform: scale(1.5);" ${c.is_elected ? 'checked' : ''}>
+                        ${checkboxDisplay}
                     </div>
                 </td>
             </tr>
@@ -2625,7 +2647,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 結束數位投票
     document.getElementById('btnEndVoting')?.addEventListener('click', async () => {
-        await updateRoundStatus('CLOSED', '結束投票將鎖定所有數位金鑰，確定繼續？');
+        Swal.fire({
+            title: '結束投票將鎖定所有數位金鑰，確定繼續？',
+            text: '系統將會自動儲存您左側手動輸入的最新票數與計算資料。',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '確定結束並儲存',
+            cancelButtonText: '取消',
+            confirmButtonColor: '#dc3545'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const itemId = currentTallyData.itemId;
+                    const roundId = currentTallyData.roundId;
+                    
+                    // 強制先執行儲存
+                    await doSaveTallyData(itemId, roundId);
+
+                    const { doc, setDoc } = window.fs;
+                    const db = window.firebaseDb;
+
+                    await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
+                        status: 'CLOSED',
+                        updatedAt: window.fs.serverTimestamp()
+                    }, { merge: true });
+
+                    Swal.fire('已結束投票', '開票結果已解鎖顯示！', 'success');
+                    await loadItems();
+                    openTallyCenter(itemId, roundId);
+                } catch (error) {
+                    console.error("更新狀態失敗:", error);
+                    Swal.fire('錯誤', error.message, 'error');
+                }
+            }
+        });
     });
 
     // 重新開放
@@ -2832,10 +2887,26 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // 從 currentTallyData 取得上一輪的候選人與得票排序
             // (因為剛開票完，currentTallyData 內存有最新的計算結果)
+            // 從 currentTallyData 取得上一輪的候選人與得票排序
             let candidatesList = [...currentTallyData.candidates];
             
             // 排除已當選、或中途被設為不可被選者
             candidatesList = candidatesList.filter(c => !c.is_elected && !c.is_ineligible);
+            
+            // 排除已當選滿額的分區
+            const item = allItems.find(i => i.id === itemId);
+            if (item && item.district_req) {
+                // 找出該項次目前所有已當選的候選人分區
+                const electedDistricts = new Set();
+                allCandidates.forEach(c => {
+                    if (c.elected_item === item.title && c.district) {
+                        electedDistricts.add(c.district);
+                    }
+                });
+
+                // 將未當選清單中，屬於已滿額分區的人剔除
+                candidatesList = candidatesList.filter(c => !c.district || !electedDistricts.has(c.district));
+            }
             
             // 依得票數由高至低排序
             candidatesList.sort((a, b) => b.total_votes - a.total_votes);
