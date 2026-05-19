@@ -785,6 +785,10 @@ function updateKeysAndTallySelects() {
     
     if (!keysItemSelect || !tallyItemSelect) return;
 
+    // 保留原本選取的值
+    const currentKeysItem = keysItemSelect.value;
+    const currentTallyItem = tallyItemSelect.value;
+
     // 清空並重新加入選項
     keysItemSelect.innerHTML = '<option value="">請選擇...</option>';
     tallyItemSelect.innerHTML = '<option value="">請選擇...</option>';
@@ -793,6 +797,10 @@ function updateKeysAndTallySelects() {
         keysItemSelect.innerHTML += `<option value="${item.id}">${item.title}</option>`;
         tallyItemSelect.innerHTML += `<option value="${item.id}">${item.title}</option>`;
     });
+
+    // 恢復選取
+    if (currentKeysItem) keysItemSelect.value = currentKeysItem;
+    if (currentTallyItem) tallyItemSelect.value = currentTallyItem;
 }
 
 // 監聽 keys 和 tally 下拉選單變化，自動觸發載入
@@ -1693,8 +1701,8 @@ async function loadKeys(itemId, roundId) {
             return timeB - timeA;
         });
 
-        // 檢查是否已發放金鑰 (鎖定發放功能)
-        const isIssued = currentKeys.length > 0;
+        // 檢查是否已發放金鑰 (鎖定發放功能，只要有任何 VALID 金鑰就鎖定)
+        const isIssued = currentKeys.some(k => k.status === 'VALID');
         
         if (isIssued) {
             document.getElementById('btnGenerateKeys').disabled = true;
@@ -1856,7 +1864,9 @@ document.addEventListener('DOMContentLoaded', () => {
             keysSnap.forEach(d => {
                 const data = d.data();
                 existingCodes.add(data.code);
-                issuedRounds.add(`${data.item_id}_${data.round_id}`);
+                if (data.status === 'VALID') {
+                    issuedRounds.add(`${data.item_id}_${data.round_id}`);
+                }
             });
 
             let totalGenerated = 0;
@@ -2029,7 +2039,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnDestroyAllKeys')?.addEventListener('click', () => {
         Swal.fire({
             title: '危險操作確認',
-            html: '<strong class="text-danger">這將會作廢本輪次所有「未使用」的金鑰！</strong><br>已印出的選票將全數失效，並且解除列印鎖定，允許您重新產生金鑰。<br>確定要執行嗎？',
+            html: '<strong class="text-danger">這將會作廢本輪次所有「未使用」的金鑰！</strong><br>作廢後將解除產生金鑰的鎖定。<br><strong class="text-danger fs-5">注意：原本印出的選票將全數失效，請務必「重新列印」所有選票！</strong><br>確定要執行嗎？',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -2075,6 +2085,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function printBallotsA4(keysToPrint) {
     if (!keysToPrint || keysToPrint.length === 0) return;
+
+    // 依據項次建立順序與輪次順序進行排序 (避免列印時順序錯亂)
+    keysToPrint.sort((a, b) => {
+        const itemIdxA = allItems.findIndex(i => i.id === a.item_id);
+        const itemIdxB = allItems.findIndex(i => i.id === b.item_id);
+        if (itemIdxA !== itemIdxB) return itemIdxA - itemIdxB;
+        
+        // 項次相同，比較輪次 (round_1, round_2, round_3)
+        if (a.round_id < b.round_id) return -1;
+        if (a.round_id > b.round_id) return 1;
+        return 0;
+    });
 
     // 將金鑰依據項次與輪次分組，確保不同輪次絕對不會印在同一頁
     const groupedKeys = {};
