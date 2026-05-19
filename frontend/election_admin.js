@@ -2578,6 +2578,10 @@ function updateTallyThreshold() {
     document.getElementById('tallyTotalReceived').textContent = totalReceived;
     document.getElementById('tallyTotalBlank').textContent = totalBlank;
     
+    // 即時更新數位的收票數與空白票數 (即使在投票進行中也應顯示)
+    document.getElementById('tallyDigitalUsed').textContent = digitalUsed;
+    document.getElementById('tallyDigitalBlank').textContent = digitalBlank;
+    
     let baseNumber = 0;
     let formulaText = "";
 
