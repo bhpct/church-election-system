@@ -2110,8 +2110,21 @@ function printBallotsA4(keysToPrint) {
         groupedKeys[groupKey].push(k);
     });
 
-    // 建立隱藏的 iframe 進行列印，避免彈出視窗被阻擋或右鍵無法列印的問題
-    let printIframe = document.getElementById('ballotPrintIframe');
+    let totalPages = 0;
+    for (const key in groupedKeys) {
+        totalPages += Math.ceil(groupedKeys[key].length / 4);
+    }
+
+    Swal.fire({
+        title: '產生列印檔中...',
+        html: `總共有 <b>${keysToPrint.length}</b> 張選票，預計印製 <b>${totalPages}</b> 頁。<br>由於需要產生防偽 QR Code，準備時間約需數秒至十幾秒。<br>請耐心等候，直到跳出瀏覽器的列印設定視窗。`,
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+            setTimeout(() => {
+                // 建立隱藏的 iframe 進行列印，避免彈出視窗被阻擋或右鍵無法列印的問題
+                let printIframe = document.getElementById('ballotPrintIframe');
     if (!printIframe) {
         printIframe = document.createElement('iframe');
         printIframe.id = 'ballotPrintIframe';
@@ -2132,7 +2145,7 @@ function printBallotsA4(keysToPrint) {
         <style>
             @page { size: A4 portrait; margin: 5mm; }
             body { margin: 0; padding: 0; background: #fff; font-family: '微軟正黑體', sans-serif; }
-            .page { width: 200mm; height: 287mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 0; gap: 4mm; margin: 0 auto; justify-content: center; align-content: flex-start; }
+            .page { width: 200mm; height: 287mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 0; gap: 4mm; margin: 0 auto; justify-content: flex-start; align-content: flex-start; }
             /* 2x2 Grid: each ballot is approx 95mm x 135mm (A6 size) */
             .ballot { width: calc(50% - 2mm); height: 140mm; padding: 8mm; box-sizing: border-box; border: 1px dashed #999; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: transparent; }
             .watermark { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); width: 70%; opacity: 0.15; z-index: -1; pointer-events: none; }
@@ -2220,6 +2233,13 @@ function printBallotsA4(keysToPrint) {
     doc.open();
     doc.write(html);
     doc.close();
+
+                setTimeout(() => {
+                    Swal.close();
+                }, 2000);
+            }, 500); // 延遲 500ms 讓 SweetAlert 動畫能夠顯示
+        }
+    });
 }
 window.invalidateKey = function(keyId) {
     Swal.fire({
