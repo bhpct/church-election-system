@@ -1458,14 +1458,8 @@ window.openRoundCandidates = function(itemId, roundId) {
         }
     }
 
-    allCandidates.forEach(c => {
-        // 基本過濾：如果沒有包含資格，就不顯示
-        if (allowedQuals.length > 0 && c.qualification && !allowedQuals.includes(c.qualification)) {
-            return;
-        }
-
-        // 判斷狀態
-        let isSelected = selectedIds.includes(c.id);
+    // 建立候選人節點的共用函數
+    const createCandidateNode = (c, isSelected) => {
         let isDisabled = false;
         let badgeHtml = '';
 
@@ -1478,17 +1472,17 @@ window.openRoundCandidates = function(itemId, roundId) {
             isDisabled = true;
             badgeHtml = '<span class="badge bg-warning text-dark float-end">保障名額</span>';
         } else if (c.elected_item && effectiveExclude) {
-            // 如果設定排除已當選者，且該人已經有當選頭銜
             isSelected = false;
             isDisabled = true;
             badgeHtml = `<span class="badge bg-secondary float-end">已當選: ${c.elected_item}</span>`;
         }
 
         const li = document.createElement('li');
-        // 加入 list-group-item-danger class 讓非候選區有紅色背景以示區別，但不可被選(disabled)的保持預設灰色
         const itemClass = isDisabled ? 'disabled' : (isSelected ? '' : 'list-group-item-danger');
         li.className = `list-group-item d-flex justify-content-between align-items-center ${itemClass}`;
         li.dataset.id = c.id;
+        li.dataset.number = c.number || 9999;
+        li.style.cursor = isDisabled ? 'not-allowed' : (isSelected ? 'grab' : 'pointer');
         li.innerHTML = `
             <div>
                 <span class="text-primary me-2 fw-bold">${c.number || ''}</span>
@@ -1503,18 +1497,63 @@ window.openRoundCandidates = function(itemId, roundId) {
                 this.classList.toggle('active');
             });
         }
+        return li;
+    };
 
-        if (isSelected) {
+    // 1. 優先依照 selectedIds 的順序 (由晉級嚮導排定的高低票順序) 渲染左側名單
+    selectedIds.forEach(cid => {
+        const c = allCandidates.find(cand => cand.id === cid);
+        if (c) {
+            if (allowedQuals.length > 0 && c.qualification && !allowedQuals.includes(c.qualification)) return;
+            const li = createCandidateNode(c, true);
             listSelected.appendChild(li);
-        } else {
-            listUnselected.appendChild(li);
         }
+    });
+
+    // 2. 渲染剩餘的未選名單到右側
+    allCandidates.forEach(c => {
+        if (selectedIds.includes(c.id)) return;
+        if (allowedQuals.length > 0 && c.qualification && !allowedQuals.includes(c.qualification)) return;
+        
+        const li = createCandidateNode(c, false);
+        listUnselected.appendChild(li);
     });
 
     updateShuttleCounts();
     document.getElementById('searchSelected').value = '';
     document.getElementById('searchUnselected').value = '';
     
+    // 初始化 SortableJS 讓左側清單可以上下拖曳排序
+    if (window.listSelectedSortable) {
+        window.listSelectedSortable.destroy();
+    }
+    if (typeof Sortable !== 'undefined') {
+        window.listSelectedSortable = new Sortable(listSelected, {
+            animation: 150,
+            ghostClass: 'bg-light',
+            filter: '.disabled' // 不可拖曳 disabled 項目
+        });
+    }
+
+    // 綁定「依號次重排」按鈕
+    document.getElementById('btnSortByNumber').onclick = () => {
+        const items = Array.from(listSelected.children);
+        items.sort((a, b) => {
+            const numA = parseInt(a.dataset.number) || 9999;
+            const numB = parseInt(b.dataset.number) || 9999;
+            return numA - numB;
+        });
+        items.forEach(item => listSelected.appendChild(item));
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: '已依號次重新排序',
+            showConfirmButton: false,
+            timer: 1500
+        });
+    };
+
     const modal = new bootstrap.Modal(document.getElementById('adjustRoundCandidatesModal'));
     modal.show();
 };
@@ -1576,6 +1615,7 @@ document.addEventListener('DOMContentLoaded', () => {
             li.classList.remove('active');
             li.classList.remove('list-group-item-danger'); // 移入時移除紅色標示
             targetList.appendChild(li);
+            li.style.cursor = 'grab'; // 移入左側時設定為可拖曳游標
         });
         updateShuttleCounts();
     });
@@ -1588,6 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             li.classList.remove('active');
             li.classList.remove('list-group-item-danger'); // 移入時移除紅色標示
             targetList.appendChild(li);
+            li.style.cursor = 'grab'; // 移入左側時設定為可拖曳游標
         });
         updateShuttleCounts();
     });

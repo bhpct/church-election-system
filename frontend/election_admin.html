@@ -1022,7 +1022,10 @@
             <div class="col-md-5">
                 <div class="card h-100 border-success shadow-sm">
                     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                        <span class="fw-bold">本輪候選區 (<span id="countSelected">0</span>)</span>
+                        <div>
+                            <span class="fw-bold">本輪候選區 (<span id="countSelected">0</span>)</span>
+                            <button class="btn btn-sm btn-light ms-2 text-success py-0" id="btnSortByNumber" title="依號次重排"><i class="fas fa-sort-numeric-down"></i></button>
+                        </div>
                         <input type="text" class="form-control form-control-sm w-50" id="searchSelected" placeholder="搜尋姓名/編號">
                     </div>
                     <div class="card-body p-0">
@@ -1071,6 +1074,7 @@
 
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <!-- Firebase SDK -->
 <script type="module">
