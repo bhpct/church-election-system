@@ -2196,7 +2196,8 @@ function printBallotsA4(keysToPrint) {
             for (let j = 0; j < 4; j++) {
                 if (i + j < group.length) {
                     const k = group[i + j];
-                    const voteUrl = `${window.location.origin}/voter.html?eid=${currentElectionId}&key=${k.code}`;
+                    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                    const voteUrl = `${baseUrl}/voter.html?eid=${currentElectionId}&key=${k.code}`;
                     const sealHtml = currentOrgData?.seal_url ? `<img src="${currentOrgData.seal_url}" class="watermark">` : '';
                     
                     html += `
