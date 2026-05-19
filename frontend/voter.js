@@ -259,10 +259,13 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
 
     let matchCount = 0;
 
-    Object.keys(candidatesMap).forEach(cid => {
+    // 依照 roundData.candidate_ids 的順序顯示 (此順序在晉級時已由系統依照得票數排序過)
+    roundData.candidate_ids.forEach(cid => {
         if (cid === forcedId) return; // 排除保障名額
         
         const c = candidatesMap[cid];
+        if (!c) return;
+        
         const searchStr = `${c.number || ''} ${c.name} ${c.district || ''} ${c.unit || ''}`.toLowerCase();
         
         if (keyword === '' || searchStr.includes(keyword)) {
