@@ -293,7 +293,6 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
                     box.querySelector('.selected-candidate').style.display = 'flex';
                     dropdownEl.style.display = 'none';
                 });
-            }
             
             dropdownEl.appendChild(div);
             matchCount++;
