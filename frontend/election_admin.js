@@ -2346,12 +2346,14 @@ window.openTallyCenter = async function(itemId, roundId) {
         btnEnd.style.display = 'none';
         btnReopen.style.display = 'inline-block';
         btnPublish.disabled = false;
+        btnPublish.innerHTML = '<i class="fas fa-bullhorn"></i> 發布選舉結果';
     } else {
         badge.textContent = '狀態：結果已發布';
         badge.className = 'badge bg-secondary me-3 fs-6';
         btnEnd.style.display = 'none';
         btnReopen.style.display = 'none';
-        btnPublish.disabled = true; // 已經發布過了
+        btnPublish.disabled = false; // 允許重新發布以觸發晉級計算
+        btnPublish.innerHTML = '<i class="fas fa-bullhorn"></i> 重新發布結果';
     }
 
     // 參數預設值
