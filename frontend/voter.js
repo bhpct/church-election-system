@@ -81,7 +81,19 @@ async function handleVerifyKey() {
         const keyData = currentKeyDoc.data();
 
         if (keyData.status === 'INVALID') throw new Error("此金鑰已被作廢。");
-        if (keyData.status === 'USED') throw new Error("此金鑰已經完成投票，不可重複使用。");
+        if (keyData.status === 'USED') {
+            Swal.fire({
+                title: '金鑰已完成投票',
+                text: '此金鑰已經使用過，不可重複投票。即將為您自動跳轉至開票中心查看結果...',
+                icon: 'info',
+                timer: 4000,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            }).then(() => {
+                window.location.href = `result.html?election_id=${currentElectionId}&item_id=${keyData.item_id}&round_id=${keyData.round_id}`;
+            });
+            return;
+        }
         
         currentKeyCode = keyData.code;
 
@@ -150,8 +162,11 @@ async function loadCandidatesForBallot(candidateIds) {
 
 // 建立選票介面 (智慧下拉搜尋)
 function buildBallotUI() {
+    const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+    const rName = roundNames[roundData.id] || roundData.id;
+
     document.getElementById('ballotElectionName').textContent = electionData.name;
-    document.getElementById('ballotItemRoundName').textContent = `${itemData.title} - ${roundData.title}`;
+    document.getElementById('ballotItemRoundName').textContent = `${itemData.title} - ${rName}`;
     
     const quota = parseInt(itemData.seats) || 1;
     document.getElementById('ballotQuota').textContent = quota;
@@ -252,20 +267,19 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
         
         if (keyword === '' || searchStr.includes(keyword)) {
             const isAlreadySelected = allSelectedVals.includes(cid);
+            if (isAlreadySelected) return; // 防呆：已選擇的候選人直接從其他選單消失
             
             const div = document.createElement('div');
-            div.className = `candidate-item ${isAlreadySelected ? 'disabled' : ''}`;
+            div.className = `candidate-item`;
             div.innerHTML = `
                 <div>
                     <span class="badge bg-secondary me-2">${c.number || '-'}</span>
                     <strong>${c.name}</strong>
                     <small class="text-muted ms-2">${c.district || ''} ${c.unit || ''}</small>
                 </div>
-                ${isAlreadySelected ? '<i class="fas fa-check text-success"></i>' : ''}
             `;
             
-            if (!isAlreadySelected) {
-                div.addEventListener('click', () => {
+            div.addEventListener('click', () => {
                     const box = inputEl.closest('.candidate-search-box');
                     box.querySelector('.ballot-vote-val').value = cid;
                     box.querySelector('.selected-num').textContent = c.number || '-';
@@ -325,9 +339,32 @@ async function handleSubmitVote() {
     }
 
     // 確認視窗
+    let confirmHtml = '';
+    if (selectedIds.length === 0) {
+        confirmHtml = `
+            <div class="p-4 bg-danger text-white rounded mb-3 border border-4 border-dark shadow">
+                <h2 class="m-0 fw-bold"><i class="fas fa-exclamation-triangle"></i> 空白票警告</h2>
+                <p class="m-0 mt-2 fs-5">您沒有圈選任何候選人！<br>此選票將以「空白票」送出！</p>
+            </div>
+            <span class="text-danger fw-bold fs-5">送出後金鑰即失效，無法修改！</span>
+        `;
+    } else {
+        const namesHtml = selectedIds.map((cid, idx) => {
+            const c = candidatesMap[cid];
+            return `<div class="text-start bg-light p-2 mb-1 border rounded fs-5">
+                <span class="badge bg-secondary me-2">${c.number || '-'}</span> <strong>${c.name}</strong> <small class="text-muted">${c.district || ''}</small>
+            </div>`;
+        }).join('');
+        confirmHtml = `
+            <h4 class="mb-3">您共圈選了 <strong><span class="text-primary fs-3">${selectedIds.length}</span></strong> 位候選人：</h4>
+            <div style="max-height: 250px; overflow-y: auto;" class="mb-4">${namesHtml}</div>
+            <span class="text-danger fw-bold fs-5">送出後金鑰即失效，無法修改！</span>
+        `;
+    }
+
     const confirmResult = await Swal.fire({
         title: '確認送出選票？',
-        html: `您共圈選了 <strong>${selectedIds.length}</strong> 位候選人。<br><span class="text-danger">送出後金鑰即失效，無法修改！</span>`,
+        html: confirmHtml,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: '確定送出',
