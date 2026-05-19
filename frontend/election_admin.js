@@ -1803,6 +1803,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("此輪次還有尚未作廢的有效金鑰，為確保選票唯一性，不可重複產生！");
             }
             
+            // 取得全域所有金鑰 (包含跨項次、跨輪次，甚至包含作廢的)
+            const allKeysSnap = await getDocs(query(keysRef));
+            const existingCodes = new Set();
+            allKeysSnap.forEach(d => {
+                existingCodes.add(d.data().code);
+            });
+
             // Firebase Batch 最多 500 筆，超過需分批，這裡簡單處理，一般選舉不太會單輪超過500
             if (count > 450) {
                 throw new Error("單次最多產生 450 組金鑰，請分批操作。");
@@ -1813,7 +1820,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             for (let i = 0; i < count; i++) {
                 const newRef = doc(keysRef); // 自動生成 ID
-                const code = generateRandomCode();
+                
+                let code;
+                // 確保產生的金鑰不與選舉場次內任何金鑰重複 (包含作廢的)
+                do {
+                    code = generateRandomCode();
+                } while (existingCodes.has(code));
+                
+                // 把新產生的也加進去，避免這批次內部重複
+                existingCodes.add(code);
+
                 batch.set(newRef, {
                     code: code,
                     item_id: itemId,
