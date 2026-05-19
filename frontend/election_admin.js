@@ -2636,9 +2636,8 @@ function renderTallyTable(threshold) {
         // 取出目前的紙本得票 (供綁定 input)
         const paperVal = c.paper_votes || 0;
         
-        // 使用者要求：在投票進行中，右側遮罩「總得票」與「過半狀態」，但「數位得票 (收票數)」必須顯示，讓後台掌握實際數位收票進度。
-        const digitalDisplay = c.digital_votes; 
-        
+        // 使用者要求：在投票進行中，右側的所有得票數 (包含數位、紙本、總計) 都必須以灰階上鎖遮罩
+        const digitalDisplay = isVotingActive ? '<i class="fas fa-lock text-muted"></i>' : c.digital_votes;
         const paperDisplay = isVotingActive ? 
             '<input type="number" class="form-control form-control-sm text-center border-secondary" disabled value="0" style="width: 80px; margin: 0 auto; background: #e9ecef;">' : 
             `<input type="number" class="form-control form-control-sm text-center border-success paper-vote-input" data-id="${c.id}" value="${paperVal}" min="0" style="width: 80px; margin: 0 auto;">`;
