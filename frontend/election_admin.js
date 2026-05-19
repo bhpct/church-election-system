@@ -1112,8 +1112,33 @@ window.deleteItem = async function(itemId) {
     });
 }
 
-window.startRound = function(itemId, roundId) {
+window.startRound = async function(itemId, roundId) {
     if (checkAnyActiveRound(itemId, roundId)) return;
+
+    const item = allItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    // 防呆機制：檢查當選人數是否已滿
+    const electedCount = allCandidates.filter(c => c.elected_item === item.title).length;
+    const requiredSeats = item.seats || 0;
+
+    if (electedCount >= requiredSeats) {
+        const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+        const rName = roundNames[roundId] || roundId;
+        
+        const forceResult = await Swal.fire({
+            title: '應選名額已滿！',
+            text: `目前已有 ${electedCount} 位「${item.title}」當選，已滿足應選名額 (${requiredSeats} 席) 條件。是否確定要強迫開啟【${rName}】的投票？`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '是的，強迫開啟',
+            cancelButtonText: '取消'
+        });
+        
+        if (!forceResult.isConfirmed) return;
+    }
 
     Swal.fire({
         title: '確定要啟動此輪投票嗎？',
@@ -1127,9 +1152,6 @@ window.startRound = function(itemId, roundId) {
             try {
                 const { doc, setDoc } = window.fs;
                 const db = window.firebaseDb;
-
-                const item = allItems.find(i => i.id === itemId);
-                if (!item) return;
 
                 // 正確更新子集合中的 round 文件
                 await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
