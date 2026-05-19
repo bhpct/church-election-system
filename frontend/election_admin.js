@@ -1792,11 +1792,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const db = window.firebaseDb;
             const keysRef = collection(db, 'elections', currentElectionId, 'keys');
             
-            // 防呆：檢查是否已經產生過金鑰
+            // 防呆：檢查是否還有未作廢的金鑰
             const q = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
             const snap = await getDocs(q);
-            if (!snap.empty) {
-                throw new Error("此輪次已經產生過金鑰，為確保選票唯一性，不可重複產生！");
+            let hasValid = false;
+            snap.forEach(doc => {
+                if (doc.data().status === 'VALID') hasValid = true;
+            });
+            if (hasValid) {
+                throw new Error("此輪次還有尚未作廢的有效金鑰，為確保選票唯一性，不可重複產生！");
             }
             
             // Firebase Batch 最多 500 筆，超過需分批，這裡簡單處理，一般選舉不太會單輪超過500
