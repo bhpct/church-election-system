@@ -2925,7 +2925,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const nextRoundIds = candidatesList.slice(0, limit).map(c => c.id);
 
             // 如果有保障名額，且該人尚未當選，確保他進入下一輪
-            const item = allItems.find(i => i.id === itemId);
             if (item && item.forced_candidate_id) {
                 const forceCand = allCandidates.find(c => c.id === item.forced_candidate_id);
                 // 確定保障名額還沒當選
