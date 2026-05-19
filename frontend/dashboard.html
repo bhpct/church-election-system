@@ -76,8 +76,11 @@
             margin-right: 10px;
         }
         /* 隱藏未授權區塊 */
-        .role-super-admin, .role-org-admin {
-            display: none;
+        body:not(.is-super-admin) .role-super-admin {
+            display: none !important;
+        }
+        body:not(.is-org-admin):not(.is-super-admin) .role-org-admin {
+            display: none !important;
         }
     </style>
 </head>

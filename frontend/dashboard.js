@@ -723,17 +723,16 @@ function applyRoleUI(role, org_ids) {
     const contentEl = document.getElementById('dashboardContent');
     const noAccessEl = document.getElementById('noAccessContent');
 
-    // 隱藏所有特定權限區塊
-    document.querySelectorAll('.role-super-admin, .role-org-admin').forEach(el => {
-        el.style.display = 'none';
-    });
+    // 移除舊的權限 class
+    document.body.classList.remove('is-super-admin', 'is-org-admin');
+
 
     if (role === 'SUPER_ADMIN') {
         roleNameEl.textContent = '系統超級管理員';
         roleNameEl.className = 'badge bg-danger';
         displayRoleNameEl.textContent = '系統超級管理員';
         
-        document.querySelectorAll('.role-super-admin').forEach(el => el.style.display = 'block');
+        document.body.classList.add('is-super-admin');
         contentEl.style.display = 'block';
 
         loadOrgSwitcher(role, org_ids).then(() => loadAdminDashboard());
@@ -743,7 +742,7 @@ function applyRoleUI(role, org_ids) {
         roleNameEl.className = 'badge bg-primary';
         displayRoleNameEl.textContent = '單位管理員';
         
-        document.querySelectorAll('.role-org-admin').forEach(el => el.style.display = 'block');
+        document.body.classList.add('is-org-admin');
         contentEl.style.display = 'block';
 
         loadOrgSwitcher(role, org_ids);
