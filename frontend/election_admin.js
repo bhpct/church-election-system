@@ -2407,14 +2407,16 @@ window.openTallyCenter = async function(itemId, roundId) {
     document.getElementById('tallyPaperReceived').value = round.paper_received || 0;
     document.getElementById('tallyPaperBlank').value = round.paper_blank || 0;
 
-    // 若投票進行中，鎖定左側手動輸入的紙本數據以防誤填或洩密
-    const isVotingActive = (round.status === 'ACTIVE');
-    document.getElementById('tallyPaperIssued').disabled = isVotingActive;
-    document.getElementById('tallyPaperReceived').disabled = isVotingActive;
-    document.getElementById('tallyPaperBlank').disabled = isVotingActive;
-    document.getElementById('tallyDigitalIssued').disabled = isVotingActive;
-    document.getElementById('tallyQuorumBase').disabled = isVotingActive;
-    document.getElementById('tallyAttendingCount').disabled = isVotingActive;
+    // 取消對左側手動輸入的封鎖，允許書記在投票進行中隨時登記紙本票或修改基準
+    document.getElementById('tallyPaperIssued').disabled = false;
+    document.getElementById('tallyPaperReceived').disabled = false;
+    document.getElementById('tallyPaperBlank').disabled = false;
+    document.getElementById('tallyDigitalIssued').disabled = false;
+    document.getElementById('tallyQuorumBase').disabled = false;
+    document.getElementById('tallyAttendingCount').disabled = false;
+
+    // 將狀態存入 currentTallyData，供後續 renderTallyTable 判斷是否需要遮罩
+    currentTallyData.status = round.status;
 
     // 觸發側邊欄切換
     document.querySelector('.nav-link-btn[data-target="section-tally"]').click();
