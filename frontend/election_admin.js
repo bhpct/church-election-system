@@ -2405,6 +2405,9 @@ async function doSaveTallyData(itemId, roundId) {
         });
         await batch.commit();
         
+        // **重要：儲存後必須重新載入全域資料，確保後續操作抓到最新數據**
+        await loadItems();
+        
         return true;
     } catch (error) {
         console.error("儲存失敗:", error);
@@ -2620,7 +2623,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkNextRoundWizard(itemId, roundId);
                     });
                     
-                    await loadItems();
+                    // **重要：發布後重新載入開票中心以更新 UI 狀態 (從「開票結算中」變成「結果已發布」)**
+                    openTallyCenter(itemId, roundId);
                 } catch (error) {
                     console.error("發布失敗:", error);
                     Swal.fire('錯誤', error.message, 'error');
