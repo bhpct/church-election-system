@@ -2940,12 +2940,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const { doc, updateDoc } = window.fs;
             const db = window.firebaseDb;
 
-            const updatedRounds = [...item.rounds];
-            const nextRoundIndex = updatedRounds.findIndex(r => r.id === nextRoundId);
-            updatedRounds[nextRoundIndex].candidate_ids = nextRoundIds;
-
-            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId), {
-                rounds: updatedRounds,
+            // 更新下一輪的文件 (子集合)
+            await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', nextRoundId), {
+                candidate_ids: nextRoundIds,
                 updatedAt: window.fs.serverTimestamp()
             });
 
