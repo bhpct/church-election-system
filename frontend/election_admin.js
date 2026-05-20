@@ -287,7 +287,7 @@ function renderCandidatesTable() {
     }
 
     allCandidates.forEach(c => {
-        const photoHtml = c.photo_base64 ? `<img src="${c.photo_base64}" class="rounded-circle border" style="width:40px;height:40px;object-fit:cover;">` : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted mx-auto" style="width:40px;height:40px;"><i class="fas fa-user"></i></div>`;
+        const photoHtml = c.photo_base64 ? `<img src="${c.photo_base64}" class="rounded-circle border d-block mx-auto" style="width:40px;height:40px;object-fit:cover;">` : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted mx-auto" style="width:40px;height:40px;"><i class="fas fa-user"></i></div>`;
         
         const districtHtml = c.district ? `<span class="badge bg-info">${c.district}</span>` : '<span class="text-muted">-</span>';
         const unitHtml = c.unit ? `<span class="text-dark">${c.unit}</span>` : '<span class="text-muted">-</span>';
