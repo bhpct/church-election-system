@@ -138,7 +138,6 @@
             <a href="#" class="nav-link-btn" data-target="section-keys"><i class="fas fa-key"></i> 金鑰與選票發放</a>
             <a href="#" class="nav-link-btn" data-target="section-preview"><i class="fas fa-ticket-alt"></i> 選票預覽</a>
             <hr class="border-secondary mx-3">
-            <a href="#" class="nav-link-btn" data-target="section-settings"><i class="fas fa-cog"></i> 選舉進階設定</a>
             <a href="#" class="nav-link-btn" data-target="section-tally"><i class="fas fa-chart-bar"></i> 開票與計票中心</a>
             <a href="#" class="nav-link-btn" data-target="section-reports"><i class="fas fa-file-alt"></i> 當選名單與報表</a>
             
@@ -194,48 +193,53 @@
                             </div>
                         </div>
                         
-                        <div class="card p-4 border-success">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與輪次控制台</h5>
-                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
-                                    <i class="fas fa-plus"></i> 新增選舉項次
-                                </button>
-                            </div>
-
-                            <div class="accordion" id="itemsAccordion">
-                                <p class="text-muted text-center py-4">載入中...</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 1.5 選舉進階設定 -->
-                    <div id="section-settings" class="nav-section">
-                        <div class="card p-4 border-info">
-                            <h5 class="mb-4 text-info"><i class="fas fa-cog"></i> 選舉進階參數設定</h5>
-                            <div class="alert alert-secondary">
-                                <strong><i class="fas fa-info-circle"></i> 參數同步說明</strong><br>
-                                此處儲存的設定，將會自動同步為「所有輪次」的預設參數。各別輪次在開票中心仍可微調這些數字。
-                            </div>
-                            <form id="globalInitForm">
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">預設過半計算基準 <span class="text-danger">*</span></label>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseAttending" value="ATTENDING" checked>
-                                        <label class="form-check-label" for="baseAttending">以「出席人數」為基準</label>
+                        <div class="row">
+                            <div class="col-md-7 mb-4 mb-md-0">
+                                <div class="card p-4 border-success h-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與輪次控制台</h5>
+                                        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
+                                            <i class="fas fa-plus"></i> 新增選舉項次
+                                        </button>
                                     </div>
-                                    <div class="form-check mt-2">
-                                        <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseBallots" value="BALLOTS">
-                                        <label class="form-check-label" for="baseBallots">以「發票數」為基準</label>
+
+                                    <div class="accordion" id="itemsAccordion">
+                                        <p class="text-muted text-center py-4">載入中...</p>
                                     </div>
+                        
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">初始出席人數 (選填)</label>
-                                    <input type="number" class="form-control" id="globalInitAttending" placeholder="例如：120" min="0">
+                            </div>
+                            
+                            <!-- 1.5 選舉進階設定 (移至總覽右側) -->
+                            <div class="col-md-5">
+                                <div class="card p-4 border-info h-100">
+                                    <h5 class="mb-4 text-info"><i class="fas fa-cog"></i> 選舉進階參數設定</h5>
+                                    <div class="alert alert-secondary small py-2">
+                                        <strong><i class="fas fa-info-circle"></i> 參數同步說明</strong><br>
+                                        此處儲存的設定，將會自動同步為「所有輪次」的預設參數。各別輪次在開票中心仍可微調這些數字。
+                                    </div>
+                                    <form id="globalInitForm">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold small">預設過半計算基準 <span class="text-danger">*</span></label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseAttending" value="ATTENDING" checked>
+                                                <label class="form-check-label small" for="baseAttending">以「出席人數」為基準</label>
+                                            </div>
+                                            <div class="form-check mt-1">
+                                                <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseBallots" value="BALLOTS">
+                                                <label class="form-check-label small" for="baseBallots">以「發票數」為基準</label>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold small">初始出席人數 (選填)</label>
+                                            <input type="number" class="form-control form-control-sm" id="globalInitAttending" placeholder="例如：120" min="0">
+                                        </div>
+                                        <div class="text-end mt-auto pt-3 border-top">
+                                            <button type="button" class="btn btn-primary btn-sm" id="confirmSaveSettingsBtn"><i class="fas fa-save"></i> 儲存設定</button>
+                                        </div>
+                                    </form>
                                 </div>
-                                <div class="text-end">
-                                    <button type="button" class="btn btn-primary" id="confirmSaveSettingsBtn"><i class="fas fa-save"></i> 儲存設定</button>
-                                </div>
-                            </form>
+                            </div>
                         </div>
                     </div>
 
