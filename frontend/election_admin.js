@@ -2393,48 +2393,94 @@ window.openTallyCenter = async function(itemId, roundId) {
 };
 
 async function loadTallyStats(itemId, roundId) {
-    const { collection, query, where, getDocs } = window.fs;
+    const { collection, query, where, getDocs, onSnapshot } = window.fs;
     const db = window.firebaseDb;
 
-    // 1. 取得金鑰統計 (僅用於內部參考或顯示，不再用於預設發票數)
+    // 清除舊的監聽器 (避免切換輪次時發生重複監聽或記憶體洩漏)
+    if (window.tallyUnsubscribers) {
+        window.tallyUnsubscribers.forEach(unsub => unsub());
+    }
+    window.tallyUnsubscribers = [];
+
     const keysRef = collection(db, 'elections', currentElectionId, 'keys');
     const qKeys = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
-    const snapKeys = await getDocs(qKeys);
     
-    let digitalUsed = 0;
-    snapKeys.forEach(doc => {
-        const d = doc.data();
-        if (d.status === 'USED') digitalUsed++;
-    });
-    
-    currentTallyData.digitalUsed = digitalUsed;
-    document.getElementById('tallyDigitalUsed').textContent = digitalUsed;
-
-    // 2. 取得選票統計 (分組計算每個人的得票)
-    // 註：這需要後端實際有寫入 votes 集合
-    currentTallyData.digitalVotesMap = {};
     const votesRef = collection(db, 'elections', currentElectionId, 'votes');
     const qVotes = query(votesRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
-    const snapVotes = await getDocs(qVotes);
-    let digitalBlankCount = 0;
-    snapVotes.forEach(doc => {
-        const d = doc.data();
-        if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
-            if (d.candidate_ids.length === 0) {
-                digitalBlankCount++;
-            } else {
-                d.candidate_ids.forEach(cid => {
-                    if (!currentTallyData.digitalVotesMap[cid]) {
-                        currentTallyData.digitalVotesMap[cid] = 0;
-                    }
-                    currentTallyData.digitalVotesMap[cid]++;
-                });
+
+    const processKeys = (snapKeys) => {
+        let digitalUsed = 0;
+        snapKeys.forEach(doc => {
+            const d = doc.data();
+            if (d.status === 'USED') digitalUsed++;
+        });
+        currentTallyData.digitalUsed = digitalUsed;
+        document.getElementById('tallyDigitalUsed').textContent = digitalUsed;
+        updateTallyThreshold();
+    };
+
+    const processVotes = (snapVotes) => {
+        currentTallyData.digitalVotesMap = {};
+        let digitalBlankCount = 0;
+        snapVotes.forEach(doc => {
+            const d = doc.data();
+            if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
+                if (d.candidate_ids.length === 0) {
+                    digitalBlankCount++;
+                } else {
+                    d.candidate_ids.forEach(cid => {
+                        if (!currentTallyData.digitalVotesMap[cid]) {
+                            currentTallyData.digitalVotesMap[cid] = 0;
+                        }
+                        currentTallyData.digitalVotesMap[cid]++;
+                    });
+                }
+            }
+        });
+        
+        currentTallyData.digitalBlank = digitalBlankCount;
+        document.getElementById('tallyDigitalBlank').textContent = digitalBlankCount;
+        
+        // 若 candidates 已經初始化完成 (代表這是後續的即時觸發)，則同步更新記憶體數據並重繪
+        if (currentTallyData.candidates && currentTallyData.candidates.length > 0) {
+            currentTallyData.candidates.forEach(c => {
+                c.digital_votes = currentTallyData.digitalVotesMap[c.id] || 0;
+                c.total_votes = c.digital_votes + (c.paper_votes || 0);
+            });
+            updateTallyThreshold();
+            if (currentTallyData.status === 'ACTIVE') {
+                renderTallyTable();
             }
         }
-    });
-    
-    currentTallyData.digitalBlank = digitalBlankCount;
-    document.getElementById('tallyDigitalBlank').textContent = digitalBlankCount;
+    };
+
+    if (currentTallyData.status === 'ACTIVE') {
+        // 使用 Promise 包裝首次載入，確保 UI 依賴於初始資料能正確生成
+        const pKeys = new Promise(resolve => {
+            const unsub = onSnapshot(qKeys, (snap) => {
+                processKeys(snap);
+                resolve();
+            });
+            window.tallyUnsubscribers.push(unsub);
+        });
+        
+        const pVotes = new Promise(resolve => {
+            const unsub = onSnapshot(qVotes, (snap) => {
+                processVotes(snap);
+                resolve();
+            });
+            window.tallyUnsubscribers.push(unsub);
+        });
+        
+        await Promise.all([pKeys, pVotes]);
+    } else {
+        // 非進行中狀態，只需單次讀取以節省資源
+        const snapKeys = await getDocs(qKeys);
+        processKeys(snapKeys);
+        
+        const snapVotes = await getDocs(qVotes);
+        processVotes(snapVotes);
+    }
 }
 
 async function doSaveTallyData(itemId, roundId) {
