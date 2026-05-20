@@ -186,7 +186,7 @@ function buildBallotUI() {
     const districtRuleEl = document.getElementById('ballotDistrictRule');
     
     // 如果有分區限制，詳細列出各區應選名額
-    if (itemData.district_req && itemData.selected_districts) {
+    if (itemData.require_district && itemData.selected_districts) {
         let districtDetails = [];
         for (const [dist, seats] of Object.entries(itemData.selected_districts)) {
             districtDetails.push(`[${dist}] 應選 ${seats} 名`);
@@ -257,54 +257,54 @@ function buildBallotUI() {
                     <button class="btn btn-sm btn-outline-danger btn-clear-selection ms-auto"><i class="fas fa-times"></i></button>
                 </div>
             `;
-            
-            // 綁定搜尋事件
-            const inputEl = box.querySelector('.candidate-search-input');
-            const dropdownEl = box.querySelector('.candidate-dropdown');
-            const hiddenVal = box.querySelector('.ballot-vote-val');
-            const selectedDiv = box.querySelector('.selected-candidate');
-            const clearBtn = box.querySelector('.btn-clear-selection');
-
-            inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId));
-            inputEl.addEventListener('input', () => {
-                inputEl.classList.remove('is-invalid'); // 重新輸入時移除紅框
-                renderDropdown(inputEl, dropdownEl, forcedId);
-            });
-            
-            // 點擊外部關閉選單 (支援手機 touch 事件)
-            const closeDropdown = (e) => {
-                if (!box.contains(e.target)) {
-                    dropdownEl.style.display = 'none';
-                    // 如果沒有真正選擇候選人，但輸入框有文字 (手打未選取) -> 亮紅框提示
-                    if (!hiddenVal.value && inputEl.value.trim() !== '') {
-                        inputEl.classList.add('is-invalid');
-                    } else {
-                        inputEl.classList.remove('is-invalid');
-                    }
-                }
-            };
-            document.addEventListener('click', closeDropdown);
-            document.addEventListener('touchstart', closeDropdown, {passive: true});
-
-            clearBtn.addEventListener('click', () => {
-                hiddenVal.value = '';
-                selectedDiv.style.display = 'none';
-                inputEl.parentElement.style.display = 'flex';
-                inputEl.value = '';
-                inputEl.classList.remove('is-invalid');
-                inputEl.focus();
-                
-                // 如果是取消保留名額，更新 UI 樣式
-                if (isForcedCell) {
-                    selectedDiv.classList.remove('border-warning', 'bg-light');
-                    const badge = selectedDiv.querySelector('.selected-num');
-                    if(badge) {
-                        badge.classList.remove('bg-warning', 'text-dark');
-                        badge.classList.add('bg-primary');
-                    }
-                }
-            });
         }
+        
+        // 綁定搜尋事件 (移出 if/else 讓所有欄位都綁定)
+        const inputEl = box.querySelector('.candidate-search-input');
+        const dropdownEl = box.querySelector('.candidate-dropdown');
+        const hiddenVal = box.querySelector('.ballot-vote-val');
+        const selectedDiv = box.querySelector('.selected-candidate');
+        const clearBtn = box.querySelector('.btn-clear-selection');
+
+        inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId));
+        inputEl.addEventListener('input', () => {
+            inputEl.classList.remove('is-invalid');
+            renderDropdown(inputEl, dropdownEl, forcedId);
+        });
+        
+        // 點擊外部關閉選單 (支援手機 touch 事件)
+        const closeDropdown = (e) => {
+            if (!box.contains(e.target)) {
+                dropdownEl.style.display = 'none';
+                if (!hiddenVal.value && inputEl.value.trim() !== '') {
+                    inputEl.classList.add('is-invalid');
+                } else {
+                    inputEl.classList.remove('is-invalid');
+                }
+            }
+        };
+        document.addEventListener('click', closeDropdown);
+        document.addEventListener('touchstart', closeDropdown, {passive: true});
+
+        clearBtn.addEventListener('click', () => {
+            hiddenVal.value = '';
+            selectedDiv.style.display = 'none';
+            inputEl.parentElement.style.display = 'flex';
+            inputEl.value = '';
+            inputEl.classList.remove('is-invalid');
+            inputEl.focus();
+            
+            // 如果是取消保留名額，更新 UI 樣式
+            if (isForcedCell) {
+                selectedDiv.classList.remove('border-warning', 'bg-light');
+                const badge = selectedDiv.querySelector('.selected-num');
+                if(badge) {
+                    badge.classList.remove('bg-warning', 'text-dark');
+                    badge.classList.add('bg-primary');
+                    badge.textContent = '-'; // 清除"保障"字樣
+                }
+            }
+        });
         
         container.appendChild(box);
     }
@@ -319,7 +319,7 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
 
     // 取得已被選走的分區與其計數 (僅當啟動強制分區時)
     const selectedDistrictsCount = {};
-    if (itemData.district_req && itemData.selected_districts) {
+    if (itemData.require_district && itemData.selected_districts) {
         allSelectedVals.forEach(cid => {
             if (candidatesMap[cid] && candidatesMap[cid].district) {
                 const dist = candidatesMap[cid].district;
@@ -344,7 +344,7 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
             if (isAlreadySelected) return; // 防呆：已選擇的候選人直接從其他選單消失
             
             // 防呆：如果該分區已達應選上限，則從選單消失
-            if (itemData.district_req && itemData.selected_districts && c.district) {
+            if (itemData.require_district && itemData.selected_districts && c.district) {
                 const limit = itemData.selected_districts[c.district] || 1; // 容錯，預設1
                 const currentCount = selectedDistrictsCount[c.district] || 0;
                 if (currentCount >= limit) {
@@ -411,7 +411,7 @@ async function handleSubmitVote() {
     }
 
     // 驗證強制分區數量上限
-    if (itemData.district_req && itemData.selected_districts) {
+    if (itemData.require_district && itemData.selected_districts) {
         const selectedDistrictsCount = {};
         let districtConflict = false;
         let conflictMsg = '';

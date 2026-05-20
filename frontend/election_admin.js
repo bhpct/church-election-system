@@ -3058,7 +3058,7 @@ window.checkNextRoundWizard = async function(itemId, currentRoundId) {
 
     // 2. 處理分區邏輯提示
     const distContainer = document.getElementById('wizardDistrictAlertsContainer');
-    if (item.district_req && item.selected_districts) {
+    if (item.require_district && item.selected_districts) {
         distContainer.style.display = 'block';
         let distHtml = '<ul class="mb-0 ps-3">';
         
@@ -3137,7 +3137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let nextRoundIds = [];
 
-            if (item.district_req && item.selected_districts) {
+            if (item.require_district && item.selected_districts) {
                 // ==========================
                 // 分區獨立計算邏輯
                 // ==========================
