@@ -1060,10 +1060,10 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
             totalDistrictQuota += quota;
         });
         
-        let requiredTotalQuota = isForced ? seats + 1 : seats;
+        let expectedSeats = totalDistrictQuota + (isForced ? 1 : 0);
         
-        if (totalDistrictQuota !== requiredTotalQuota) {
-            Swal.fire('錯誤', `您開啟了「強制分區限制」。\n規定：各區應選人數加總必須等於 ${requiredTotalQuota} (應選 ${seats} 席 ${isForced ? '+ 1席保留' : ''})。\n目前各區加總為：${totalDistrictQuota}。`, 'error');
+        if (seats !== expectedSeats) {
+            Swal.fire('錯誤', `您開啟了「強制分區限制」。\n目前各區名額加總為：${totalDistrictQuota} 席。\n因此，上方的「應選名額」必須設定為 ${expectedSeats} (分區 ${totalDistrictQuota} 席 ${isForced ? '+ 1席保留' : ''})。\n\n您目前填寫的是 ${seats}，請修正。`, 'error');
             return;
         }
     }
@@ -1447,10 +1447,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalDistrictQuota += quota;
             });
             
-            let requiredTotalQuota = isForced ? seats + 1 : seats;
+            let expectedSeats = totalDistrictQuota + (isForced ? 1 : 0);
             
-            if (totalDistrictQuota !== requiredTotalQuota) {
-                Swal.fire('錯誤', `您開啟了「強制分區限制」。\n規定：各區應選人數加總必須等於 ${requiredTotalQuota} (應選 ${seats} 席 ${isForced ? '+ 1席保留' : ''})。\n目前各區加總為：${totalDistrictQuota}。`, 'error');
+            if (seats !== expectedSeats) {
+                Swal.fire('錯誤', `您開啟了「強制分區限制」。\n目前各區名額加總為：${totalDistrictQuota} 席。\n因此，上方的「應選名額」必須設定為 ${expectedSeats} (分區 ${totalDistrictQuota} 席 ${isForced ? '+ 1席保留' : ''})。\n\n您目前填寫的是 ${seats}，請修正。`, 'error');
                 return;
             }
         }
