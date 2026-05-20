@@ -183,6 +183,8 @@ function buildBallotUI() {
     const container = document.getElementById('ballotSelectionsContainer');
     container.innerHTML = '';
     
+    const districtRuleEl = document.getElementById('ballotDistrictRule');
+    
     // 如果有分區限制，詳細列出各區應選名額
     if (itemData.district_req && itemData.selected_districts) {
         let districtDetails = [];
