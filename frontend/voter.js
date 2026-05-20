@@ -241,10 +241,18 @@ function buildBallotUI() {
             inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId));
             inputEl.addEventListener('input', () => renderDropdown(inputEl, dropdownEl, forcedId));
             
-            // 點擊外部關閉選單
-            document.addEventListener('click', (e) => {
-                if (!box.contains(e.target)) dropdownEl.style.display = 'none';
-            });
+            // 點擊外部關閉選單 (支援手機 touch 事件，並自動清空未完成的搜尋文字)
+            const closeDropdown = (e) => {
+                if (!box.contains(e.target)) {
+                    dropdownEl.style.display = 'none';
+                    // 如果沒有真正選擇候選人 (隱藏值為空)，失去焦點時自動清空輸入框，避免選民誤會已經選上
+                    if (!hiddenVal.value) {
+                        inputEl.value = '';
+                    }
+                }
+            };
+            document.addEventListener('click', closeDropdown);
+            document.addEventListener('touchstart', closeDropdown, {passive: true});
 
             clearBtn.addEventListener('click', () => {
                 hiddenVal.value = '';
