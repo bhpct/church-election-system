@@ -287,13 +287,12 @@ function renderCandidatesTable() {
     }
 
     allCandidates.forEach(c => {
-        const photoHtml = c.photo_base64 
-            ? `<img src="${c.photo_base64}" class="candidate-img-preview">` 
-            : `<div class="candidate-img-preview d-flex align-items-center justify-content-center text-muted"><i class="fas fa-user"></i></div>`;
-            
+        const photoHtml = c.photo_base64 ? `<img src="${c.photo_base64}" class="rounded-circle border" style="width:40px;height:40px;object-fit:cover;">` : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted mx-auto" style="width:40px;height:40px;"><i class="fas fa-user"></i></div>`;
+        
         const districtHtml = c.district ? `<span class="badge bg-info">${c.district}</span>` : '<span class="text-muted">-</span>';
+        const unitHtml = c.unit ? `<span class="text-dark">${c.unit}</span>` : '<span class="text-muted">-</span>';
         const electedHtml = c.elected_item ? `<span class="badge bg-warning text-dark"><i class="fas fa-trophy"></i> ${c.elected_item}</span>` : '<span class="text-muted">-</span>';
-        const statusHtml = c.is_ineligible ? `<span class="badge bg-danger"><i class="fas fa-times"></i> 不可被選</span>` : `<span class="badge bg-success">正常</span>`;
+        const statusHtml = c.is_ineligible ? `<span class="badge bg-danger"><i class="fas fa-times"></i> 停權</span>` : `<span class="badge bg-success">正常</span>`;
         
         tbody.innerHTML += `
             <tr>
@@ -497,6 +496,81 @@ window.deleteCandidate = async function(id) {
     }
 }
 
+// --- 圖片處理共用邏輯 ---
+function resizeImageToBase64(file, callback) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 200;
+            const MAX_HEIGHT = 200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // 壓縮成 WebP，大幅減少資料庫佔用
+            const dataUrl = canvas.toDataURL('image/webp', 0.8);
+            callback(dataUrl);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function bindPhotoUpload(inputId, previewId, placeholderId, base64InputId, removeBtnId) {
+    const fileInput = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    const placeholder = document.getElementById(placeholderId);
+    const base64Input = document.getElementById(base64InputId);
+    const removeBtn = document.getElementById(removeBtnId);
+
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            resizeImageToBase64(file, function(base64) {
+                base64Input.value = base64;
+                preview.src = base64;
+                preview.style.display = 'block';
+                placeholder.style.display = 'none';
+                removeBtn.style.display = 'inline-block';
+            });
+        }
+    });
+
+    removeBtn.addEventListener('click', function() {
+        fileInput.value = '';
+        base64Input.value = '';
+        preview.src = '';
+        preview.style.display = 'none';
+        placeholder.style.display = 'flex';
+        removeBtn.style.display = 'none';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    bindPhotoUpload('candPhotoInput', 'candPhotoPreview', 'candPhotoPlaceholder', 'candPhotoBase64', 'btnRemoveCandPhoto');
+    bindPhotoUpload('editCandPhotoInput', 'editCandPhotoPreview', 'editCandPhotoPlaceholder', 'editCandPhotoBase64', 'btnRemoveEditCandPhoto');
+});
+// ----------------------
+
 // 單筆新增候選人儲存邏輯
 document.getElementById('saveCandidateBtn').addEventListener('click', async () => {
     const number = document.getElementById('candNumberInput').value.trim();
@@ -504,6 +578,7 @@ document.getElementById('saveCandidateBtn').addEventListener('click', async () =
     const district = document.getElementById('candDistrictInput').value.trim();
     const unit = document.getElementById('candUnitInput').value.trim();
     const qualification = document.getElementById('candQualInput').value.trim();
+    const photoBase64 = document.getElementById('candPhotoBase64').value;
 
     if (!name || !qualification) {
         Swal.fire('錯誤', '「姓名」與「候選資格」為必填欄位', 'error');
@@ -535,12 +610,14 @@ document.getElementById('saveCandidateBtn').addEventListener('click', async () =
             district: district,
             unit: unit,
             qualification: qualification,
+            photo_base64: photoBase64 || null,
             createdAt: serverTimestamp()
         });
 
         Swal.fire('成功', '新增候選人成功！', 'success');
         bootstrap.Modal.getInstance(document.getElementById('addCandidateModal')).hide();
         document.getElementById('addCandidateForm').reset();
+        document.getElementById('btnRemoveCandPhoto').click(); // 清空照片預覽
         await loadCandidates();
 
     } catch (error) {
@@ -566,6 +643,27 @@ window.openEditCandidate = function(id) {
     document.getElementById('editCandQualInput').value = c.qualification || '';
     document.getElementById('editCandElectedItemInput').value = c.elected_item || '';
     document.getElementById('editCandIneligibleInput').checked = !!c.is_ineligible;
+    
+    const photoBase64Input = document.getElementById('editCandPhotoBase64');
+    const photoPreview = document.getElementById('editCandPhotoPreview');
+    const photoPlaceholder = document.getElementById('editCandPhotoPlaceholder');
+    const removeBtn = document.getElementById('btnRemoveEditCandPhoto');
+    const fileInput = document.getElementById('editCandPhotoInput');
+    
+    fileInput.value = ''; // 重置 file input
+    if (c.photo_base64) {
+        photoBase64Input.value = c.photo_base64;
+        photoPreview.src = c.photo_base64;
+        photoPreview.style.display = 'block';
+        photoPlaceholder.style.display = 'none';
+        removeBtn.style.display = 'inline-block';
+    } else {
+        photoBase64Input.value = '';
+        photoPreview.src = '';
+        photoPreview.style.display = 'none';
+        photoPlaceholder.style.display = 'flex';
+        removeBtn.style.display = 'none';
+    }
 
     const modal = new bootstrap.Modal(document.getElementById('editCandidateModal'));
     modal.show();
@@ -592,6 +690,7 @@ document.getElementById('updateCandidateBtn').addEventListener('click', async ()
 
     try {
         const isIneligible = document.getElementById('editCandIneligibleInput').checked;
+        const photoBase64 = document.getElementById('editCandPhotoBase64').value;
         
         // 檢查是否為保障名額，若是則不允許設為不可被選
         if (isIneligible && allItems && allItems.length > 0) {
@@ -617,6 +716,7 @@ document.getElementById('updateCandidateBtn').addEventListener('click', async ()
             district: document.getElementById('editCandDistrictInput').value.trim(),
             unit: document.getElementById('editCandUnitInput').value.trim(),
             qualification: document.getElementById('editCandQualInput').value.trim(),
+            photo_base64: photoBase64 || null,
             // elected_item 保持唯讀不給更新
             is_ineligible: isIneligible
         });

@@ -201,13 +201,15 @@ function buildBallotUI() {
         box.className = 'candidate-search-box mb-3';
         
         if (isForcedCell) {
+            const photoHtml = forcedCand.photo_base64 ? `<img src="${forcedCand.photo_base64}" class="rounded-circle border me-2" style="width:40px;height:40px;object-fit:cover;">` : '';
             box.innerHTML = `
                 <label class="form-label text-muted fw-bold">圈選欄 ${i+1} (共識薦選保留)</label>
-                <div class="selected-candidate border-warning bg-light">
+                <div class="selected-candidate border-warning bg-light d-flex align-items-center">
+                    ${photoHtml}
                     <div>
                         <span class="badge bg-warning text-dark me-2">保障</span>
                         <strong>${forcedCand.number || ''} ${forcedCand.name}</strong>
-                        <small class="text-muted ms-1">${forcedCand.district || ''}</small>
+                        <small class="text-muted ms-1">${forcedCand.district || ''} ${forcedCand.unit || ''}</small>
                     </div>
                 </div>
                 <input type="hidden" class="ballot-vote-val" value="${forcedId}">
@@ -224,13 +226,14 @@ function buildBallotUI() {
                     </div>
                 </div>
                 <div class="candidate-dropdown"></div>
-                <div class="selected-candidate" style="display:none; margin-top: 10px;">
+                <div class="selected-candidate align-items-center" style="display:none; margin-top: 10px;">
+                    <img src="" class="selected-photo rounded-circle border me-2" style="width:40px;height:40px;object-fit:cover;display:none;">
                     <div>
                         <span class="badge bg-primary me-2 selected-num"></span>
                         <strong class="selected-name fs-5"></strong>
                         <small class="text-muted ms-1 selected-dist"></small>
                     </div>
-                    <button class="btn btn-sm btn-outline-danger btn-clear-selection"><i class="fas fa-times"></i></button>
+                    <button class="btn btn-sm btn-outline-danger btn-clear-selection ms-auto"><i class="fas fa-times"></i></button>
                 </div>
             `;
             
@@ -298,9 +301,12 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
             const isAlreadySelected = allSelectedVals.includes(cid);
             if (isAlreadySelected) return; // 防呆：已選擇的候選人直接從其他選單消失
             
+            const photoHtml = c.photo_base64 ? `<img src="${c.photo_base64}" class="rounded-circle border me-2" style="width:35px;height:35px;object-fit:cover;">` : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted me-2" style="width:35px;height:35px;font-size:0.8rem;"><i class="fas fa-user"></i></div>`;
+            
             const div = document.createElement('div');
-            div.className = `candidate-item`;
+            div.className = `candidate-item d-flex align-items-center`;
             div.innerHTML = `
+                ${photoHtml}
                 <div>
                     <span class="badge bg-secondary me-2">${c.number || '-'}</span>
                     <strong>${c.name}</strong>
@@ -313,7 +319,16 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
                     box.querySelector('.ballot-vote-val').value = cid;
                     box.querySelector('.selected-num').textContent = c.number || '-';
                     box.querySelector('.selected-name').textContent = c.name;
-                    box.querySelector('.selected-dist').textContent = c.district || '';
+                    box.querySelector('.selected-dist').textContent = (c.district || '') + ' ' + (c.unit || '');
+                    
+                    const imgEl = box.querySelector('.selected-photo');
+                    if (c.photo_base64) {
+                        imgEl.src = c.photo_base64;
+                        imgEl.style.display = 'block';
+                    } else {
+                        imgEl.src = '';
+                        imgEl.style.display = 'none';
+                    }
                     
                     inputEl.parentElement.style.display = 'none';
                     box.querySelector('.selected-candidate').style.display = 'flex';
