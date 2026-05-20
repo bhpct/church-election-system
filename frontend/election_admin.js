@@ -956,10 +956,14 @@ document.getElementById('itemDistrictReqInput').addEventListener('change', funct
         } else {
             districts.forEach((d, idx) => {
                 listDiv.innerHTML += `
-                    <div class="col-md-4 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input district-checkbox" type="checkbox" value="${d}" id="dist_${idx}">
-                            <label class="form-check-label" for="dist_${idx}">${d}</label>
+                    <div class="col-md-6 mb-2">
+                        <div class="input-group input-group-sm">
+                            <div class="input-group-text bg-white">
+                                <input class="form-check-input mt-0 district-checkbox me-2" type="checkbox" value="${d}" id="dist_${idx}">
+                                <label class="form-check-label" for="dist_${idx}">${d}</label>
+                            </div>
+                            <input type="number" class="form-control district-quota-input" id="dist_quota_${idx}" value="1" min="1" placeholder="名額">
+                            <span class="input-group-text bg-light text-muted">席</span>
                         </div>
                     </div>
                 `;
@@ -1042,16 +1046,24 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
     }
 
     // 檢查分區勾選數量
-    let selectedDistricts = [];
+    let selectedDistricts = {};
     if (reqDistrict) {
+        let totalDistrictQuota = 0;
         const checkboxes = document.querySelectorAll('.district-checkbox:checked');
-        checkboxes.forEach(cb => selectedDistricts.push(cb.value));
+        checkboxes.forEach(cb => {
+            const d = cb.value;
+            // 找出對應的 quota input (同一個 input-group 裡)
+            const inputGroup = cb.closest('.input-group');
+            const quotaInput = inputGroup.querySelector('.district-quota-input');
+            const quota = parseInt(quotaInput.value) || 1;
+            selectedDistricts[d] = quota;
+            totalDistrictQuota += quota;
+        });
         
-        let requiredDistrictsCount = isForced ? seats - 1 : seats;
-        if (requiredDistrictsCount < 0) requiredDistrictsCount = 0; // 防呆
+        let requiredTotalQuota = isForced ? seats + 1 : seats;
         
-        if (selectedDistricts.length !== requiredDistrictsCount) {
-            Swal.fire('錯誤', `此項次應選 ${seats} 名，${isForced ? '扣除保障名額 1 名後，' : ''}您必須精準勾選 ${requiredDistrictsCount} 個不同的地區！\n目前已勾選：${selectedDistricts.length} 個。`, 'error');
+        if (totalDistrictQuota !== requiredTotalQuota) {
+            Swal.fire('錯誤', `您開啟了「強制分區限制」。\n規定：各區應選人數加總必須等於 ${requiredTotalQuota} (應選 ${seats} 席 ${isForced ? '+ 1席保留' : ''})。\n目前各區加總為：${totalDistrictQuota}。`, 'error');
             return;
         }
     }
@@ -1353,12 +1365,28 @@ window.openEditRoundModal = function(itemId, roundId) {
     distList.innerHTML = '';
     const uniqueDists = [...new Set(allCandidates.map(c => c.district).filter(Boolean))];
     uniqueDists.forEach((d, idx) => {
-        const isChecked = effectiveSelectedDistricts.includes(d) ? 'checked' : '';
+        let isChecked = '';
+        let quotaVal = 1;
+        
+        // 判斷原本是否已選取，並取出數量
+        if (Array.isArray(effectiveSelectedDistricts)) {
+            // 舊版資料相容
+            if (effectiveSelectedDistricts.includes(d)) isChecked = 'checked';
+        } else if (effectiveSelectedDistricts && effectiveSelectedDistricts[d]) {
+            // 新版資料結構
+            isChecked = 'checked';
+            quotaVal = effectiveSelectedDistricts[d];
+        }
+
         distList.innerHTML += `
-            <div class="col-md-4 mb-2">
-                <div class="form-check">
-                    <input class="form-check-input edit-round-district-checkbox" type="checkbox" value="${d}" id="edit_round_dist_${idx}" ${isChecked}>
-                    <label class="form-check-label" for="edit_round_dist_${idx}">${d}</label>
+            <div class="col-md-6 mb-2">
+                <div class="input-group input-group-sm">
+                    <div class="input-group-text bg-white">
+                        <input class="form-check-input mt-0 edit-round-district-checkbox me-2" type="checkbox" value="${d}" id="edit_round_dist_${idx}" ${isChecked}>
+                        <label class="form-check-label" for="edit_round_dist_${idx}">${d}</label>
+                    </div>
+                    <input type="number" class="form-control edit-round-district-quota-input" id="edit_round_dist_quota_${idx}" value="${quotaVal}" min="1" placeholder="名額">
+                    <span class="input-group-text bg-light text-muted">席</span>
                 </div>
             </div>
         `;
@@ -1406,16 +1434,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        let selectedDistricts = [];
+        let selectedDistricts = {};
         if (reqDistrict) {
+            let totalDistrictQuota = 0;
             const checkboxes = document.querySelectorAll('.edit-round-district-checkbox:checked');
-            checkboxes.forEach(cb => selectedDistricts.push(cb.value));
+            checkboxes.forEach(cb => {
+                const d = cb.value;
+                const inputGroup = cb.closest('.input-group');
+                const quotaInput = inputGroup.querySelector('.edit-round-district-quota-input');
+                const quota = parseInt(quotaInput.value) || 1;
+                selectedDistricts[d] = quota;
+                totalDistrictQuota += quota;
+            });
             
-            let requiredDistrictsCount = isForced ? seats - 1 : seats;
-            if (requiredDistrictsCount < 0) requiredDistrictsCount = 0;
+            let requiredTotalQuota = isForced ? seats + 1 : seats;
             
-            if (selectedDistricts.length !== requiredDistrictsCount) {
-                Swal.fire('錯誤', `此輪應選 ${seats} 席，${isForced ? '扣除保障名額 1 名後，' : ''}您必須精準勾選 ${requiredDistrictsCount} 個不同的地區！\n目前已勾選：${selectedDistricts.length} 個。`, 'error');
+            if (totalDistrictQuota !== requiredTotalQuota) {
+                Swal.fire('錯誤', `您開啟了「強制分區限制」。\n規定：各區應選人數加總必須等於 ${requiredTotalQuota} (應選 ${seats} 席 ${isForced ? '+ 1席保留' : ''})。\n目前各區加總為：${totalDistrictQuota}。`, 'error');
                 return;
             }
         }
@@ -3000,12 +3035,16 @@ window.checkNextRoundWizard = async function(itemId, currentRoundId) {
     // 重新載入最新候選人資料，確保 elected_item 是最新的
     await loadCandidates();
 
-    // 計算已當選人數
-    const electedCount = allCandidates.filter(c => c.elected_item === item.title).length;
-    const remainingQuota = (item.seats || 0) - electedCount;
+    // 1. 計算已當選人數
+    const electedCands = allCandidates.filter(c => c.elected_item === item.title);
+    const electedCount = electedCands.length;
+    
+    // 總應選名額 (考量該項次設定，若有強制候選，強制候選也佔 1 名額)
+    const totalSeats = item.seats || 0;
+    const remainingQuota = totalSeats - electedCount;
 
     if (remainingQuota <= 0) {
-        Swal.fire('選舉結束', `【${item.title}】的應選名額 (${item.seats}名) 已滿，無須進行下一輪！`, 'success');
+        Swal.fire('選舉結束', `【${item.title}】的應選名額 (${totalSeats}席) 已滿，無須進行下一輪！`, 'success');
         return;
     }
 
@@ -3013,9 +3052,38 @@ window.checkNextRoundWizard = async function(itemId, currentRoundId) {
     document.getElementById('wizardItemId').value = itemId;
     document.getElementById('wizardNextRoundId').value = nextRound.id;
     
-    document.getElementById('wizardTotalQuota').textContent = item.seats || 0;
+    document.getElementById('wizardTotalQuota').textContent = totalSeats;
     document.getElementById('wizardElectedCount').textContent = electedCount;
     document.getElementById('wizardRemainingQuota').textContent = remainingQuota;
+
+    // 2. 處理分區邏輯提示
+    const distContainer = document.getElementById('wizardDistrictAlertsContainer');
+    if (item.district_req && item.selected_districts) {
+        distContainer.style.display = 'block';
+        let distHtml = '<ul class="mb-0 ps-3">';
+        
+        // 確保相容陣列與物件
+        const distDict = Array.isArray(item.selected_districts) 
+            ? item.selected_districts.reduce((acc, d) => ({...acc, [d]: 1}), {})
+            : item.selected_districts;
+
+        for (const [dist, quota] of Object.entries(distDict)) {
+            // 計算該區已當選人數
+            const distElectedCount = electedCands.filter(c => c.district === dist).length;
+            const distRemaining = quota - distElectedCount;
+            
+            if (distRemaining <= 0) {
+                distHtml += `<li><strong class="text-success">[${dist}] 已額滿</strong> (應選 ${quota} 席，已選出 ${distElectedCount} 席，將自動隱藏)</li>`;
+            } else {
+                distHtml += `<li><strong class="text-primary">[${dist}] 尚缺 ${distRemaining} 席</strong> (應選 ${quota} 席，已選出 ${distElectedCount} 席)</li>`;
+            }
+        }
+        distHtml += '</ul>';
+        distContainer.innerHTML = distHtml;
+    } else {
+        distContainer.style.display = 'none';
+        distContainer.innerHTML = '';
+    }
 
     const modal = new bootstrap.Modal(document.getElementById('nextRoundWizardModal'));
     modal.show();
@@ -3034,47 +3102,96 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 處理中...';
 
         try {
-            // 從 currentTallyData 取得上一輪的候選人與得票排序
-            // (因為剛開票完，currentTallyData 內存有最新的計算結果)
+            const item = allItems.find(i => i.id === itemId);
+            if (!item) throw new Error("找不到項次資料");
+
             // 從 currentTallyData 取得上一輪的候選人與得票排序
             let candidatesList = [...currentTallyData.candidates];
             
             // 排除已當選、或中途被設為不可被選者
             candidatesList = candidatesList.filter(c => !c.is_elected && !c.is_ineligible);
             
-            // 排除已當選滿額的分區
-            const item = allItems.find(i => i.id === itemId);
-            if (item && item.district_req) {
-                // 找出該項次目前所有已當選的候選人分區
-                const electedDistricts = new Set();
-                allCandidates.forEach(c => {
-                    if (c.elected_item === item.title && c.district) {
-                        electedDistricts.add(c.district);
+            // 依得票數由高至低排序 (首要)，同票時依號次由小至大排序 (次要)
+            candidatesList.sort((a, b) => {
+                if (b.total_votes !== a.total_votes) return b.total_votes - a.total_votes;
+                const numA = parseInt(a.number) || 9999;
+                const numB = parseInt(b.number) || 9999;
+                return numA - numB;
+            });
+
+            // 處理同票截斷的輔助函式 (Tie-aware slice)
+            const tieAwareSlice = (list, targetLimit) => {
+                if (targetLimit <= 0) return [];
+                if (list.length <= targetLimit) return list;
+                
+                // 門檻票數 (第 limit - 1 名的票數)
+                const thresholdVotes = list[targetLimit - 1].total_votes;
+                
+                let actualLimit = targetLimit;
+                // 繼續往後找，把同票的人都加進來
+                while (actualLimit < list.length && list[actualLimit].total_votes === thresholdVotes) {
+                    actualLimit++;
+                }
+                return list.slice(0, actualLimit);
+            };
+
+            let nextRoundIds = [];
+
+            if (item.district_req && item.selected_districts) {
+                // ==========================
+                // 分區獨立計算邏輯
+                // ==========================
+                const electedCands = allCandidates.filter(c => c.elected_item === item.title);
+                
+                const distDict = Array.isArray(item.selected_districts) 
+                    ? item.selected_districts.reduce((acc, d) => ({...acc, [d]: 1}), {})
+                    : item.selected_districts;
+
+                for (const [dist, quota] of Object.entries(distDict)) {
+                    // 計算該分區剩餘應選名額
+                    const distElectedCount = electedCands.filter(c => c.district === dist).length;
+                    const distRemaining = quota - distElectedCount;
+
+                    if (distRemaining > 0) {
+                        // 篩選出該分區的候選人
+                        const distCandidates = candidatesList.filter(c => c.district === dist);
+                        
+                        // 根據該區剩餘名額計算專屬 Limit
+                        let distLimit = distCandidates.length;
+                        if (filterType === 'MULTIPLY') {
+                            const n = parseInt(document.getElementById('wizardFilterMultiplyN').value) || 2;
+                            distLimit = distRemaining * n;
+                        } else if (filterType === 'ADD') {
+                            const n = parseInt(document.getElementById('wizardFilterAddN').value) || 1;
+                            distLimit = distRemaining + n;
+                        }
+
+                        // 套用同票截斷邏輯，提取該區晉級者
+                        const advancedCands = tieAwareSlice(distCandidates, distLimit);
+                        advancedCands.forEach(c => nextRoundIds.push(c.id));
                     }
-                });
+                }
+            } else {
+                // ==========================
+                // 不分區大鍋炒邏輯
+                // ==========================
+                let limit = candidatesList.length;
 
-                // 將未當選清單中，屬於已滿額分區的人剔除
-                candidatesList = candidatesList.filter(c => !c.district || !electedDistricts.has(c.district));
+                if (filterType === 'MULTIPLY') {
+                    const n = parseInt(document.getElementById('wizardFilterMultiplyN').value) || 2;
+                    limit = remainingQuota * n;
+                } else if (filterType === 'ADD') {
+                    const n = parseInt(document.getElementById('wizardFilterAddN').value) || 1;
+                    limit = remainingQuota + n;
+                }
+
+                // 套用同票截斷邏輯
+                const advancedCands = tieAwareSlice(candidatesList, limit);
+                nextRoundIds = advancedCands.map(c => c.id);
             }
-            
-            // 依得票數由高至低排序
-            candidatesList.sort((a, b) => b.total_votes - a.total_votes);
-
-            let limit = candidatesList.length; // 預設全部
-
-            if (filterType === 'MULTIPLY') {
-                const n = parseInt(document.getElementById('wizardFilterMultiplyN').value) || 2;
-                limit = remainingQuota * n;
-            } else if (filterType === 'ADD') {
-                const n = parseInt(document.getElementById('wizardFilterAddN').value) || 1;
-                limit = remainingQuota + n;
-            }
-
-            // 擷取前 limit 名
-            const nextRoundIds = candidatesList.slice(0, limit).map(c => c.id);
 
             // 如果有保障名額，且該人尚未當選，確保他進入下一輪
-            if (item && item.forced_candidate_id) {
+            if (item.forced_candidate_id) {
                 const forceCand = allCandidates.find(c => c.id === item.forced_candidate_id);
                 // 確定保障名額還沒當選
                 if (forceCand && forceCand.elected_item !== item.title) {

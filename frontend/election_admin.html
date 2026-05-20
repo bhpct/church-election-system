@@ -660,7 +660,7 @@
           <div class="form-check form-switch mb-3">
             <input class="form-check-input bg-warning" type="checkbox" id="itemForcedCandidateInput">
             <label class="form-check-label text-warning fw-bold" for="itemForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
-            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。</div>
+            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。開啟保留是強迫占用 1 個名額給予保留人員，保留人員若無當選，選舉結果會缺額 1 名。</div>
           </div>
           <div class="mb-3" id="forcedCandidateSelectContainer" style="display:none;">
             <select class="form-select" id="itemForcedCandidateSelect">
@@ -679,8 +679,8 @@
             <!-- 動態產生分區勾選框 -->
             <small class="text-muted fw-bold text-primary">
               勾選數量規則：<br>
-              1. 若無保障名額：勾選數量 = 應選名額。<br>
-              2. 若有保障名額：勾選數量 = 應選名額 - 1 (因為保障名額已佔一席)。
+              各區應選人數加總要與「應選名額」一致。<br>
+              倘若同時間有勾選保留候選，則各區應選人數加總要與「應選名額 + 1」一致。
             </small>
             <div id="districtCheckboxesList" class="row mt-2"></div>
           </div>
@@ -725,7 +725,7 @@
           <div class="form-check form-switch mb-3">
             <input class="form-check-input bg-warning" type="checkbox" id="editRoundForcedCandidateInput">
             <label class="form-check-label text-warning fw-bold" for="editRoundForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
-            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。</div>
+            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。開啟保留是強迫占用 1 個名額給予保留人員，保留人員若無當選，選舉結果會缺額 1 名。</div>
           </div>
           <div class="mb-3" id="editRoundForcedCandidateSelectContainer" style="display:none;">
             <select class="form-select border-warning" id="editRoundForcedCandidateSelect">
@@ -743,8 +743,9 @@
           <div id="editRoundDistrictCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm mb-3" style="display:none;">
             <small class="text-muted fw-bold text-primary">
               勾選數量規則：<br>
-              1. 若無保障名額：勾選數量 = 應選名額。<br>
-              2. 若有保障名額：勾選數量 = 應選名額 - 1。
+              勾選數量規則：<br>
+              各區應選人數加總要與「應選名額」一致。<br>
+              倘若同時間有勾選保留候選，則各區應選人數加總要與「應選名額 + 1」一致。
             </small>
             <div id="editRoundDistrictCheckboxesList" class="row mt-2"></div>
           </div>
@@ -975,11 +976,14 @@
         
         <div class="alert alert-primary">
             <h5>目前選情統計：</h5>
-            <ul class="mb-0">
-                <li>應選總名額：<strong id="wizardTotalQuota">0</strong> 名</li>
+            <ul class="mb-2">
+                <li>總應選：<strong id="wizardTotalQuota">0</strong> 名</li>
                 <li>已確認當選：<strong id="wizardElectedCount">0</strong> 名</li>
                 <li>剩餘待選名額：<strong id="wizardRemainingQuota" class="text-danger">0</strong> 名</li>
             </ul>
+            <div id="wizardDistrictAlertsContainer" style="display:none;" class="mt-2 pt-2 border-top border-primary">
+                <!-- 動態插入分區剩餘名額 -->
+            </div>
         </div>
 
         <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-filter"></i> 下一輪候選人晉級篩選設定</h6>

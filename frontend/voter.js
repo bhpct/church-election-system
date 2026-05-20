@@ -284,7 +284,17 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
     dropdownEl.innerHTML = '';
     
     // 取得目前所有已選擇的 ID (除了自己)
-    const allSelectedVals = Array.from(document.querySelectorAll('.ballot-vote-val')).map(el => el.value);
+    const allSelectedVals = Array.from(document.querySelectorAll('.ballot-vote-val')).map(el => el.value).filter(v => v !== '');
+
+    // 取得已被選走的分區 (僅當啟動強制分區時)
+    const selectedDistricts = new Set();
+    if (itemData.district_req) {
+        allSelectedVals.forEach(cid => {
+            if (candidatesMap[cid] && candidatesMap[cid].district) {
+                selectedDistricts.add(candidatesMap[cid].district);
+            }
+        });
+    }
 
     let matchCount = 0;
 
@@ -300,6 +310,11 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
         if (keyword === '' || searchStr.includes(keyword)) {
             const isAlreadySelected = allSelectedVals.includes(cid);
             if (isAlreadySelected) return; // 防呆：已選擇的候選人直接從其他選單消失
+            
+            // 防呆：已選擇的分區直接從其他選單消失
+            if (itemData.district_req && c.district && selectedDistricts.has(c.district)) {
+                return;
+            }
             
             const photoHtml = c.photo_base64 ? `<img src="${c.photo_base64}" class="rounded-circle border me-2" style="width:35px;height:35px;object-fit:cover;">` : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted me-2" style="width:35px;height:35px;font-size:0.8rem;"><i class="fas fa-user"></i></div>`;
             
