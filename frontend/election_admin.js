@@ -1525,7 +1525,7 @@ window.openRoundCandidates = function(itemId, roundId) {
             <div>
                 <span class="text-primary me-2 fw-bold">${c.number || ''}</span>
                 <span>${c.name}</span>
-                ${c.district ? `<small class="text-muted ms-2">[${c.district}]</small>` : ''}
+                ${c.district || c.unit ? `<small class="text-muted ms-2">[${c.district || ''} ${c.unit || ''}]</small>` : ''}
             </div>
             ${badgeHtml}
         `;
