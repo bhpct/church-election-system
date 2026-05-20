@@ -118,9 +118,18 @@ async function handleVerifyKey() {
         if (roundData.status === 'PENDING') throw new Error("此輪次尚未開放投票，請稍候。");
         if (roundData.status === 'CLOSED') throw new Error("此輪次已結束投票，正在開票中。");
         
-        // 若已發布結果，直接跳轉到投影畫面 (給選民看響應式結果)
+        // 若已發布結果，先提示再跳轉到投影畫面 (給選民看響應式結果)
         if (roundData.status === 'PUBLISHED') {
-            window.location.href = `result.html?election_id=${currentElectionId}&item_id=${itemId}&round_id=${roundId}`;
+            Swal.fire({
+                title: '本輪投票已結束',
+                text: '此輪次投票已結束且結果已發布，將為您跳轉至結果畫面。',
+                icon: 'info',
+                timer: 3000,
+                timerProgressBar: true,
+                confirmButtonText: '查看結果'
+            }).then(() => {
+                window.location.href = `result.html?election_id=${currentElectionId}&item_id=${itemId}&round_id=${roundId}`;
+            });
             return; // 終止後續
         }
 
