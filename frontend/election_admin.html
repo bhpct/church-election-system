@@ -1080,7 +1080,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyABw9ATwX7E0YxtkM4PK_YCpAEH98X0nBs",
@@ -1101,7 +1101,7 @@
     
     // Firestore Utils
     window.fs = {
-        doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch
+        doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch, onSnapshot
     };
 </script>
 
