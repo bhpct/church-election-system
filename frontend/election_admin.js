@@ -2347,13 +2347,15 @@ window.openTallyCenter = async function(itemId, roundId) {
     document.getElementById('tallyPaperReceived').value = round.paper_received || 0;
     document.getElementById('tallyPaperBlank').value = round.paper_blank || 0;
 
-    // 取消對左側手動輸入的封鎖，允許書記在投票進行中隨時登記紙本票或修改基準
-    document.getElementById('tallyPaperIssued').disabled = false;
-    document.getElementById('tallyPaperReceived').disabled = false;
-    document.getElementById('tallyPaperBlank').disabled = false;
-    document.getElementById('tallyDigitalIssued').disabled = false;
-    document.getElementById('tallyQuorumBase').disabled = false;
-    document.getElementById('tallyAttendingCount').disabled = false;
+    // 若狀態為尚未開放 (PENDING)，鎖定左側紙本輸入與參數設定，防呆避免污染數據
+    const isPending = !round.status || round.status === 'PENDING';
+    document.getElementById('tallyPaperIssued').disabled = isPending;
+    document.getElementById('tallyPaperReceived').disabled = isPending;
+    document.getElementById('tallyPaperBlank').disabled = isPending;
+    document.getElementById('tallyDigitalIssued').disabled = isPending;
+    document.getElementById('tallyQuorumBase').disabled = isPending;
+    document.getElementById('tallyAttendingCount').disabled = isPending;
+    document.getElementById('btnSaveTally').disabled = isPending;
 
     // 將狀態存入 currentTallyData，供後續 renderTallyTable 判斷是否需要遮罩
     currentTallyData.status = round.status;
@@ -2563,10 +2565,16 @@ function renderTallyTable(threshold) {
     }
 
     const isVotingActive = currentTallyData.status === 'ACTIVE';
+    const isPending = !currentTallyData.status || currentTallyData.status === 'PENDING';
+    const isLocked = isVotingActive || isPending;
 
     currentTallyData.candidates.forEach((c, index) => {
         const isPassed = c.total_votes >= threshold;
-        const passBadge = isVotingActive ? '<span class="badge bg-secondary"><i class="fas fa-lock"></i> 投票中</span>' : (isPassed ? '<span class="badge bg-danger"><i class="fas fa-check"></i> 達標</span>' : '<span class="badge bg-secondary">未過半</span>');
+        
+        let passBadge = '';
+        if (isVotingActive) passBadge = '<span class="badge bg-secondary"><i class="fas fa-lock"></i> 投票中</span>';
+        else if (isPending) passBadge = '<span class="badge bg-light text-dark border">尚未開放</span>';
+        else passBadge = isPassed ? '<span class="badge bg-danger"><i class="fas fa-check"></i> 達標</span>' : '<span class="badge bg-secondary">未過半</span>';
         
         // 判斷是否為保障名額
         const item = allItems.find(i => i.id === currentTallyData.itemId);
@@ -2576,13 +2584,13 @@ function renderTallyTable(threshold) {
         // 取出目前的紙本得票 (供綁定 input)
         const paperVal = c.paper_votes || 0;
         
-        // 使用者要求：在投票進行中，右側的所有得票數 (包含數位、紙本、總計) 都必須以灰階上鎖遮罩
-        const digitalDisplay = isVotingActive ? '<i class="fas fa-lock text-muted"></i>' : c.digital_votes;
-        const paperDisplay = isVotingActive ? 
+        // 使用者要求：在投票進行中或尚未開始時，右側的所有得票數 (包含數位、紙本、總計) 都必須以灰階上鎖遮罩
+        const digitalDisplay = isLocked ? '<i class="fas fa-lock text-muted"></i>' : c.digital_votes;
+        const paperDisplay = isLocked ? 
             '<input type="number" class="form-control form-control-sm text-center border-secondary" disabled value="0" style="width: 80px; margin: 0 auto; background: #e9ecef;">' : 
             `<input type="number" class="form-control form-control-sm text-center border-success paper-vote-input" data-id="${c.id}" value="${paperVal}" min="0" style="width: 80px; margin: 0 auto;">`;
-        const totalDisplay = isVotingActive ? '<i class="fas fa-lock text-muted"></i>' : c.total_votes;
-        const checkboxDisplay = isVotingActive ? 
+        const totalDisplay = isLocked ? '<i class="fas fa-lock text-muted"></i>' : c.total_votes;
+        const checkboxDisplay = isLocked ? 
             `<input class="form-check-input" type="checkbox" disabled style="transform: scale(1.5);">` : 
             `<input class="form-check-input elected-checkbox" type="checkbox" data-id="${c.id}" style="transform: scale(1.5);" ${c.is_elected ? 'checked' : ''}>`;
 
