@@ -215,10 +215,13 @@ function buildBallotUI() {
         } else {
             box.innerHTML = `
                 <label class="form-label text-muted fw-bold">圈選欄 ${i+1}</label>
-                <div class="input-group">
+                <div class="input-group has-validation">
                     <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
                     <input type="text" class="form-control form-control-lg candidate-search-input" placeholder="輸入號碼/姓名/分區搜尋...">
                     <input type="hidden" class="ballot-vote-val" value="">
+                    <div class="invalid-feedback text-start fw-bold" style="font-size: 0.9rem;">
+                        <i class="fas fa-exclamation-triangle"></i> 請務必點擊選單內的候選人，才算有效圈選！
+                    </div>
                 </div>
                 <div class="candidate-dropdown"></div>
                 <div class="selected-candidate" style="display:none; margin-top: 10px;">
@@ -239,15 +242,20 @@ function buildBallotUI() {
             const clearBtn = box.querySelector('.btn-clear-selection');
 
             inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId));
-            inputEl.addEventListener('input', () => renderDropdown(inputEl, dropdownEl, forcedId));
+            inputEl.addEventListener('input', () => {
+                inputEl.classList.remove('is-invalid'); // 重新輸入時移除紅框
+                renderDropdown(inputEl, dropdownEl, forcedId);
+            });
             
-            // 點擊外部關閉選單 (支援手機 touch 事件，並自動清空未完成的搜尋文字)
+            // 點擊外部關閉選單 (支援手機 touch 事件)
             const closeDropdown = (e) => {
                 if (!box.contains(e.target)) {
                     dropdownEl.style.display = 'none';
-                    // 如果沒有真正選擇候選人 (隱藏值為空)，失去焦點時自動清空輸入框，避免選民誤會已經選上
-                    if (!hiddenVal.value) {
-                        inputEl.value = '';
+                    // 如果沒有真正選擇候選人，但輸入框有文字 (手打未選取) -> 亮紅框提示
+                    if (!hiddenVal.value && inputEl.value.trim() !== '') {
+                        inputEl.classList.add('is-invalid');
+                    } else {
+                        inputEl.classList.remove('is-invalid');
                     }
                 }
             };
@@ -259,6 +267,7 @@ function buildBallotUI() {
                 selectedDiv.style.display = 'none';
                 inputEl.parentElement.style.display = 'flex';
                 inputEl.value = '';
+                inputEl.classList.remove('is-invalid'); // 點擊清除時也移除紅框
                 inputEl.focus();
             });
         }
