@@ -135,7 +135,6 @@
             
             <a href="#" class="nav-link-btn active" data-target="section-overview"><i class="fas fa-home"></i> 選舉總覽</a>
             <a href="#" class="nav-link-btn" data-target="section-candidates"><i class="fas fa-users"></i> 候選人資料庫</a>
-            <a href="#" class="nav-link-btn" data-target="section-items"><i class="fas fa-list-alt"></i> 項次與輪次設定</a>
             <a href="#" class="nav-link-btn" data-target="section-keys"><i class="fas fa-key"></i> 金鑰與選票發放</a>
             <a href="#" class="nav-link-btn" data-target="section-preview"><i class="fas fa-ticket-alt"></i> 選票預覽</a>
             <hr class="border-secondary mx-3">
@@ -180,7 +179,7 @@
                     
                     <!-- 1. 總覽 -->
                     <div id="section-overview" class="nav-section active">
-                        <div class="row">
+                        <div class="row mb-4">
                             <div class="col-md-4">
                                 <div class="card p-4 text-center">
                                     <h1 class="text-primary" id="statCandidates">0</h1>
@@ -192,6 +191,19 @@
                                     <h1 class="text-success" id="statItems">0</h1>
                                     <p class="text-muted mb-0">選舉項次</p>
                                 </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card p-4 border-success">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與輪次控制台</h5>
+                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
+                                    <i class="fas fa-plus"></i> 新增選舉項次
+                                </button>
+                            </div>
+
+                            <div class="accordion" id="itemsAccordion">
+                                <p class="text-muted text-center py-4">載入中...</p>
                             </div>
                         </div>
                     </div>
@@ -270,19 +282,7 @@
                         </div>
                     </div>
 
-                    <!-- 3. 項次與輪次設定 -->
-                    <div id="section-items" class="nav-section">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與輪次</h5>
-                            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
-                                <i class="fas fa-plus"></i> 新增選舉項次
-                            </button>
-                        </div>
 
-                        <div class="accordion" id="itemsAccordion">
-                            <p class="text-muted text-center py-4">載入中...</p>
-                        </div>
-                    </div>
 
                     <!-- 4. 選票預覽 -->
                     <div id="section-preview" class="nav-section">
