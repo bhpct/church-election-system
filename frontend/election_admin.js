@@ -2355,7 +2355,7 @@ window.openTallyCenter = async function(itemId, roundId) {
     document.getElementById('tallyDigitalIssued').disabled = isPending;
     document.getElementById('tallyQuorumBase').disabled = isPending;
     document.getElementById('tallyAttendingCount').disabled = isPending;
-    document.getElementById('btnSaveTally').disabled = isPending;
+    document.getElementById('btnSaveTallyResults').disabled = isPending;
 
     // 將狀態存入 currentTallyData，供後續 renderTallyTable 判斷是否需要遮罩
     currentTallyData.status = round.status;
