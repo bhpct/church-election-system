@@ -822,75 +822,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const itemId = document.getElementById('tallyItemSelect').value;
         const roundId = document.getElementById('tallyRoundSelect').value;
         if (itemId && roundId) {
-            // 透過模擬點擊或直接呼叫開啟邏輯 (為了更新 UI 狀態)
-            const item = allItems.find(i => i.id === itemId);
-            const round = item?.rounds.find(r => r.id === roundId);
-            
-            if (item && round) {
-                // 設定狀態等 UI 元素
-                document.getElementById('tallyTitle').textContent = `${item.title} - ${getRoundName(round.id)}`;
-                document.getElementById('tallyItemId').value = itemId;
-                document.getElementById('tallyRoundId').value = roundId;
-                const effectiveSeats = round.seats !== undefined ? round.seats : item.seats;
-                document.getElementById('tallyQuota').textContent = effectiveSeats || 0;
-
-                const badge = document.getElementById('tallyStatusBadge');
-                const btnEnd = document.getElementById('btnEndVoting');
-                const btnReopen = document.getElementById('btnReopenVoting');
-                const btnPublish = document.getElementById('btnPublishTally');
-
-                if (round.status === 'ACTIVE') {
-                    badge.textContent = '狀態：投票進行中';
-                    badge.className = 'badge bg-success fs-6';
-                    btnEnd.style.display = 'inline-block';
-                    btnReopen.style.display = 'none';
-                    btnPublish.disabled = true;
-                } else if (round.status === 'CLOSED') {
-                    badge.textContent = '狀態：開票結算中';
-                    badge.className = 'badge bg-warning text-dark fs-6';
-                    btnEnd.style.display = 'none';
-                    btnReopen.style.display = 'inline-block';
-                    btnPublish.disabled = false;
-                } else {
-                    badge.textContent = '狀態：結果已發布';
-                    badge.className = 'badge bg-secondary fs-6';
-                    btnEnd.style.display = 'none';
-                    btnReopen.style.display = 'none';
-                    btnPublish.disabled = true;
-                }
-
-                document.getElementById('tallyQuorumBase').value = round.quorum_base || currentElectionData.quorum_base || 'ATTENDING';
-                document.getElementById('tallyAttendingCount').value = round.attending_count || currentElectionData.init_attending_count || 0;
-                document.getElementById('tallyPaperIssued').value = round.paper_issued || 0;
-
-                document.getElementById('tallyContentContainer').style.display = 'block';
-
-                currentTallyData.itemId = itemId;
-                currentTallyData.roundId = roundId;
-                currentTallyData.candidates = [];
-                currentTallyData.digitalVotesMap = {};
-
-                await loadTallyStats(itemId, roundId);
-                
-                const candidateIds = round.candidate_ids || [];
-                currentTallyData.candidates = allCandidates.filter(c => candidateIds.includes(c.id)).map(c => {
-                    const digi = currentTallyData.digitalVotesMap[c.id] || 0;
-                    const paper = (round.paper_votes && round.paper_votes[c.id]) ? parseInt(round.paper_votes[c.id]) : 0;
-                    const isElected = round.elected_ids ? round.elected_ids.includes(c.id) : false;
-                    return {
-                        ...c,
-                        digital_votes: digi,
-                        paper_votes: paper,
-                        total_votes: digi + paper,
-                        is_elected: isElected
-                    };
-                });
-
-                updateTallyThreshold();
-                renderTallyTable();
-            } else {
-                Swal.fire('錯誤', '找不到對應的項次或輪次資料', 'error');
-            }
+            // 直接呼叫 openTallyCenter 確保所有資料載入邏輯與左側主選單點擊時完全一致
+            openTallyCenter(itemId, roundId);
         } else {
             Swal.fire('提示', '請先選擇項次與輪次', 'info');
         }
@@ -2388,13 +2321,20 @@ window.openTallyCenter = async function(itemId, roundId) {
         btnReopen.style.display = 'inline-block';
         btnPublish.disabled = false;
         btnPublish.innerHTML = '<i class="fas fa-bullhorn"></i> 發布選舉結果';
-    } else {
+    } else if (round.status === 'PUBLISHED') {
         badge.textContent = '狀態：結果已發布';
         badge.className = 'badge bg-secondary me-3 fs-6';
         btnEnd.style.display = 'none';
         btnReopen.style.display = 'none';
         btnPublish.disabled = false; // 允許重新發布以觸發晉級計算
         btnPublish.innerHTML = '<i class="fas fa-bullhorn"></i> 重新發布結果';
+    } else {
+        // PENDING 狀態
+        badge.textContent = '狀態：尚未開放投票';
+        badge.className = 'badge bg-light text-dark border me-3 fs-6';
+        btnEnd.style.display = 'none';
+        btnReopen.style.display = 'none';
+        btnPublish.disabled = true;
     }
 
     // 參數預設值
