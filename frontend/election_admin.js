@@ -301,6 +301,7 @@ function renderCandidatesTable() {
                 <td>${c.name}</td>
                 <td><span class="badge bg-secondary">${c.qualification}</span></td>
                 <td>${districtHtml}</td>
+                <td>${unitHtml}</td>
                 <td>${electedHtml}</td>
                 <td>${statusHtml}</td>
                 <td>
@@ -549,6 +550,7 @@ function bindPhotoUpload(inputId, previewId, placeholderId, base64InputId, remov
                 base64Input.value = base64;
                 preview.src = base64;
                 preview.style.display = 'block';
+                placeholder.classList.remove('d-flex');
                 placeholder.style.display = 'none';
                 removeBtn.style.display = 'inline-block';
             });
@@ -560,7 +562,8 @@ function bindPhotoUpload(inputId, previewId, placeholderId, base64InputId, remov
         base64Input.value = '';
         preview.src = '';
         preview.style.display = 'none';
-        placeholder.style.display = 'flex';
+        placeholder.style.display = '';
+        placeholder.classList.add('d-flex');
         removeBtn.style.display = 'none';
     });
 }
@@ -655,13 +658,15 @@ window.openEditCandidate = function(id) {
         photoBase64Input.value = c.photo_base64;
         photoPreview.src = c.photo_base64;
         photoPreview.style.display = 'block';
+        photoPlaceholder.classList.remove('d-flex');
         photoPlaceholder.style.display = 'none';
         removeBtn.style.display = 'inline-block';
     } else {
         photoBase64Input.value = '';
         photoPreview.src = '';
         photoPreview.style.display = 'none';
-        photoPlaceholder.style.display = 'flex';
+        photoPlaceholder.style.display = '';
+        photoPlaceholder.classList.add('d-flex');
         removeBtn.style.display = 'none';
     }
 
