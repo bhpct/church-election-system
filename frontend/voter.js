@@ -270,10 +270,10 @@ function buildBallotUI() {
             badge.textContent = '保障';
         }
 
-        inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId));
+        inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell));
         inputEl.addEventListener('input', () => {
             inputEl.classList.remove('is-invalid');
-            renderDropdown(inputEl, dropdownEl, forcedId);
+            renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell);
         });
         
         // 點擊外部關閉選單 (支援手機 touch 事件)
@@ -314,7 +314,7 @@ function buildBallotUI() {
     }
 }
 
-function renderDropdown(inputEl, dropdownEl, forcedId) {
+function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
     const keyword = inputEl.value.trim().toLowerCase();
     dropdownEl.innerHTML = '';
     
@@ -336,7 +336,11 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
 
     // 依照 roundData.candidate_ids 的順序顯示 (此順序在晉級時已由系統依照得票數排序過)
     roundData.candidate_ids.forEach(cid => {
-        if (cid === forcedId) return; // 排除保障名額
+        if (isForcedCell) {
+            if (cid !== forcedId) return; // 保留專屬格：只能選保留名額，其他人都不出現
+        } else {
+            if (cid === forcedId) return; // 一般格：排除保障名額
+        }
         
         const c = candidatesMap[cid];
         if (!c) return;
