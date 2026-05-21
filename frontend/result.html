@@ -213,6 +213,18 @@
                 }
 
                 const db = firebase.firestore();
+                let isGlobalPublished = false;
+
+                // 監聽選舉狀態 (為了當選總覽強制發布)
+                db.collection('elections').doc(electionId).onSnapshot(async (docSnap) => {
+                    if (docSnap.exists) {
+                        const edata = docSnap.data();
+                        if (edata.global_published && !isGlobalPublished) {
+                            isGlobalPublished = true;
+                            renderGlobalOverview(electionId, db, edata.org_id, edata.name);
+                        }
+                    }
+                });
                 
                 // 讀取項次資料 (單次讀取)
                 const itemDoc = await db.collection('elections').doc(electionId).collection('items').doc(itemId).get();
@@ -222,6 +234,8 @@
                 // 監聽輪次資料 (即時更新)
                 db.collection('elections').doc(electionId).collection('items').doc(itemId).collection('rounds').doc(roundId)
                   .onSnapshot(async (roundDoc) => {
+                      if (isGlobalPublished) return; // 已發布全局總覽，不再渲染單輪結果
+                      
                       if (!roundDoc.exists) {
                           document.getElementById('loadingSpinner').innerHTML = '<h2 class="text-danger">找不到輪次資料</h2>';
                           return;
@@ -474,7 +488,101 @@
                 </div>
             `;
         }
+        
+        async function renderGlobalOverview(electionId, db, orgId, electionName) {
+            if (window.voteTimerInterval) clearInterval(window.voteTimerInterval);
+            document.getElementById('loadingSpinner').style.display = 'flex';
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('loadingSpinner').innerHTML = `
+                <div class="spinner-border text-primary" style="width: 5rem; height: 5rem;" role="status"></div>
+                <h2 class="mt-4 text-muted">正在載入全局當選名單...</h2>
+            `;
 
+            try {
+                let orgName = '';
+                if (orgId) {
+                    const orgDoc = await db.collection('organizations').doc(orgId).get();
+                    if (orgDoc.exists) orgName = orgDoc.data().name;
+                }
+
+                // Fetch all items
+                const itemsSnap = await db.collection('elections').doc(electionId).collection('items').get();
+                const allItems = [];
+                itemsSnap.forEach(d => allItems.push({ id: d.id, ...d.data() }));
+
+                // Fetch all candidates
+                const candsSnap = await db.collection('elections').doc(electionId).collection('candidates').get();
+                const allCandidates = [];
+                candsSnap.forEach(d => allCandidates.push({ id: d.id, ...d.data() }));
+
+                // Group by elected item
+                const electedByItem = {};
+                allItems.forEach(item => {
+                    electedByItem[item.title] = [];
+                });
+
+                allCandidates.forEach(c => {
+                    if (c.elected_item) {
+                        if (!electedByItem[c.elected_item]) electedByItem[c.elected_item] = [];
+                        electedByItem[c.elected_item].push(c);
+                    }
+                });
+
+                // Set title
+                document.getElementById('displayTitle').textContent = `${orgName} ${electionName} 當選名單總覽`;
+                
+                // Hide stats bar
+                document.querySelector('.stats-bar').style.display = 'none';
+
+                let html = '<div class="col-12"><div class="card shadow-sm border-0"><div class="card-body p-4">';
+                for (const item of allItems) {
+                    const itemTitle = item.title;
+                    const cands = electedByItem[itemTitle] || [];
+                    
+                    html += `<h3 class="fw-bold mt-4" style="color: #198754; border-bottom: 2px solid #198754; padding-bottom: 10px;">${itemTitle}</h3>`;
+                    
+                    if (cands.length === 0) {
+                        html += `<p class="text-muted fs-5 my-3">尚無當選人</p>`;
+                        continue;
+                    }
+                    
+                    const reqDist = item.require_district;
+                    const distOrder = [...new Set(allCandidates.filter(c => c.item_id === item.id).map(c => c.district).filter(Boolean))];
+                    
+                    cands.sort((a, b) => {
+                        if (reqDist) {
+                            const distAIdx = distOrder.indexOf(a.district);
+                            const distBIdx = distOrder.indexOf(b.district);
+                            const aDistScore = distAIdx === -1 ? 9999 : distAIdx;
+                            const bDistScore = distBIdx === -1 ? 9999 : distBIdx;
+                            if (aDistScore !== bDistScore) return aDistScore - bDistScore;
+                        }
+                        const nA = parseInt(a.number) || 9999;
+                        const nB = parseInt(b.number) || 9999;
+                        return nA - nB;
+                    });
+                    
+                    html += `<div class="d-flex flex-wrap gap-2 mt-3 mb-4">`;
+                    cands.forEach(c => {
+                        html += `<div class="badge bg-light text-dark border fs-4 py-2 px-3 shadow-sm" style="border-left: 6px solid #dc3545 !important;">
+                            ${c.name} <small class="text-muted fs-6">(${c.district || ''} ${c.unit || ''})</small>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+                
+                html += '</div></div></div>';
+                
+                document.getElementById('resultsGrid').innerHTML = html;
+                
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('loadingSpinner').innerHTML = `<h2 class="text-danger">載入全局當選名單失敗: ${e.message}</h2>`;
+            }
+        }
     </script>
 </body>
 </html>

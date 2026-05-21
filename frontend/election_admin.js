@@ -3318,7 +3318,7 @@ window.renderElectedOverview = function() {
     });
     
     allCandidates.forEach(c => {
-        if (c.is_elected && c.elected_item) {
+        if (c.elected_item) {
             if (!electedByItem[c.elected_item]) electedByItem[c.elected_item] = [];
             electedByItem[c.elected_item].push(c);
         }
@@ -3361,13 +3361,33 @@ window.renderElectedOverview = function() {
     tbody.innerHTML = html;
 };
 
-window.openElectedProjection = function() {
+window.openElectedProjection = async function() {
+    try {
+        const db = window.firebaseDb;
+        await window.fs.updateDoc(window.fs.doc(db, 'elections', currentElectionId), {
+            global_published: true
+        });
+        Swal.fire({
+            title: '已公布全局當選名單！',
+            text: '選民用 QR Code 掃描進入結果頁面時，將會強制顯示所有項次的全局當選總覽。',
+            icon: 'success',
+            timer: 3000,
+            showConfirmButton: false
+        });
+    } catch (e) {
+        console.error('更新全域公布狀態失敗:', e);
+    }
+
     const win = window.open('', '_blank');
+    const orgNameStr = currentOrgData ? currentOrgData.name : '';
+    const electionNameStr = currentElectionData ? currentElectionData.name : '當選名單總覽';
+    const fullTitle = `${orgNameStr} ${electionNameStr} 當選名單總覽`;
+    
     let html = `
         <!DOCTYPE html>
         <html>
         <head>
-            <title>當選名單投影 - ${electionData ? electionData.name : ''}</title>
+            <title>${fullTitle}</title>
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
             <style>
                 body { background-color: #f8f9fa; padding: 2rem; font-family: 'Noto Sans TC', sans-serif; }
@@ -3378,12 +3398,12 @@ window.openElectedProjection = function() {
             </style>
         </head>
         <body>
-            <h1>${electionData ? electionData.name : '當選名單總覽'}</h1>
+            <h1>${fullTitle}</h1>
     `;
     
     let hasElected = false;
     for (const item of allItems) {
-        const cands = allCandidates.filter(c => c.is_elected && c.elected_item === item.title);
+        const cands = allCandidates.filter(c => c.elected_item === item.title);
         if (cands.length === 0) continue;
         hasElected = true;
         
@@ -3432,8 +3452,8 @@ window.printElectionResults = async function() {
         container.innerHTML = '';
         
         // 加入浮水印
-        if (electionData && electionData.orgId) {
-            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', electionData.orgId));
+        if (currentElectionData && currentElectionData.org_id) {
+            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', currentElectionData.org_id));
             if (orgDoc.exists() && orgDoc.data().seal_url) {
                 container.innerHTML += `<img src="${orgDoc.data().seal_url}" class="watermark-bg">`;
             }
@@ -3443,7 +3463,7 @@ window.printElectionResults = async function() {
         
         let html = `
             <div class="text-center mb-4">
-                <h1 style="font-weight: 900;">${electionData ? electionData.name : '選舉'} - 當選與得票結果總表</h1>
+                <h1 style="font-weight: 900;">${currentElectionData ? currentElectionData.name : '選舉'} - 當選與得票結果總表</h1>
                 <p class="text-muted">列印時間：${printTime}</p>
             </div>
         `;
@@ -3600,7 +3620,7 @@ window.searchKeyStatus = async function() {
         const db = window.firebaseDb;
         const keysSnap = await window.fs.getDocs(window.fs.query(
             window.fs.collection(db, 'elections', currentElectionId, 'keys'),
-            window.fs.where('key_string', '==', keyStr)
+            window.fs.where('code', '==', keyStr)
         ));
         
         if (keysSnap.empty) {
@@ -3622,7 +3642,7 @@ window.searchKeyStatus = async function() {
                 <div class="col-6"><strong>輪次：</strong><br>${roundName}</div>
             </div>
             <div class="row mb-3">
-                <div class="col-6"><strong>金鑰代碼：</strong><br>${keyData.key_string}</div>
+                <div class="col-6"><strong>金鑰代碼：</strong><br>${keyData.code}</div>
                 <div class="col-6"><strong>使用狀態：</strong><br>
                     ${keyData.status === 'USED' ? '<span class="badge bg-success">已使用 (投出)</span>' : 
                       keyData.status === 'REVOKED' ? '<span class="badge bg-danger">已作廢</span>' : 
@@ -3682,8 +3702,8 @@ window.printDigitalBallotArchive = async function() {
         const container = document.getElementById('printContainer');
         container.innerHTML = '';
         
-        if (electionData && electionData.orgId) {
-            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', electionData.orgId));
+        if (currentElectionData && currentElectionData.org_id) {
+            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', currentElectionData.org_id));
             if (orgDoc.exists() && orgDoc.data().seal_url) {
                 container.innerHTML += `<img src="${orgDoc.data().seal_url}" class="watermark-bg">`;
             }
@@ -3710,14 +3730,14 @@ window.printDigitalBallotArchive = async function() {
             
             for (const rId of rounds) {
                 const roundKeys = itemKeys.filter(k => k.round_id === rId);
-                roundKeys.sort((a, b) => a.key_string.localeCompare(b.key_string));
+                roundKeys.sort((a, b) => a.code.localeCompare(b.code));
                 
                 const rName = rNames[rId] || rId;
                 
                 html += `
                     <div class="page-break mb-4">
                         <div class="text-center mb-3">
-                            <h2 style="font-weight: 900;">${electionData ? electionData.name : '選舉'}</h2>
+                            <h2 style="font-weight: 900;">${currentElectionData ? currentElectionData.name : '選舉'}</h2>
                             <h3>【${item.title} - ${rName}】 數位選票歸檔明細表</h3>
                             <p class="text-muted">列印時間：${printTime} / 金鑰總數：${roundKeys.length} 把</p>
                         </div>
@@ -3760,7 +3780,7 @@ window.printDigitalBallotArchive = async function() {
                     
                     html += `
                         <tr>
-                            <td style="padding: 6px; font-family: monospace;">${k.key_string}</td>
+                            <td style="padding: 6px; font-family: monospace;">${k.code}</td>
                             <td style="padding: 6px;">${statusTxt}</td>
                             <td style="padding: 6px; color: #dc3545;">${voteTime}</td>
                             <td style="padding: 6px;">${candsTxt}</td>
