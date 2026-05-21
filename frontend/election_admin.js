@@ -3363,7 +3363,13 @@ window.renderElectedOverview = function() {
             return nA - nB;
         });
         
-        const tags = cands.map(c => `<span class="badge bg-success fs-6 me-2 mb-2"><i class="fas fa-user"></i> ${c.name} <small>(${c.district || '無分區'})</small></span>`).join('');
+        const tags = cands.map(c => {
+            let sub = [];
+            if (c.district) sub.push(c.district);
+            if (c.unit) sub.push(c.unit);
+            let subTxt = sub.length > 0 ? `(${sub.join(' ')})` : '';
+            return `<span class="badge bg-success fs-6 me-2 mb-2"><i class="fas fa-user"></i> ${c.name} <small>${subTxt}</small></span>`;
+        }).join('');
         html += `<tr><td class="fw-bold">${itemTitle}</td><td>${tags}</td></tr>`;
     }
     
@@ -3440,7 +3446,11 @@ window.openElectedProjection = async function() {
         
         html += `<div class="item-card"><div class="item-title">${item.title}</div><div>`;
         cands.forEach(c => {
-            html += `<div class="cand-badge">${c.name} <small class="text-muted fs-4">(${c.district || '無分區'})</small></div>`;
+            let sub = [];
+            if (c.district) sub.push(c.district);
+            if (c.unit) sub.push(c.unit);
+            let subTxt = sub.length > 0 ? `(${sub.join(' ')})` : '';
+            html += `<div class="cand-badge">${c.name} <small class="text-muted fs-4">${subTxt}</small></div>`;
         });
         html += `</div></div>`;
     }

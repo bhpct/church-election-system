@@ -28,10 +28,12 @@ service cloud.firestore {
     // Organizations 集合
     // ==========================================
     match /organizations/{orgId} {
+      // 允許任何人讀取機構基本資料 (為了顯示標題與公印)
+      allow read: if true;
       // 超級管理員可以讀寫所有機構
-      allow read, write: if isSuperAdmin();
-      // 單位管理員只能讀取與修改自己的機構資料
-      allow read, update: if isOrgAdmin(orgId);
+      allow write: if isSuperAdmin();
+      // 單位管理員只能修改自己的機構資料
+      allow update: if isOrgAdmin(orgId);
     }
 
     // ==========================================
