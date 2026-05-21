@@ -214,14 +214,19 @@
 
                 const db = firebase.firestore();
                 let isGlobalPublished = false;
+                let wasGlobalPublished = false;
 
                 // 監聽選舉狀態 (為了當選總覽強制發布)
                 db.collection('elections').doc(electionId).onSnapshot(async (docSnap) => {
                     if (docSnap.exists) {
                         const edata = docSnap.data();
-                        if (edata.global_published && !isGlobalPublished) {
+                        if (edata.global_published && !wasGlobalPublished) {
+                            wasGlobalPublished = true;
                             isGlobalPublished = true;
                             renderGlobalOverview(electionId, db, edata);
+                        } else if (!edata.global_published && wasGlobalPublished) {
+                            // 若管理員撤銷發布，重新整理頁面以恢復單輪結果
+                            window.location.reload();
                         }
                     }
                 });
