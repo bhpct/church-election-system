@@ -177,8 +177,11 @@ function buildBallotUI() {
     document.getElementById('ballotElectionName').textContent = electionData.name;
     document.getElementById('ballotItemRoundName').textContent = `${itemData.title} - ${rName}`;
     
-    const quota = parseInt(itemData.seats) || 1;
+    const quota = parseInt(roundData.seats !== undefined ? roundData.seats : itemData.seats) || 1;
     document.getElementById('ballotQuota').textContent = quota;
+    
+    // 取得當前輪次的有效分區配置 (優先使用輪次設定，否則使用全局設定)
+    const activeDistricts = roundData.selected_districts || itemData.selected_districts;
     
     const container = document.getElementById('ballotSelectionsContainer');
     container.innerHTML = '';
@@ -186,14 +189,14 @@ function buildBallotUI() {
     const districtRuleEl = document.getElementById('ballotDistrictRule');
     
     // 如果有分區限制，詳細列出各區應選名額
-    if (itemData.require_district && itemData.selected_districts) {
+    if (itemData.require_district && activeDistricts) {
         let districtDetails = [];
         // 取得所有候選人中出現過的分區，藉此保留上傳時的自然排序
         const allDistrictsInOrder = [...new Set(Object.values(candidatesMap).map(c => c.district).filter(Boolean))];
         
         allDistrictsInOrder.forEach(dist => {
-            if (itemData.selected_districts[dist]) {
-                districtDetails.push(`[${dist}] 應選 ${itemData.selected_districts[dist]} 名`);
+            if (activeDistricts[dist]) {
+                districtDetails.push(`[${dist}] 應選 ${activeDistricts[dist]} 名`);
             }
         });
 
@@ -321,9 +324,12 @@ function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
     // 取得目前所有已選擇的 ID (除了自己)
     const allSelectedVals = Array.from(document.querySelectorAll('.ballot-vote-val')).map(el => el.value).filter(v => v !== '');
 
+    // 取得當前輪次的有效分區配置
+    const activeDistricts = roundData.selected_districts || itemData.selected_districts;
+
     // 取得已被選走的分區與其計數 (僅當啟動強制分區時)
     const selectedDistrictsCount = {};
-    if (itemData.require_district && itemData.selected_districts) {
+    if (itemData.require_district && activeDistricts) {
         allSelectedVals.forEach(cid => {
             if (cid !== forcedId && candidatesMap[cid] && candidatesMap[cid].district) {
                 const dist = candidatesMap[cid].district;
@@ -352,8 +358,8 @@ function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
             if (isAlreadySelected) return; // 防呆：已選擇的候選人直接從其他選單消失
             
             // 防呆：如果該分區已達應選上限，則從選單消失 (保留專屬格不受此限)
-            if (!isForcedCell && itemData.require_district && itemData.selected_districts && c.district) {
-                const limit = itemData.selected_districts[c.district] || 1; // 容錯，預設1
+            if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+                const limit = activeDistricts[c.district] || 1; // 容錯，預設1
                 const currentCount = selectedDistrictsCount[c.district] || 0;
                 if (currentCount >= limit) {
                     return;
@@ -435,8 +441,11 @@ async function handleSubmitVote() {
         // 不阻擋，允許送出空白票
     }
 
+    // 取得當前輪次的有效分區配置
+    const activeDistricts = roundData.selected_districts || itemData.selected_districts;
+
     // 驗證強制分區數量上限
-    if (itemData.require_district && itemData.selected_districts) {
+    if (itemData.require_district && activeDistricts) {
         const selectedDistrictsCount = {};
         let districtConflict = false;
         let conflictMsg = '';
@@ -448,7 +457,7 @@ async function handleSubmitVote() {
             const dist = candidatesMap[cid]?.district;
             if (dist) {
                 selectedDistrictsCount[dist] = (selectedDistrictsCount[dist] || 0) + 1;
-                const limit = itemData.selected_districts[dist] || 1;
+                const limit = activeDistricts[dist] || 1;
                 if (selectedDistrictsCount[dist] > limit) {
                     districtConflict = true;
                     conflictMsg = `【${dist}】已超過應選人數上限 (${limit}名)！`;

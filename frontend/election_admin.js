@@ -3165,6 +3165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             let nextRoundIds = [];
+            let nextRoundDistDict = {};
 
             if (item.require_district && item.selected_districts) {
                 // ==========================
@@ -3179,9 +3180,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (const [dist, quota] of Object.entries(distDict)) {
                     // 計算該分區剩餘應選名額
                     const distElectedCount = electedCands.filter(c => c.district === dist).length;
-                    const distRemaining = quota - distElectedCount;
+                    const distRemaining = Math.max(0, quota - distElectedCount);
 
                     if (distRemaining > 0) {
+                        nextRoundDistDict[dist] = distRemaining;
                         // 篩選出該分區的候選人
                         const distCandidates = candidatesList.filter(c => c.district === dist);
                         
@@ -3198,6 +3200,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         // 套用同票截斷邏輯，提取該區晉級者
                         const advancedCands = tieAwareSlice(distCandidates, distLimit);
                         advancedCands.forEach(c => nextRoundIds.push(c.id));
+                    } else {
+                        // 若該區已額滿，則將剩餘名額記為 0 (或直接省略)
+                        nextRoundDistDict[dist] = 0;
                     }
                 }
             } else {
@@ -3248,6 +3253,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // 更新下一輪的文件 (子集合)
             await updateDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', nextRoundId), {
                 candidate_ids: nextRoundIds,
+                seats: remainingQuota,
+                selected_districts: item.require_district ? nextRoundDistDict : null,
                 updatedAt: window.fs.serverTimestamp()
             });
 
