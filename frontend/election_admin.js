@@ -3138,8 +3138,11 @@ document.addEventListener('DOMContentLoaded', () => {
             candidatesList = candidatesList.filter(c => !c.is_elected && !c.is_ineligible);
             
             // 依得票數由高至低排序 (首要)，同票時依號次由小至大排序 (次要)
+            // 但如果使用者選擇「沿用名單 (ALL)」，則不看票數，強制依據號次排序
             candidatesList.sort((a, b) => {
-                if (b.total_votes !== a.total_votes) return b.total_votes - a.total_votes;
+                if (filterType !== 'ALL' && b.total_votes !== a.total_votes) {
+                    return b.total_votes - a.total_votes;
+                }
                 const numA = parseInt(a.number) || 9999;
                 const numB = parseInt(b.number) || 9999;
                 return numA - numB;
@@ -3225,6 +3228,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         nextRoundIds.push(forceCand.id);
                     }
                 }
+            }
+
+            // 若選擇「沿用名單 (ALL)」，最後再針對 nextRoundIds 做一次號次排序
+            // 避免因為分區邏輯 (區塊 append) 導致號碼順序被打亂
+            if (filterType === 'ALL') {
+                nextRoundIds.sort((idA, idB) => {
+                    const cA = allCandidates.find(c => c.id === idA);
+                    const cB = allCandidates.find(c => c.id === idB);
+                    const numA = cA ? (parseInt(cA.number) || 9999) : 9999;
+                    const numB = cB ? (parseInt(cB.number) || 9999) : 9999;
+                    return numA - numB;
+                });
             }
 
             const { doc, updateDoc } = window.fs;
