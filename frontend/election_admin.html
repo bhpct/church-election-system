@@ -144,10 +144,16 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                opacity: 0.1;
+                opacity: 0.12;
                 width: 60%;
                 pointer-events: none;
-                z-index: -1;
+                z-index: 10;
+                mix-blend-mode: multiply;
+            }
+            /* Ensure table rows do not block the watermark if they have backgrounds */
+            #printContainer table {
+                position: relative;
+                z-index: 1;
             }
         }
     </style>
@@ -351,7 +357,7 @@
                                 <div class="ballot-content position-relative shadow bg-white" style="width: 148mm; height: 210mm; margin: 0 auto; border: 2px dashed #999; padding: 15mm; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; background: transparent;">
                                     
                                     <!-- 浮水印 (正中間偏上，在文字後方) -->
-                                    <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印" style="position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); width: 70%; opacity: 0.15; z-index: -1; pointer-events: none;">
+                                    <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印" style="position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.12; z-index: 10; pointer-events: none; mix-blend-mode: multiply;">
                                     
                                     <!-- 上方標題區 -->
                                     <div class="text-center position-relative" style="z-index: 1;">
@@ -1214,6 +1220,6 @@
     };
 </script>
 
-<script src="election_admin.js?v=2.93"></script>
+<script src="election_admin.js?v=2.95"></script>
 </body>
 </html>
