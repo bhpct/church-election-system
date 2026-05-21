@@ -3383,7 +3383,8 @@ window.openElectedProjection = async function() {
     try {
         const db = window.firebaseDb;
         await window.fs.updateDoc(window.fs.doc(db, 'elections', currentElectionId), {
-            global_published: true
+            global_published: true,
+            org_name: currentOrgData ? currentOrgData.name : ''
         });
         
         document.getElementById('publishGlobalBtn').style.display = 'none';
@@ -3605,7 +3606,8 @@ window.printElectionResults = async function() {
                     <div class="page-break mb-4">
                         <h3 style="border-bottom: 2px solid #333; padding-bottom: 5px;">${item.title} - ${rName} 開票報表</h3>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold; background: #f0f0f0; padding: 10px; border-radius: 5px;">
-                            <span>出席人數/發票數：${totalIssued}</span>
+                            <span>出席人數：${currentElectionData.init_attending_count !== undefined ? currentElectionData.init_attending_count : '-'}</span>
+                            <span>總發票數：${totalIssued}</span>
                             <span>總收票數(含空白)：${totalReceived}</span>
                             <span>總空白票數：${totalBlank}</span>
                         </div>

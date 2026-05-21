@@ -221,7 +221,7 @@
                         const edata = docSnap.data();
                         if (edata.global_published && !isGlobalPublished) {
                             isGlobalPublished = true;
-                            renderGlobalOverview(electionId, db, edata.org_id, edata.name);
+                            renderGlobalOverview(electionId, db, edata);
                         }
                     }
                 });
@@ -489,7 +489,7 @@
             `;
         }
         
-        async function renderGlobalOverview(electionId, db, orgId, electionName) {
+        async function renderGlobalOverview(electionId, db, electionDocData) {
             if (window.voteTimerInterval) clearInterval(window.voteTimerInterval);
             document.getElementById('loadingSpinner').style.display = 'flex';
             document.getElementById('mainContent').style.display = 'none';
@@ -499,11 +499,8 @@
             `;
 
             try {
-                let orgName = '';
-                if (orgId) {
-                    const orgDoc = await db.collection('organizations').doc(orgId).get();
-                    if (orgDoc.exists) orgName = orgDoc.data().name;
-                }
+                const orgName = electionDocData.org_name || '';
+                const electionName = electionDocData.name || '';
 
                 // Fetch all items
                 const itemsSnap = await db.collection('elections').doc(electionId).collection('items').get();
