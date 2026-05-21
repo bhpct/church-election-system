@@ -75,11 +75,13 @@ async function loadOrgSwitcher(role, org_ids) {
             const snap = await getDocs(collection(db, 'organizations'));
             snap.forEach(doc => allOrgs.push({ id: doc.id, ...doc.data() }));
         } else if (role === 'ORG_ADMIN' && org_ids.length > 0) {
-            // 單位管理員：只載入授權的機構
-            const snap = await getDocs(collection(db, 'organizations'));
-            snap.forEach(doc => {
-                if (org_ids.includes(doc.id)) {
-                    allOrgs.push({ id: doc.id, ...doc.data() });
+            // 單位管理員：只載入授權的機構 (逐一讀取避免權限不足錯誤)
+            const { doc, getDoc } = window.fs;
+            const promises = org_ids.map(id => getDoc(doc(db, 'organizations', id)));
+            const snaps = await Promise.all(promises);
+            snaps.forEach(snap => {
+                if (snap.exists()) {
+                    allOrgs.push({ id: snap.id, ...snap.data() });
                 }
             });
         }
