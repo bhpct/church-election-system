@@ -93,14 +93,14 @@
         <div class="col-md-2 sidebar d-none d-md-block" id="sidebarMenu">
             <div class="text-center mb-4">
                 <img src="assets/logo.png" alt="Logo" style="width: 80px; height: 80px; border-radius: 10px; object-fit: cover; margin-bottom: 10px; background: white; padding: 5px;">
-                <h5 class="fw-bold">選舉後台</h5>
+                <h5 class="fw-bold">教會數位選舉系統</h5>
             </div>
             <a href="#" class="nav-link-btn active" data-target="section-overview"><i class="fas fa-home"></i> 總覽與選舉</a>
             
             <!-- 一般單位管理員選單 -->
             <div class="role-org-admin role-super-admin">
                 <h6 class="px-3 mt-4 mb-2 text-muted" style="font-size: 0.8rem; text-transform: uppercase;">本機構資訊</h6>
-                <a href="#" class="nav-link-btn" data-target="section-info"><i class="fas fa-info-circle"></i> 機構資訊設定</a>
+                <a href="#" class="nav-link-btn" data-target="section-info"><i class="fas fa-history"></i> 機構成員操作紀錄</a>
                 <a href="#" class="nav-link-btn" data-target="section-help"><i class="fas fa-book"></i> 系統操作手冊</a>
                 <a href="#" class="nav-link-btn" data-target="section-about"><i class="fas fa-shield-alt"></i> 版本與版權聲明</a>
             </div>
@@ -204,6 +204,176 @@
                             </div>
                         </div>
                     </div> <!-- /section-overview -->
+
+                    </div> <!-- /section-overview -->
+
+                    <!-- ============================================== -->
+                    <!-- 區塊：機構成員操作紀錄 -->
+                    <!-- ============================================== -->
+                    <div id="section-info" class="nav-section role-org-admin role-super-admin">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="m-0"><i class="fas fa-history text-primary"></i> <span class="current-org-name-display">當前機構</span> - 操作紀錄</h5>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover align-middle table-sm">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>時間</th>
+                                                    <th>操作人員</th>
+                                                    <th>動作</th>
+                                                    <th>對象</th>
+                                                    <th>詳細說明</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="auditLogTableBody">
+                                                <tr><td colspan="5" class="text-center text-muted py-3">載入中...</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================== -->
+                    <!-- 區塊：系統操作手冊 -->
+                    <!-- ============================================== -->
+                    <div id="section-help" class="nav-section role-org-admin role-super-admin">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card p-4">
+                                    <h4 class="mb-4"><i class="fas fa-book text-info"></i> 教會數位選舉系統 - 操作手冊</h4>
+                                    
+                                    <div class="accordion" id="helpAccordion">
+                                        <!-- Step 1 -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help1">
+                                                    1. 機構與權限設定
+                                                </button>
+                                            </h2>
+                                            <div id="help1" class="accordion-collapse collapse show" data-bs-parent="#helpAccordion">
+                                                <div class="accordion-body">
+                                                    <p>系統採用多層級架構，分為「超級管理員」與「單位管理員」。</p>
+                                                    <ul>
+                                                        <li><strong>超級管理員</strong>：可建立中會、教會等新機構，並授權 LINE 登入的成員管理特定機構。</li>
+                                                        <li><strong>單位管理員</strong>：僅能觀看與管理被授權的機構。請先在總覽設定好「機構公印」，系統才能自動在選票上加上浮水印，避免偽造。</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Step 2 -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help2">
+                                                    2. 新增與管理選舉
+                                                </button>
+                                            </h2>
+                                            <div id="help2" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                                                <div class="accordion-body">
+                                                    <p>點選總覽畫面的「新增選舉」，即可為該單位建立新的選舉場次。點選「進入管理」後即可開始規劃選票。</p>
+                                                    <ul>
+                                                        <li><strong>選舉設定：</strong>可調整當選門檻（過半數、多數決等）及是否開放重新投票。</li>
+                                                        <li><strong>建立輪次與項次：</strong>系統支援多輪選舉（如：長老選舉、執事選舉），您可為每一輪建立不同的候選人與應選名額。</li>
+                                                        <li>支援 Excel 批次匯入候選人名單。</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 3 -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help3">
+                                                    3. 產生金鑰與投票流程
+                                                </button>
+                                            </h2>
+                                            <div id="help3" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                                                <div class="accordion-body">
+                                                    <p>數位選票的發放是透過「一次性金鑰」與「QR Code」來進行的。</p>
+                                                    <ol>
+                                                        <li>在「選票金鑰管理」中輸入預計的發放數量。</li>
+                                                        <li>列印出包含 QR Code 與金鑰的紙本選票（會自動套印機構公印防止偽造）。</li>
+                                                        <li>會友掃描選票上的 QR Code，或至指定網址輸入金鑰，即可開始投票。</li>
+                                                        <li>投完票後金鑰即失效，確保一人一票。</li>
+                                                    </ol>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 4 -->
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help4">
+                                                    4. 開票與投影結果
+                                                </button>
+                                            </h2>
+                                            <div id="help4" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                                                <div class="accordion-body">
+                                                    <p>在投票期間，管理員可隨時停止投票並進行結算。</p>
+                                                    <ul>
+                                                        <li><strong>開啟投影畫面：</strong>點擊即可開啟專屬投影頁面（可透過 OBS 或大螢幕播放）。</li>
+                                                        <li><strong>結算並儲存結果：</strong>計算該輪次得票數，系統會依據設定的門檻判定當選人。</li>
+                                                        <li><strong>發布全局名單：</strong>選舉完全結束後，可發布當選總覽，所有掃描過選票的手機會自動跳轉顯示最後的當選結果。</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================== -->
+                    <!-- 區塊：版本與版權聲明 -->
+                    <!-- ============================================== -->
+                    <div id="section-about" class="nav-section role-org-admin role-super-admin">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card p-5 text-center">
+                                    <div class="mb-4">
+                                        <img src="assets/logo.png" alt="Logo" style="width: 120px; height: 120px; border-radius: 15px; object-fit: cover; background: white; padding: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                    </div>
+                                    <h3 class="fw-bold mb-1">教會數位選舉系統</h3>
+                                    <p class="text-muted mb-4">Church Digital Election System</p>
+                                    
+                                    <div class="row justify-content-center mb-5">
+                                        <div class="col-md-6 text-start">
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center">
+                                                    <span class="text-muted">當前版本</span>
+                                                    <span class="badge bg-primary rounded-pill">v2.96</span>
+                                                </li>
+                                                <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center">
+                                                    <span class="text-muted">開發者</span>
+                                                    <span class="fw-bold">宋承祐 牧師</span>
+                                                </li>
+                                                <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center">
+                                                    <span class="text-muted">版權所有</span>
+                                                    <span class="fw-bold">財團法人台灣基督長老教會傳播基金會</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div class="text-start p-4 bg-light rounded shadow-sm" style="font-size: 0.9rem;">
+                                        <h6 class="fw-bold mb-3"><i class="fas fa-history text-secondary"></i> 版本更新梗概</h6>
+                                        <ul class="mb-0 text-muted" style="line-height: 1.8;">
+                                            <li><strong>v2.96</strong> - 優化全局當選總覽數據聯集運算、自動強制跳轉機制、公印浮水印圖層問題。</li>
+                                            <li><strong>v2.90</strong> - 新增機構成員操作紀錄 (Audit Log)、系統操作手冊、完善版權標示。</li>
+                                            <li><strong>v2.00</strong> - 全面重構為無伺服器架構，引入多層級權限與 Firebase 雲端資料庫。</li>
+                                            <li><strong>v1.00</strong> - 系統正式上線，提供基本金鑰驗證與開票投影功能。</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- ============================================== -->
                     <!-- 區塊：超級管理員 - 機構與單位管理 -->
@@ -420,6 +590,7 @@
     };
 </script>
 
-<script src="dashboard.js"></script>
+<script src="utils.js?v=2.96"></script>
+<script src="dashboard.js?v=2.96"></script>
 </body>
 </html>

@@ -93,6 +93,10 @@ document.addEventListener('DOMContentLoaded', () => {
             Swal.fire('儲存成功', '預設參數已更新，並成功同步至所有輪次！', 'success').then(() => {
                 window.location.reload();
             });
+            
+            if (window.logAuditAction && currentElectionData) {
+                window.logAuditAction(currentElectionData.org_id, 'UPDATE', '選舉參數', `更新了全域選舉門檻與參數`);
+            }
 
         } catch (error) {
             console.error("儲存參數失敗:", error);

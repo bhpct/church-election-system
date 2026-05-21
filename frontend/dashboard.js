@@ -190,6 +190,43 @@ window.switchOrgContext = async function() {
             });
         }
 
+        // 3. 載入操作紀錄 (Audit Logs)
+        const tbodyLog = document.getElementById('auditLogTableBody');
+        if (tbodyLog) {
+            tbodyLog.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">載入中...</td></tr>';
+            const qLog = query(collection(db, 'audit_logs'), where('org_id', '==', selectedOrgId));
+            const logsSnap = await getDocs(qLog);
+            
+            let logs = [];
+            logsSnap.forEach(doc => {
+                logs.push({ id: doc.id, ...doc.data() });
+            });
+            
+            logs.sort((a, b) => {
+                const timeA = a.timestamp ? a.timestamp.toMillis() : 0;
+                const timeB = b.timestamp ? b.timestamp.toMillis() : 0;
+                return timeB - timeA; // 最新在上
+            });
+            
+            tbodyLog.innerHTML = '';
+            if (logs.length === 0) {
+                tbodyLog.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">尚無操作紀錄</td></tr>';
+            } else {
+                logs.forEach(log => {
+                    const timeStr = log.timestamp ? new Date(log.timestamp.toDate()).toLocaleString() : '未知';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="text-nowrap">${timeStr}</td>
+                        <td class="text-nowrap">${log.user_name || '未知'}</td>
+                        <td class="text-nowrap"><span class="badge bg-secondary">${log.action}</span></td>
+                        <td class="text-nowrap">${log.target}</td>
+                        <td>${log.details}</td>
+                    `;
+                    tbodyLog.appendChild(tr);
+                });
+            }
+        }
+
     } catch (error) {
         console.error("載入機構內容失敗:", error);
         Swal.fire('錯誤', '無法載入機構專屬資料', 'error');
@@ -416,6 +453,11 @@ async function loadAdminDashboard() {
 
             Swal.fire('成功', `公印已自動去背並成功儲存！(大小: ${sizeInKB} KB)`, 'success');
             
+            // 寫入 Audit Log
+            if (window.logAuditAction) {
+                await window.logAuditAction(orgId, 'UPDATE', '公印', `上傳並更新了機構公印 (大小: ${sizeInKB} KB)`);
+            }
+            
             // 關閉 Modal
             const modalEl = document.getElementById('cropSealModal');
             bootstrap.Modal.getInstance(modalEl).hide();
@@ -464,6 +506,10 @@ async function loadAdminDashboard() {
 
             Swal.fire('成功', '已成功建立選舉場次！', 'success');
             
+            if (window.logAuditAction) {
+                await window.logAuditAction(orgId, 'CREATE', '選舉', `建立了新的選舉場次: ${electionName}`);
+            }
+            
             const modalEl = document.getElementById('createElectionModal');
             const modal = bootstrap.Modal.getInstance(modalEl);
             modal.hide();
@@ -505,6 +551,12 @@ async function loadAdminDashboard() {
                     });
                     
                     Swal.fire('成功', '已封存', 'success');
+                    
+                    const currentOrgId = document.getElementById('currentOrgSelect').value;
+                    if (window.logAuditAction && currentOrgId) {
+                        await window.logAuditAction(currentOrgId, 'ARCHIVE', '選舉', `封存了選舉場次: ${electionName}`);
+                    }
+                    
                     window.switchOrgContext();
                 } catch (error) {
                     Swal.fire('錯誤', error.message, 'error');
@@ -533,6 +585,12 @@ async function loadAdminDashboard() {
                     await deleteDoc(doc(db, 'elections', electionId));
                     
                     Swal.fire('成功', '已刪除', 'success');
+
+                    const currentOrgId = document.getElementById('currentOrgSelect').value;
+                    if (window.logAuditAction && currentOrgId) {
+                        await window.logAuditAction(currentOrgId, 'DELETE', '選舉', `徹底刪除了選舉場次: ${electionName}`);
+                    }
+                    
                     window.switchOrgContext();
                 } catch (error) {
                     Swal.fire('錯誤', error.message, 'error');
@@ -557,13 +615,17 @@ async function loadAdminDashboard() {
             saveBtn.disabled = true;
             saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 建立中...';
 
-            await addDoc(collection(db, 'organizations'), {
+            const newOrgRef = await addDoc(collection(db, 'organizations'), {
                 name: orgName,
                 seal_url: null,
                 createdAt: serverTimestamp()
             });
 
             Swal.fire('成功', '已成功建立機構！', 'success');
+            
+            if (window.logAuditAction) {
+                await window.logAuditAction(newOrgRef.id, 'CREATE', '機構', `建立了新的機構: ${orgName}`);
+            }
             
             const modalEl = document.getElementById('createOrgModal');
             const modal = bootstrap.Modal.getInstance(modalEl);
@@ -613,6 +675,13 @@ async function loadAdminDashboard() {
                     
                     if (data.success) {
                         Swal.fire('已刪除', '機構與相關資料已成功刪除', 'success');
+                        
+                        // 注意：因為機構已經被刪除，紀錄寫在哪個機構已經無意義，
+                        // 但如果是保留全域紀錄，可以在超級管理員介面看到，這裡選擇不寫入或寫入已被刪除的 ID 供後續追蹤
+                        if (window.logAuditAction) {
+                            await window.logAuditAction(orgId, 'DELETE', '機構', `徹底刪除機構及其所有選舉: ${orgName}`);
+                        }
+                        
                         await loadOrgSwitcher('SUPER_ADMIN', []);
                         loadAdminDashboard();
                     } else {
@@ -696,6 +765,14 @@ async function loadAdminDashboard() {
             }
 
             Swal.fire('成功', '權限設定已儲存！對方重新整理頁面後即可生效。', 'success');
+            
+            // 針對每個被授權的機構寫入操作紀錄
+            if (window.logAuditAction) {
+                for (const oid of selectedOrgIds) {
+                    await window.logAuditAction(oid, 'UPDATE', '權限', `授權管理員權限給: ${document.getElementById('assignTargetName').textContent}`);
+                }
+            }
+            
             bootstrap.Modal.getInstance(document.getElementById('assignAdminModal')).hide();
             
             // 重新載入列表
