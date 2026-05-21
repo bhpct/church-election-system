@@ -176,6 +176,25 @@ async function loadElectionData() {
         if (status === 'PENDING') {
             statusBadge.textContent = '準備中';
             statusBadge.className = 'badge bg-secondary me-2';
+        } else if (status === 'ARCHIVED') {
+            statusBadge.textContent = '已封存';
+            statusBadge.className = 'badge bg-dark me-2';
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-dark mt-3 fw-bold mx-4 shadow-sm';
+            alertDiv.innerHTML = '<i class="fas fa-archive"></i> 此選舉場次已封存。您目前為唯讀模式，僅能查看歷史當選名單與報表。';
+            document.querySelector('.topbar').insertAdjacentElement('afterend', alertDiv);
+            
+            setTimeout(() => {
+                const disableSelectors = ['#btnImportExcel', '#btnClearCandidates', '#btnOpenCreateItemModal', '#confirmSaveSettingsBtn', '.btn-danger', '.btn-warning', '.btn-success'];
+                disableSelectors.forEach(selector => {
+                    document.querySelectorAll(selector).forEach(el => {
+                        el.disabled = true;
+                        el.style.opacity = '0.5';
+                        el.style.pointerEvents = 'none';
+                    });
+                });
+            }, 500);
         } else {
             statusBadge.textContent = status === 'ACTIVE' ? '投票中' : (status === 'CLOSED' ? '開票中' : '結果發布');
             statusBadge.className = status === 'ACTIVE' ? 'badge bg-success me-2' : 'badge bg-warning text-dark me-2';

@@ -178,7 +178,10 @@ window.switchOrgContext = async function() {
 
                 let actionBtns = '';
                 if (isArchived) {
-                    actionBtns = `<button class="btn btn-sm btn-outline-danger" onclick="deleteElection('${election.id}', '${election.name}')">徹底刪除</button>`;
+                    actionBtns = `
+                        <a href="election_admin.html?id=${election.id}" class="btn btn-sm btn-outline-info">查看結果與報表</a>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteElection('${election.id}', '${election.name}')">徹底刪除</button>
+                    `;
                 } else {
                     actionBtns = `
                         <a href="election_admin.html?id=${election.id}" class="btn btn-sm btn-primary">進入管理</a>
