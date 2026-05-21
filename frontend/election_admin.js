@@ -2699,28 +2699,45 @@ async function doSaveTallyData(itemId, roundId) {
             updatedAt: window.fs.serverTimestamp()
         }, { merge: true });
 
+        // 計算此項次下「所有輪次」的當選人總聯集 (確保不會誤刪前面輪次的當選紀錄)
+        const roundsSnap = await window.fs.getDocs(window.fs.collection(db, 'elections', currentElectionId, 'items', itemId, 'rounds'));
+        const allElectedIdsForThisItem = new Set(electedIds); // 包含當前正在儲存的輪次
+        
+        roundsSnap.forEach(docSnap => {
+            if (docSnap.id !== roundId) { // 排除當前輪次，因為當前輪次的資料在 electedIds 中
+                const rData = docSnap.data();
+                if (rData.elected_ids && Array.isArray(rData.elected_ids)) {
+                    rData.elected_ids.forEach(id => allElectedIdsForThisItem.add(id));
+                }
+            }
+        });
+
         // 寫回 candidates 總表 (儲存即同步總表)
         const { writeBatch } = window.fs;
         const batch = writeBatch(db);
         const item = allItems.find(i => i.id === itemId);
         
-        // 找出所有此輪的候選人，根據是否被勾選當選來更新
-        currentTallyData.candidates.forEach(c => {
-            const isElectedNow = electedIds.includes(c.id);
+        // 檢查「所有」候選人，確保全域當選狀態與所有輪次的結果一致
+        allCandidates.forEach(c => {
+            const shouldBeElectedHere = allElectedIdsForThisItem.has(c.id);
             const candRef = doc(db, 'elections', currentElectionId, 'candidates', c.id);
-            if (isElectedNow) {
-                batch.update(candRef, {
-                    elected_item: item.title,
-                    updatedAt: window.fs.serverTimestamp()
-                });
+            
+            if (shouldBeElectedHere) {
+                if (c.elected_item !== item.title) {
+                    batch.update(candRef, {
+                        elected_item: item.title,
+                        updatedAt: window.fs.serverTimestamp()
+                    });
+                }
             } else if (c.elected_item === item.title) {
-                // 如果原本有當選此項次，但現在被取消勾選，則清空
+                // 如果他不該在這個項次當選，但他身上卻標記了這個項次，就清空
                 batch.update(candRef, {
                     elected_item: null,
                     updatedAt: window.fs.serverTimestamp()
                 });
             }
         });
+        
         await batch.commit();
         
         // **重要：儲存後必須重新載入全域資料，確保後續操作抓到最新數據**
