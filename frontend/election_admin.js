@@ -850,18 +850,18 @@ function renderItemsAccordion(generatedKeysSet = new Set()) {
             
             const displaySeats = round.seats !== undefined ? round.seats : item.seats;
             const hasKeys = generatedKeysSet.has(item.id + "_" + round.id);
-            const keyBadge = hasKeys ? '<span class="badge bg-success ms-2">金鑰已產生</span>' : '<span class="badge bg-secondary ms-2">尚未產生金鑰</span>';
+            const keyBtnClass = hasKeys ? 'btn-success text-white' : 'btn-outline-secondary';
+            const keyBtnText = hasKeys ? '<i class="fas fa-key"></i> 金鑰 (已產生)' : '<i class="fas fa-key"></i> 金鑰 (未產生)';
             
             roundsHtml += `
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                     <div>
                         <strong>${getRoundName(round.id)}</strong> <small class="text-muted ms-1">(本輪應選 ${displaySeats} 席)</small>
                         <span class="badge bg-${statusColor} ms-2">${statusText}</span>
-                        ${keyBadge}
                     </div>
                     <div>
                         <button class="btn btn-sm btn-outline-warning" onclick="openEditRoundModal('${item.id}', '${round.id}')"><i class="fas fa-edit"></i> 修改參數</button>
-                        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="openKeyManagement('${item.id}', '${round.id}')"><i class="fas fa-key"></i> 金鑰</button>
+                        <button class="btn btn-sm ${keyBtnClass} ms-1" onclick="openKeyManagement('${item.id}', '${round.id}')">${keyBtnText}</button>
                         <button class="btn btn-sm btn-outline-primary ms-1" onclick="openRoundCandidates('${item.id}', '${round.id}')">調整名單 (${round.candidate_ids ? round.candidate_ids.length : 0}人在候選區)</button>
                         <button class="btn btn-sm btn-success ms-1" onclick="startRound('${item.id}', '${round.id}')" ${round.status !== 'PENDING' ? 'disabled' : ''}>開始投票</button>
                         <button class="btn btn-sm btn-info text-white ms-1" onclick="openTallyCenter('${item.id}', '${round.id}')" style="display: ${round.status !== 'PENDING' ? 'inline-block' : 'none'};">開票中心</button>
@@ -1017,8 +1017,10 @@ function updateDynamicFormOptions() {
     // 只列出正常(非不可被選)的候選人
     const eligibleCands = allCandidates.filter(c => !c.is_ineligible);
     eligibleCands.forEach(c => {
-        const distText = c.district ? ` - ${c.district}` : '';
-        forcedSelect.innerHTML += `<option value="${c.id}">${c.number} ${c.name}${distText}</option>`;
+        const numberText = c.number || '-';
+        const distText = c.district || '';
+        const unitText = c.unit || '';
+        forcedSelect.innerHTML += `<option value="${c.id}">${numberText} ${c.name} ${distText} ${unitText}</option>`;
     });
 }
 
