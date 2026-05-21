@@ -494,9 +494,16 @@
       <div class="modal-body">
         <p class="mb-3">目前正在為 <strong id="assignTargetName" class="text-primary"></strong> 設定權限。</p>
         <input type="hidden" id="assignTargetUid">
-        <div class="mb-2 fw-bold">允許管轄的機構 (可複選)：</div>
-        <div id="orgCheckboxesContainer" class="border p-3 rounded" style="max-height: 250px; overflow-y: auto;">
-            <!-- 核取方塊將由 JS 動態產生 -->
+        <div class="form-check form-switch mb-3 mt-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="superAdminToggle" onchange="document.getElementById('orgSelectionBlock').style.display = this.checked ? 'none' : 'block'">
+            <label class="form-check-label fw-bold text-danger" for="superAdminToggle"><i class="fas fa-crown"></i> 設為超級管理員 (擁有系統所有機構與權限)</label>
+        </div>
+        <div id="orgSelectionBlock">
+            <div class="mb-2 fw-bold">允許管轄的機構 (可複選)：</div>
+            <div id="orgCheckboxesContainer" class="border p-3 rounded bg-white" style="max-height: 250px; overflow-y: auto;">
+                <!-- 核取方塊將由 JS 動態產生 -->
+            </div>
+            <div class="text-muted small mt-1">若未勾選任何機構且未開啟超級管理員，該帳號將轉為「未授權」狀態。</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -615,7 +622,7 @@
     };
 </script>
 
-<script src="utils.js?v=2.99"></script>
-<script src="dashboard.js?v=2.99"></script>
+<script src="utils.js?v=3.01"></script>
+<script src="dashboard.js?v=3.01"></script>
 </body>
 </html>

@@ -719,6 +719,17 @@ async function loadAdminDashboard() {
 
         document.getElementById('assignTargetName').textContent = name;
         document.getElementById('assignTargetUid').value = uid;
+        
+        const superToggle = document.getElementById('superAdminToggle');
+        const orgSelectionBlock = document.getElementById('orgSelectionBlock');
+        
+        if (targetUser.role === 'SUPER_ADMIN') {
+            superToggle.checked = true;
+            orgSelectionBlock.style.display = 'none';
+        } else {
+            superToggle.checked = false;
+            orgSelectionBlock.style.display = 'block';
+        }
 
         const container = document.getElementById('orgCheckboxesContainer');
         container.innerHTML = '';
@@ -757,7 +768,12 @@ async function loadAdminDashboard() {
             btn.disabled = true;
             btn.textContent = '儲存中...';
 
-            const newRole = selectedOrgIds.length > 0 ? 'ORG_ADMIN' : 'GUEST';
+            let newRole = 'GUEST';
+            if (document.getElementById('superAdminToggle').checked) {
+                newRole = 'SUPER_ADMIN';
+            } else {
+                newRole = selectedOrgIds.length > 0 ? 'ORG_ADMIN' : 'GUEST';
+            }
 
             // 取得目前的 Firebase ID Token
             const idToken = await window.firebaseAuth.currentUser.getIdToken(true);
