@@ -3235,17 +3235,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // 若選擇「沿用名單 (ALL)」，最後再針對 nextRoundIds 做一次號次排序
-            // 避免因為分區邏輯 (區塊 append) 導致號碼順序被打亂
-            if (filterType === 'ALL') {
-                nextRoundIds.sort((idA, idB) => {
-                    const cA = allCandidates.find(c => c.id === idA);
-                    const cB = allCandidates.find(c => c.id === idB);
-                    const numA = cA ? (parseInt(cA.number) || 9999) : 9999;
-                    const numB = cB ? (parseInt(cB.number) || 9999) : 9999;
-                    return numA - numB;
-                });
-            }
+            // ==========================
+            // 權威排序機制 (決定下一輪選單中候選人的呈現順序)
+            // ==========================
+            // 排序條件 1：分區 (依照原始名單出現順序)
+            // 排序條件 2：如果是晉級篩選(+N / N倍)，則依照得票數(高至低)；如果是沿用(ALL)，則忽略得票數
+            // 排序條件 3：號次 (小至大)
+            const distOrder = [...new Set(allCandidates.map(c => c.district).filter(Boolean))];
+            
+            nextRoundIds.sort((idA, idB) => {
+                const cA = allCandidates.find(c => c.id === idA) || {};
+                const cB = allCandidates.find(c => c.id === idB) || {};
+                
+                // 1. 分區排序
+                const distAIdx = distOrder.indexOf(cA.district);
+                const distBIdx = distOrder.indexOf(cB.district);
+                const aDistScore = distAIdx === -1 ? 9999 : distAIdx;
+                const bDistScore = distBIdx === -1 ? 9999 : distBIdx;
+                if (aDistScore !== bDistScore) return aDistScore - bDistScore;
+                
+                // 2. 得票數排序 (僅在非 ALL 時套用)
+                if (filterType !== 'ALL') {
+                    const tallyA = currentTallyData.candidates.find(c => c.id === idA);
+                    const tallyB = currentTallyData.candidates.find(c => c.id === idB);
+                    const votesA = tallyA ? tallyA.total_votes : 0;
+                    const votesB = tallyB ? tallyB.total_votes : 0;
+                    if (votesA !== votesB) return votesB - votesA; // 高至低
+                }
+                
+                // 3. 號次排序
+                const numA = parseInt(cA.number) || 9999;
+                const numB = parseInt(cB.number) || 9999;
+                return numA - numB; // 小至大
+            });
 
             const { doc, updateDoc } = window.fs;
             const db = window.firebaseDb;
