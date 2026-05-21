@@ -185,16 +185,18 @@ async function loadElectionData() {
             alertDiv.innerHTML = '<i class="fas fa-archive"></i> 此選舉場次已封存。您目前為唯讀模式，僅能查看歷史當選名單與報表。';
             document.querySelector('.topbar').insertAdjacentElement('afterend', alertDiv);
             
+            // 隱藏報表以外的所有標籤頁
+            const tabsToHide = ['section-overview', 'section-candidates', 'section-keys', 'section-preview', 'section-tally'];
+            tabsToHide.forEach(tab => {
+                const btn = document.querySelector(`.nav-link-btn[data-target="${tab}"]`);
+                if (btn) btn.style.display = 'none';
+            });
+            
+            // 自動切換到報表頁
             setTimeout(() => {
-                const disableSelectors = ['#btnImportExcel', '#btnClearCandidates', '#btnOpenCreateItemModal', '#confirmSaveSettingsBtn', '.btn-danger', '.btn-warning', '.btn-success'];
-                disableSelectors.forEach(selector => {
-                    document.querySelectorAll(selector).forEach(el => {
-                        el.disabled = true;
-                        el.style.opacity = '0.5';
-                        el.style.pointerEvents = 'none';
-                    });
-                });
-            }, 500);
+                const reportBtn = document.querySelector('.nav-link-btn[data-target="section-reports"]');
+                if (reportBtn) reportBtn.click();
+            }, 100);
         } else {
             statusBadge.textContent = status === 'ACTIVE' ? '投票中' : (status === 'CLOSED' ? '開票中' : '結果發布');
             statusBadge.className = status === 'ACTIVE' ? 'badge bg-success me-2' : 'badge bg-warning text-dark me-2';
