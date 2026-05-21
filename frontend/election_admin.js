@@ -185,7 +185,6 @@ async function loadElectionData() {
         if (currentElectionData.init_attending_count !== undefined && currentElectionData.init_attending_count !== null) {
             document.getElementById('globalInitAttending').value = currentElectionData.init_attending_count;
         }
-        document.getElementById('advShowRanks').checked = currentElectionData.show_ranks !== false;
 
         // 根據 global_published 狀態切換按鈕
         const pubBtn = document.getElementById('publishGlobalBtn');
@@ -3692,18 +3691,17 @@ window.searchKeyStatus = async function() {
         `;
         
         if (keyData.status === 'USED') {
-            const votesSnap = await window.fs.getDocs(window.fs.query(
-                window.fs.collection(db, 'elections', currentElectionId, 'votes'),
-                window.fs.where('key_id', '==', keyDoc.id)
-            ));
+            const voteDocRef = window.fs.doc(db, 'elections', currentElectionId, 'votes', keyData.vote_ref);
+            const voteDoc = await window.fs.getDoc(voteDocRef);
             
             html += `<h6 class="fw-bold border-bottom pb-2 mt-4 mb-3 text-success">投票明細 (防弊查驗)</h6>`;
             
-            if (votesSnap.empty) {
+            if (!voteDoc.exists()) {
                 html += `<div class="alert alert-warning p-2">狀態標記為已使用，但查無對應選票檔案！</div>`;
             } else {
-                const voteData = votesSnap.docs[0].data();
-                const vTime = voteData.createdAt ? new Date(voteData.createdAt.toMillis()).toLocaleString('zh-TW', { hour12: false }) : '無時間紀錄';
+                const voteData = voteDoc.data();
+                const vts = voteData.created_at || voteData.createdAt;
+                const vTime = vts ? new Date(vts.toMillis()).toLocaleString('zh-TW', { hour12: false }) : '無時間紀錄';
                 html += `
                     <div class="mb-2"><strong>投票送出時間 (精確到秒)：</strong><br><span class="text-danger fw-bold fs-5">${vTime}</span></div>
                     <div class="mb-2"><strong>實際圈選對象：</strong></div>
@@ -3801,10 +3799,11 @@ window.printDigitalBallotArchive = async function() {
                     let voteTime = '-';
                     let candsTxt = '-';
                     
-                    if (k.status === 'USED') {
-                        const vote = allVotes.find(v => v.key_id === k.id);
+                    if (k.status === 'USED' && k.vote_ref) {
+                        const vote = allVotes.find(v => v.id === k.vote_ref);
                         if (vote) {
-                            voteTime = vote.createdAt ? new Date(vote.createdAt.toMillis()).toLocaleString('zh-TW', { hour12: false }) : '無紀錄';
+                            const vts = vote.created_at || vote.createdAt;
+                            voteTime = vts ? new Date(vts.toMillis()).toLocaleString('zh-TW', { hour12: false }) : '無紀錄';
                             if (!vote.candidate_ids || vote.candidate_ids.length === 0) {
                                 candsTxt = '(空白票)';
                             } else {
