@@ -282,19 +282,22 @@ async function loadAdminDashboard() {
 
         usersSnap.forEach(doc => {
             const u = doc.data();
-            if (u.role !== 'SUPER_ADMIN') {
-                u.uid = doc.id;
-                allUsers.push(u);
-            }
+            u.uid = doc.id;
+            allUsers.push(u);
         });
 
         if (allUsers.length === 0) {
             tbodyUser.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">無其他使用者</td></tr>';
         } else {
             allUsers.forEach(u => {
-                const roleBadge = (!u.role || u.role === 'GUEST') 
-                                ? '<span class="badge bg-warning text-dark">審核中</span>' 
-                                : '<span class="badge bg-primary">已授權單位管理員</span>';
+                let roleBadge = '';
+                if (u.role === 'SUPER_ADMIN') {
+                    roleBadge = '<span class="badge bg-danger"><i class="fas fa-crown"></i> 系統超級管理員</span>';
+                } else if (!u.role || u.role === 'GUEST') {
+                    roleBadge = '<span class="badge bg-warning text-dark">審核中</span>';
+                } else {
+                    roleBadge = '<span class="badge bg-primary">已授權單位管理員</span>';
+                }
                 
                 const uOrgIds = u.org_ids || [];
                 let orgNames = [];
@@ -322,7 +325,10 @@ async function loadAdminDashboard() {
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>
                         <button class="btn btn-sm btn-outline-secondary" onclick="openEditNoteModal('${u.uid}', '${u.name}', '${u.note || ''}')">備註</button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAdminUser('${u.uid}', '${u.name}')">刪除</button>
+                        ${ u.uid === window.firebaseAuth.currentUser.uid 
+                            ? `<button class="btn btn-sm btn-outline-danger" disabled title="無法刪除自己的帳號">刪除</button>` 
+                            : `<button class="btn btn-sm btn-outline-danger" onclick="deleteAdminUser('${u.uid}', '${u.name}')">刪除</button>` 
+                        }
                     </td>
                 `;
                 tbodyUser.appendChild(tr);
