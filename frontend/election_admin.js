@@ -185,7 +185,20 @@ async function loadElectionData() {
         if (currentElectionData.init_attending_count !== undefined && currentElectionData.init_attending_count !== null) {
             document.getElementById('globalInitAttending').value = currentElectionData.init_attending_count;
         }
+        document.getElementById('advShowRanks').checked = currentElectionData.show_ranks !== false;
 
+        // 根據 global_published 狀態切換按鈕
+        const pubBtn = document.getElementById('publishGlobalBtn');
+        const unpubBtn = document.getElementById('unpublishGlobalBtn');
+        if (pubBtn && unpubBtn) {
+            if (currentElectionData.global_published) {
+                pubBtn.style.display = 'none';
+                unpubBtn.style.display = 'inline-block';
+            } else {
+                pubBtn.style.display = 'inline-block';
+                unpubBtn.style.display = 'none';
+            }
+        }
 
         // 5. 載入子集合資料
         await loadCandidates();
@@ -3367,6 +3380,10 @@ window.openElectedProjection = async function() {
         await window.fs.updateDoc(window.fs.doc(db, 'elections', currentElectionId), {
             global_published: true
         });
+        
+        document.getElementById('publishGlobalBtn').style.display = 'none';
+        document.getElementById('unpublishGlobalBtn').style.display = 'inline-block';
+        
         Swal.fire({
             title: '已公布全局當選名單！',
             text: '選民用 QR Code 掃描進入結果頁面時，將會強制顯示所有項次的全局當選總覽。',
@@ -3436,6 +3453,29 @@ window.openElectedProjection = async function() {
     html += `</body></html>`;
     win.document.write(html);
     win.document.close();
+};
+
+window.unpublishElectedProjection = async function() {
+    try {
+        const db = window.firebaseDb;
+        await window.fs.updateDoc(window.fs.doc(db, 'elections', currentElectionId), {
+            global_published: false
+        });
+        
+        document.getElementById('publishGlobalBtn').style.display = 'inline-block';
+        document.getElementById('unpublishGlobalBtn').style.display = 'none';
+        
+        Swal.fire({
+            title: '已撤銷公布',
+            text: '已恢復為顯示各輪次的獨立結果。',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } catch (e) {
+        console.error('撤銷全域公布狀態失敗:', e);
+        Swal.fire('錯誤', '撤銷失敗', 'error');
+    }
 };
 
 window.printElectionResults = async function() {
