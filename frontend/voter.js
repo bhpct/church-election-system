@@ -351,8 +351,8 @@ function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
             const isAlreadySelected = allSelectedVals.includes(cid);
             if (isAlreadySelected) return; // 防呆：已選擇的候選人直接從其他選單消失
             
-            // 防呆：如果該分區已達應選上限，則從選單消失
-            if (itemData.require_district && itemData.selected_districts && c.district) {
+            // 防呆：如果該分區已達應選上限，則從選單消失 (保留專屬格不受此限)
+            if (!isForcedCell && itemData.require_district && itemData.selected_districts && c.district) {
                 const limit = itemData.selected_districts[c.district] || 1; // 容錯，預設1
                 const currentCount = selectedDistrictsCount[c.district] || 0;
                 if (currentCount >= limit) {
@@ -392,6 +392,23 @@ function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
                     inputEl.parentElement.style.display = 'none';
                     box.querySelector('.selected-candidate').style.display = 'flex';
                     dropdownEl.style.display = 'none';
+                    
+                    // 若為保留名額專屬格，恢復黃色徽章樣式
+                    if (isForcedCell) {
+                        const selectedDiv = box.querySelector('.selected-candidate');
+                        selectedDiv.classList.add('border-warning', 'bg-light');
+                        const badge = box.querySelector('.selected-num');
+                        badge.classList.remove('bg-primary', 'bg-secondary');
+                        badge.classList.add('bg-warning', 'text-dark');
+                        badge.textContent = '保障';
+                    } else {
+                        // 若為一般格，確保是藍色樣式
+                        const selectedDiv = box.querySelector('.selected-candidate');
+                        selectedDiv.classList.remove('border-warning', 'bg-light');
+                        const badge = box.querySelector('.selected-num');
+                        badge.classList.remove('bg-warning', 'text-dark', 'bg-secondary');
+                        badge.classList.add('bg-primary');
+                    }
                 });
             
             dropdownEl.appendChild(div);
