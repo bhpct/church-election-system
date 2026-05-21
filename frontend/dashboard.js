@@ -84,6 +84,13 @@ async function loadOrgSwitcher(role, org_ids) {
             });
         }
 
+        // 依據機構名稱進行排序 (中文排序)
+        allOrgs.sort((a, b) => {
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB, 'zh-TW');
+        });
+
         selectEl.innerHTML = '';
         if (allOrgs.length === 0) {
             selectEl.innerHTML = '<option value="">目前無可用機構</option>';
