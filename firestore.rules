@@ -63,5 +63,12 @@ service cloud.firestore {
         allow write: if isSuperAdmin() || isOrgAdmin(get(/databases/$(database)/documents/elections/$(electionId)).data.org_id);
       }
     }
+    // ==========================================
+    // Audit Logs 集合
+    // ==========================================
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin() || isOrgAdmin(resource.data.org_id);
+      allow write: if isSuperAdmin() || isOrgAdmin(request.resource.data.org_id);
+    }
   }
 }
