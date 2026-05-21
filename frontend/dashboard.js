@@ -96,6 +96,7 @@ async function loadOrgSwitcher(role, org_ids) {
         selectEl.innerHTML = '';
         if (allOrgs.length === 0) {
             selectEl.innerHTML = '<option value="">目前無可用機構</option>';
+            document.getElementById('orgContextArea').style.display = 'none';
         } else {
             allOrgs.forEach(org => {
                 const opt = document.createElement('option');
