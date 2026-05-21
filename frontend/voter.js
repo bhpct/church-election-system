@@ -188,11 +188,17 @@ function buildBallotUI() {
     // 如果有分區限制，詳細列出各區應選名額
     if (itemData.require_district && itemData.selected_districts) {
         let districtDetails = [];
-        for (const [dist, seats] of Object.entries(itemData.selected_districts)) {
-            districtDetails.push(`[${dist}] 應選 ${seats} 名`);
-        }
+        // 取得所有候選人中出現過的分區，藉此保留上傳時的自然排序
+        const allDistrictsInOrder = [...new Set(Object.values(candidatesMap).map(c => c.district).filter(Boolean))];
+        
+        allDistrictsInOrder.forEach(dist => {
+            if (itemData.selected_districts[dist]) {
+                districtDetails.push(`[${dist}] 應選 ${itemData.selected_districts[dist]} 名`);
+            }
+        });
+
         if (districtDetails.length > 0) {
-            districtRuleEl.innerHTML = `(含強制分區限制)<br><span class="text-secondary fw-normal">配置：${districtDetails.join('、')}</span>`;
+            districtRuleEl.innerHTML = `(含強制分區限制)<br><div class="text-secondary fw-normal mt-1 d-inline-block text-start">配置：<br>${districtDetails.join('<br>')}</div>`;
             districtRuleEl.style.display = 'block';
         } else {
             districtRuleEl.innerHTML = `(含強制分區限制)`;
@@ -211,60 +217,58 @@ function buildBallotUI() {
         
         const box = document.createElement('div');
         box.className = 'candidate-search-box mb-3';
+        box.innerHTML = `
+            <label class="form-label text-muted fw-bold">圈選欄 ${i+1}</label>
+            <div class="input-group has-validation">
+                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" class="form-control form-control-lg candidate-search-input" placeholder="輸入號碼/姓名/分區搜尋...">
+                <input type="hidden" class="ballot-vote-val" value="">
+                <div class="invalid-feedback text-start fw-bold" style="font-size: 0.9rem;">
+                    <i class="fas fa-exclamation-triangle"></i> 請務必點擊選單內的候選人，才算有效圈選！
+                </div>
+            </div>
+            <div class="candidate-dropdown"></div>
+            <div class="selected-candidate align-items-center" style="display:none; margin-top: 10px;">
+                <img src="" class="selected-photo rounded-circle border me-2" style="width:40px;height:40px;object-fit:cover;display:none;">
+                <div class="text-start flex-grow-1">
+                    <span class="badge bg-primary me-2 selected-num"></span>
+                    <strong class="selected-name fs-5"></strong>
+                    <small class="text-muted ms-1 selected-dist"></small>
+                </div>
+                <button class="btn btn-sm btn-outline-danger btn-clear-selection ms-auto"><i class="fas fa-times"></i></button>
+            </div>
+        `;
         
-        if (isForcedCell) {
-            const photoHtml = forcedCand.photo_base64 ? `<img src="${forcedCand.photo_base64}" class="rounded-circle border me-2" style="width:40px;height:40px;object-fit:cover;">` : '';
-            box.innerHTML = `
-                <label class="form-label text-muted fw-bold">圈選欄 ${i+1} (共識薦選保留)</label>
-                <div class="input-group has-validation" style="display:none;">
-                    <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" class="form-control form-control-lg candidate-search-input" placeholder="輸入號碼/姓名/分區搜尋...">
-                    <input type="hidden" class="ballot-vote-val" value="${forcedId}">
-                    <div class="invalid-feedback text-start fw-bold" style="font-size: 0.9rem;">
-                        <i class="fas fa-exclamation-triangle"></i> 請務必點擊選單內的候選人，才算有效圈選！
-                    </div>
-                </div>
-                <div class="candidate-dropdown"></div>
-                <div class="selected-candidate border-warning bg-light d-flex align-items-center" style="display:flex;">
-                    ${photoHtml}
-                    <div class="text-start">
-                        <span class="badge bg-warning text-dark me-2 selected-num">保障</span>
-                        <strong class="selected-name fs-5">${forcedCand.number || ''} ${forcedCand.name}</strong>
-                        <small class="text-muted ms-1 selected-dist">${forcedCand.district || ''} ${forcedCand.unit || ''}</small>
-                    </div>
-                    <button class="btn btn-sm btn-outline-danger btn-clear-selection ms-auto"><i class="fas fa-times"></i></button>
-                </div>
-            `;
-        } else {
-            box.innerHTML = `
-                <label class="form-label text-muted fw-bold">圈選欄 ${i+1}</label>
-                <div class="input-group has-validation">
-                    <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" class="form-control form-control-lg candidate-search-input" placeholder="輸入號碼/姓名/分區搜尋...">
-                    <input type="hidden" class="ballot-vote-val" value="">
-                    <div class="invalid-feedback text-start fw-bold" style="font-size: 0.9rem;">
-                        <i class="fas fa-exclamation-triangle"></i> 請務必點擊選單內的候選人，才算有效圈選！
-                    </div>
-                </div>
-                <div class="candidate-dropdown"></div>
-                <div class="selected-candidate align-items-center" style="display:none; margin-top: 10px;">
-                    <img src="" class="selected-photo rounded-circle border me-2" style="width:40px;height:40px;object-fit:cover;display:none;">
-                    <div class="text-start">
-                        <span class="badge bg-primary me-2 selected-num"></span>
-                        <strong class="selected-name fs-5"></strong>
-                        <small class="text-muted ms-1 selected-dist"></small>
-                    </div>
-                    <button class="btn btn-sm btn-outline-danger btn-clear-selection ms-auto"><i class="fas fa-times"></i></button>
-                </div>
-            `;
-        }
-        
-        // 綁定搜尋事件 (移出 if/else 讓所有欄位都綁定)
+        // 綁定搜尋事件 (所有欄位都綁定)
         const inputEl = box.querySelector('.candidate-search-input');
         const dropdownEl = box.querySelector('.candidate-dropdown');
         const hiddenVal = box.querySelector('.ballot-vote-val');
         const selectedDiv = box.querySelector('.selected-candidate');
         const clearBtn = box.querySelector('.btn-clear-selection');
+        
+        // 如果是保留名額的格子，手動觸發選取效果
+        if (isForcedCell) {
+            box.querySelector('label').innerHTML += ' (共識薦選保留)';
+            hiddenVal.value = forcedId;
+            
+            box.querySelector('.selected-num').textContent = forcedCand.number || '-';
+            box.querySelector('.selected-name').textContent = forcedCand.name;
+            box.querySelector('.selected-dist').textContent = (forcedCand.district || '') + ' ' + (forcedCand.unit || '');
+            
+            const imgEl = box.querySelector('.selected-photo');
+            if (forcedCand.photo_base64) {
+                imgEl.src = forcedCand.photo_base64;
+                imgEl.style.display = 'block';
+            }
+            
+            inputEl.parentElement.style.display = 'none';
+            selectedDiv.style.display = 'flex';
+            selectedDiv.classList.add('border-warning', 'bg-light');
+            const badge = box.querySelector('.selected-num');
+            badge.classList.remove('bg-primary');
+            badge.classList.add('bg-warning', 'text-dark');
+            badge.textContent = '保障';
+        }
 
         inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId));
         inputEl.addEventListener('input', () => {
@@ -321,7 +325,7 @@ function renderDropdown(inputEl, dropdownEl, forcedId) {
     const selectedDistrictsCount = {};
     if (itemData.require_district && itemData.selected_districts) {
         allSelectedVals.forEach(cid => {
-            if (candidatesMap[cid] && candidatesMap[cid].district) {
+            if (cid !== forcedId && candidatesMap[cid] && candidatesMap[cid].district) {
                 const dist = candidatesMap[cid].district;
                 selectedDistrictsCount[dist] = (selectedDistrictsCount[dist] || 0) + 1;
             }
@@ -417,6 +421,8 @@ async function handleSubmitVote() {
         let conflictMsg = '';
         
         for (const cid of selectedIds) {
+            if (cid === forcedId) continue; // 保留名額不占用分區席次
+            
             const dist = candidatesMap[cid]?.district;
             if (dist) {
                 selectedDistrictsCount[dist] = (selectedDistrictsCount[dist] || 0) + 1;

@@ -773,9 +773,16 @@ async function loadItems() {
         const tB = b.createdAt ? b.createdAt.toMillis() : 0;
         return tA - tB;
     });
+    
+    // 取得目前所有已產生的金鑰資訊
+    const keysSnap = await getDocs(collection(db, 'elections', currentElectionId, 'keys'));
+    const generatedKeysSet = new Set();
+    keysSnap.forEach(d => {
+        generatedKeysSet.add(d.data().item_id + "_" + d.data().round_id);
+    });
 
     document.getElementById('statItems').textContent = allItems.length;
-    renderItemsAccordion();
+    renderItemsAccordion(generatedKeysSet);
     checkElectionLockState(); // 檢查是否需要鎖定 Excel 匯入
 }
 
@@ -814,7 +821,7 @@ function checkElectionLockState() {
     }
 }
 
-function renderItemsAccordion() {
+function renderItemsAccordion(generatedKeysSet = new Set()) {
     const container = document.getElementById('itemsAccordion');
     container.innerHTML = '';
     
@@ -842,12 +849,15 @@ function renderItemsAccordion() {
             const statusText = round.status === 'PENDING' ? '未開始' : (round.status === 'ACTIVE' ? '投票中' : '已結束');
             
             const displaySeats = round.seats !== undefined ? round.seats : item.seats;
+            const hasKeys = generatedKeysSet.has(item.id + "_" + round.id);
+            const keyBadge = hasKeys ? '<span class="badge bg-success ms-2">金鑰已產生</span>' : '<span class="badge bg-secondary ms-2">尚未產生金鑰</span>';
             
             roundsHtml += `
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                     <div>
                         <strong>${getRoundName(round.id)}</strong> <small class="text-muted ms-1">(本輪應選 ${displaySeats} 席)</small>
                         <span class="badge bg-${statusColor} ms-2">${statusText}</span>
+                        ${keyBadge}
                     </div>
                     <div>
                         <button class="btn btn-sm btn-outline-warning" onclick="openEditRoundModal('${item.id}', '${round.id}')"><i class="fas fa-edit"></i> 修改參數</button>
@@ -959,7 +969,7 @@ document.getElementById('itemDistrictReqInput').addEventListener('change', funct
                     <div class="col-md-6 mb-2">
                         <div class="input-group input-group-sm">
                             <div class="input-group-text bg-white">
-                                <input class="form-check-input mt-0 district-checkbox me-2" type="checkbox" value="${d}" id="dist_${idx}">
+                                <input class="form-check-input mt-0 district-checkbox me-2" type="checkbox" value="${d}" id="dist_${idx}" checked>
                                 <label class="form-check-label" for="dist_${idx}">${d}</label>
                             </div>
                             <input type="number" class="form-control district-quota-input" id="dist_quota_${idx}" value="1" min="1" placeholder="名額">
@@ -1175,6 +1185,20 @@ window.startRound = async function(itemId, roundId) {
 
     const item = allItems.find(i => i.id === itemId);
     if (!item) return;
+
+    // 金鑰防呆：檢查是否已有產生金鑰
+    try {
+        const { collection, getDocs, query, where, limit } = window.fs;
+        const db = window.firebaseDb;
+        const q = query(collection(db, 'elections', currentElectionId, 'keys'), where('item_id', '==', itemId), where('round_id', '==', roundId), limit(1));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            Swal.fire('錯誤', '此項次與輪次尚未產生任何金鑰，請先產生並列印選票後，再開始投票！', 'error');
+            return;
+        }
+    } catch (err) {
+        console.error("檢查金鑰失敗", err);
+    }
 
     // 防呆機制：檢查當選人數是否已滿
     const electedCount = allCandidates.filter(c => c.elected_item === item.title).length;
