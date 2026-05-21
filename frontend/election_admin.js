@@ -33,6 +33,11 @@ document.querySelectorAll('.nav-link-btn').forEach(btn => {
         if (targetId === 'section-preview') {
             updatePreviewSelects();
         }
+        
+        // 切換到報表時，更新當選總覽
+        if (targetId === 'section-reports') {
+            if (window.renderElectedOverview) window.renderElectedOverview();
+        }
     });
 });
 
@@ -784,6 +789,10 @@ async function loadItems() {
     document.getElementById('statItems').textContent = allItems.length;
     renderItemsAccordion(generatedKeysSet);
     checkElectionLockState(); // 檢查是否需要鎖定 Excel 匯入
+    
+    if (window.renderElectedOverview && document.getElementById('section-reports') && document.getElementById('section-reports').classList.contains('active')) {
+        window.renderElectedOverview();
+    }
 }
 
 // 檢查全域鎖定狀態
@@ -3294,3 +3303,488 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// ============================================================================
+// 當選名單與報表功能
+// ============================================================================
+
+window.renderElectedOverview = function() {
+    const tbody = document.getElementById('electedOverviewTableBody');
+    if (!tbody) return;
+    
+    const electedByItem = {};
+    allItems.forEach(item => {
+        electedByItem[item.title] = [];
+    });
+    
+    allCandidates.forEach(c => {
+        if (c.is_elected && c.elected_item) {
+            if (!electedByItem[c.elected_item]) electedByItem[c.elected_item] = [];
+            electedByItem[c.elected_item].push(c);
+        }
+    });
+    
+    let html = '';
+    for (const item of allItems) {
+        const itemTitle = item.title;
+        const cands = electedByItem[itemTitle] || [];
+        
+        if (cands.length === 0) {
+            html += `<tr><td class="fw-bold">${itemTitle}</td><td class="text-muted">尚無當選人</td></tr>`;
+            continue;
+        }
+        
+        // 依照分區(有分區才排)、號次排序
+        const reqDist = item.require_district;
+        const distOrder = [...new Set(allCandidates.filter(c => c.item_id === item.id).map(c => c.district).filter(Boolean))];
+        
+        cands.sort((a, b) => {
+            if (reqDist) {
+                const distAIdx = distOrder.indexOf(a.district);
+                const distBIdx = distOrder.indexOf(b.district);
+                const aDistScore = distAIdx === -1 ? 9999 : distAIdx;
+                const bDistScore = distBIdx === -1 ? 9999 : distBIdx;
+                if (aDistScore !== bDistScore) return aDistScore - bDistScore;
+            }
+            const nA = parseInt(a.number) || 9999;
+            const nB = parseInt(b.number) || 9999;
+            return nA - nB;
+        });
+        
+        const tags = cands.map(c => `<span class="badge bg-success fs-6 me-2 mb-2"><i class="fas fa-user"></i> ${c.name} <small>(${c.district || '無分區'})</small></span>`).join('');
+        html += `<tr><td class="fw-bold">${itemTitle}</td><td>${tags}</td></tr>`;
+    }
+    
+    if (allItems.length === 0) {
+        html = '<tr><td colspan="2" class="text-center text-muted">目前沒有任何選舉項次</td></tr>';
+    }
+    tbody.innerHTML = html;
+};
+
+window.openElectedProjection = function() {
+    const win = window.open('', '_blank');
+    let html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>當選名單投影 - ${electionData ? electionData.name : ''}</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+            <style>
+                body { background-color: #f8f9fa; padding: 2rem; font-family: 'Noto Sans TC', sans-serif; }
+                h1 { font-size: 3.5rem; font-weight: 900; color: #0d6efd; text-align: center; margin-bottom: 2rem; }
+                .item-card { background: white; border-radius: 15px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+                .item-title { font-size: 2.5rem; font-weight: 700; color: #198754; border-bottom: 3px solid #198754; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+                .cand-badge { display: inline-block; font-size: 2rem; font-weight: 700; background: #e9ecef; border-left: 8px solid #dc3545; padding: 0.5rem 1.5rem; margin: 0.5rem; border-radius: 4px; }
+            </style>
+        </head>
+        <body>
+            <h1>${electionData ? electionData.name : '當選名單總覽'}</h1>
+    `;
+    
+    let hasElected = false;
+    for (const item of allItems) {
+        const cands = allCandidates.filter(c => c.is_elected && c.elected_item === item.title);
+        if (cands.length === 0) continue;
+        hasElected = true;
+        
+        const reqDist = item.require_district;
+        const distOrder = [...new Set(allCandidates.filter(c => c.item_id === item.id).map(c => c.district).filter(Boolean))];
+        cands.sort((a, b) => {
+            if (reqDist) {
+                const distAIdx = distOrder.indexOf(a.district);
+                const distBIdx = distOrder.indexOf(b.district);
+                const aDistScore = distAIdx === -1 ? 9999 : distAIdx;
+                const bDistScore = distBIdx === -1 ? 9999 : distBIdx;
+                if (aDistScore !== bDistScore) return aDistScore - bDistScore;
+            }
+            const nA = parseInt(a.number) || 9999;
+            const nB = parseInt(b.number) || 9999;
+            return nA - nB;
+        });
+        
+        html += `<div class="item-card"><div class="item-title">${item.title}</div><div>`;
+        cands.forEach(c => {
+            html += `<div class="cand-badge">${c.name} <small class="text-muted fs-4">(${c.district || '無分區'})</small></div>`;
+        });
+        html += `</div></div>`;
+    }
+    
+    if (!hasElected) {
+        html += `<h2 class="text-center text-muted mt-5">目前尚無任何當選結果</h2>`;
+    }
+    
+    html += `</body></html>`;
+    win.document.write(html);
+    win.document.close();
+};
+
+window.printElectionResults = async function() {
+    Swal.fire({
+        title: '產生報表中...',
+        html: '正在讀取各項次與輪次的統計資料，請稍候。',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const db = window.firebaseDb;
+        const container = document.getElementById('printContainer');
+        container.innerHTML = '';
+        
+        // 加入浮水印
+        if (electionData && electionData.orgId) {
+            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', electionData.orgId));
+            if (orgDoc.exists() && orgDoc.data().seal_url) {
+                container.innerHTML += `<img src="${orgDoc.data().seal_url}" class="watermark-bg">`;
+            }
+        }
+        
+        const printTime = new Date().toLocaleString('zh-TW', { hour12: false });
+        
+        let html = `
+            <div class="text-center mb-4">
+                <h1 style="font-weight: 900;">${electionData ? electionData.name : '選舉'} - 當選與得票結果總表</h1>
+                <p class="text-muted">列印時間：${printTime}</p>
+            </div>
+        `;
+        
+        for (const item of allItems) {
+            const roundsSnap = await window.fs.getDocs(window.fs.collection(db, 'elections', currentElectionId, 'items', item.id, 'rounds'));
+            if (roundsSnap.empty) continue;
+            
+            const rounds = [];
+            roundsSnap.forEach(doc => rounds.push({ id: doc.id, ...doc.data() }));
+            rounds.sort((a, b) => a.id.localeCompare(b.id)); // round_1, round_2, round_3
+            
+            for (const round of rounds) {
+                if (round.status !== 'PUBLISHED' && round.status !== 'CLOSED' && round.status !== 'ACTIVE') continue;
+                
+                const votesSnap = await window.fs.getDocs(window.fs.query(
+                    window.fs.collection(db, 'elections', currentElectionId, 'votes'),
+                    window.fs.where('item_id', '==', item.id),
+                    window.fs.where('round_id', '==', round.id)
+                ));
+                
+                let digitalBlank = 0;
+                let digitalVotesMap = {};
+                votesSnap.forEach(doc => {
+                    const d = doc.data();
+                    if (d.candidate_ids && d.candidate_ids.length === 0) {
+                        digitalBlank++;
+                    } else if (d.candidate_ids) {
+                        d.candidate_ids.forEach(cid => {
+                            digitalVotesMap[cid] = (digitalVotesMap[cid] || 0) + 1;
+                        });
+                    }
+                });
+                
+                const keysSnap = await window.fs.getDocs(window.fs.query(
+                    window.fs.collection(db, 'elections', currentElectionId, 'keys'),
+                    window.fs.where('item_id', '==', item.id),
+                    window.fs.where('round_id', '==', round.id),
+                    window.fs.where('status', '==', 'USED')
+                ));
+                const digitalUsed = keysSnap.size;
+                
+                const digitalIssued = round.digital_issued || 0;
+                const paperIssued = round.paper_issued || 0;
+                const paperReceived = round.paper_received || 0;
+                const paperBlank = round.paper_blank || 0;
+                
+                const totalIssued = digitalIssued + paperIssued;
+                const totalReceived = digitalUsed + paperReceived;
+                const totalBlank = digitalBlank + paperBlank;
+                
+                const cIds = round.candidate_ids || [];
+                const roundCands = cIds.map(id => allCandidates.find(c => c.id === id)).filter(Boolean);
+                
+                const electedIds = round.elected_ids || [];
+                
+                roundCands.forEach(c => {
+                    c.roundTotalVotes = (digitalVotesMap[c.id] || 0) + (round.paper_votes && round.paper_votes[c.id] ? parseInt(round.paper_votes[c.id]) : 0);
+                    c.roundIsElected = electedIds.includes(c.id);
+                });
+                
+                const filteredCands = roundCands.filter(c => c.roundTotalVotes > 0 || c.roundIsElected);
+                
+                const reqDist = round.require_district !== undefined ? round.require_district : item.require_district;
+                const distOrder = [...new Set(allCandidates.filter(c => c.item_id === item.id).map(c => c.district).filter(Boolean))];
+                
+                filteredCands.sort((a, b) => {
+                    if (a.roundIsElected && !b.roundIsElected) return -1;
+                    if (!a.roundIsElected && b.roundIsElected) return 1;
+                    
+                    if (reqDist) {
+                        const distAIdx = distOrder.indexOf(a.district);
+                        const distBIdx = distOrder.indexOf(b.district);
+                        const aDistScore = distAIdx === -1 ? 9999 : distAIdx;
+                        const bDistScore = distBIdx === -1 ? 9999 : distBIdx;
+                        if (aDistScore !== bDistScore) return aDistScore - bDistScore;
+                    }
+                    
+                    if (b.roundTotalVotes !== a.roundTotalVotes) return b.roundTotalVotes - a.roundTotalVotes;
+                    
+                    const numA = parseInt(a.number) || 9999;
+                    const numB = parseInt(b.number) || 9999;
+                    return numA - numB;
+                });
+                
+                const rNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+                const rName = rNames[round.id] || round.id;
+                
+                html += `
+                    <div class="page-break mb-4">
+                        <h3 style="border-bottom: 2px solid #333; padding-bottom: 5px;">${item.title} - ${rName} 開票報表</h3>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold; background: #f0f0f0; padding: 10px; border-radius: 5px;">
+                            <span>出席人數/發票數：${totalIssued}</span>
+                            <span>總收票數(含空白)：${totalReceived}</span>
+                            <span>總空白票數：${totalBlank}</span>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; text-align: left;" border="1">
+                            <thead>
+                                <tr style="background: #e9ecef;">
+                                    <th style="padding: 8px; width: 10%;">號次</th>
+                                    <th style="padding: 8px; width: 25%;">姓名</th>
+                                    <th style="padding: 8px; width: 20%;">單位</th>
+                                    <th style="padding: 8px; width: 20%;">分區</th>
+                                    <th style="padding: 8px; width: 15%;">得票數</th>
+                                    <th style="padding: 8px; width: 10%;">狀態</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                if (filteredCands.length === 0) {
+                    html += `<tr><td colspan="6" style="padding: 8px; text-align: center;">無得票紀錄</td></tr>`;
+                } else {
+                    filteredCands.forEach(c => {
+                        html += `
+                            <tr>
+                                <td style="padding: 8px;">${c.number || ''}</td>
+                                <td style="padding: 8px; font-weight: bold;">${c.name}</td>
+                                <td style="padding: 8px;">${c.unit || ''}</td>
+                                <td style="padding: 8px;">${c.district || ''}</td>
+                                <td style="padding: 8px; font-weight: bold;">${c.roundTotalVotes}</td>
+                                <td style="padding: 8px;">${c.roundIsElected ? '✔️當選' : ''}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                
+                html += `</tbody></table></div>`;
+            }
+        }
+        
+        container.innerHTML += html;
+        Swal.close();
+        
+        setTimeout(() => {
+            window.print();
+        }, 500);
+        
+    } catch (e) {
+        console.error(e);
+        Swal.fire('錯誤', '產生報表失敗: ' + e.message, 'error');
+    }
+};
+
+window.searchKeyStatus = async function() {
+    const keyStr = document.getElementById('auditKeyInput').value.trim();
+    if (!keyStr) return Swal.fire('提示', '請輸入金鑰代碼', 'warning');
+    
+    const resultDiv = document.getElementById('auditKeyResult');
+    resultDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜尋中...';
+    resultDiv.style.display = 'block';
+    
+    try {
+        const db = window.firebaseDb;
+        const keysSnap = await window.fs.getDocs(window.fs.query(
+            window.fs.collection(db, 'elections', currentElectionId, 'keys'),
+            window.fs.where('key_string', '==', keyStr)
+        ));
+        
+        if (keysSnap.empty) {
+            resultDiv.innerHTML = '<div class="text-danger"><i class="fas fa-times-circle"></i> 查無此金鑰！請確認輸入無誤。</div>';
+            return;
+        }
+        
+        const keyDoc = keysSnap.docs[0];
+        const keyData = keyDoc.data();
+        const item = allItems.find(i => i.id === keyData.item_id);
+        const itemName = item ? item.title : keyData.item_id;
+        const rNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+        const roundName = rNames[keyData.round_id] || keyData.round_id;
+        
+        let html = `
+            <h6 class="fw-bold border-bottom pb-2 mb-3">金鑰基本資料</h6>
+            <div class="row mb-3">
+                <div class="col-6"><strong>選舉項次：</strong><br>${itemName}</div>
+                <div class="col-6"><strong>輪次：</strong><br>${roundName}</div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-6"><strong>金鑰代碼：</strong><br>${keyData.key_string}</div>
+                <div class="col-6"><strong>使用狀態：</strong><br>
+                    ${keyData.status === 'USED' ? '<span class="badge bg-success">已使用 (投出)</span>' : 
+                      keyData.status === 'REVOKED' ? '<span class="badge bg-danger">已作廢</span>' : 
+                      '<span class="badge bg-secondary">尚未使用</span>'}
+                </div>
+            </div>
+        `;
+        
+        if (keyData.status === 'USED') {
+            const votesSnap = await window.fs.getDocs(window.fs.query(
+                window.fs.collection(db, 'elections', currentElectionId, 'votes'),
+                window.fs.where('key_id', '==', keyDoc.id)
+            ));
+            
+            html += `<h6 class="fw-bold border-bottom pb-2 mt-4 mb-3 text-success">投票明細 (防弊查驗)</h6>`;
+            
+            if (votesSnap.empty) {
+                html += `<div class="alert alert-warning p-2">狀態標記為已使用，但查無對應選票檔案！</div>`;
+            } else {
+                const voteData = votesSnap.docs[0].data();
+                const vTime = voteData.createdAt ? new Date(voteData.createdAt.toMillis()).toLocaleString('zh-TW', { hour12: false }) : '無時間紀錄';
+                html += `
+                    <div class="mb-2"><strong>投票送出時間 (精確到秒)：</strong><br><span class="text-danger fw-bold fs-5">${vTime}</span></div>
+                    <div class="mb-2"><strong>實際圈選對象：</strong></div>
+                `;
+                
+                if (!voteData.candidate_ids || voteData.candidate_ids.length === 0) {
+                    html += `<div class="badge bg-warning text-dark fs-6">投下空白票</div>`;
+                } else {
+                    const candNames = voteData.candidate_ids.map(id => {
+                        const c = allCandidates.find(cand => cand.id === id);
+                        return c ? `<div class="bg-white border rounded p-2 mb-1"><span class="badge bg-secondary me-2">${c.number || '-'}</span> <strong>${c.name}</strong> <small class="text-muted">${c.district || ''} ${c.unit || ''}</small></div>` : id;
+                    }).join('');
+                    html += candNames;
+                }
+            }
+        }
+        
+        resultDiv.innerHTML = html;
+        
+    } catch (e) {
+        console.error(e);
+        resultDiv.innerHTML = `<div class="text-danger">查詢失敗: ${e.message}</div>`;
+    }
+};
+
+window.printDigitalBallotArchive = async function() {
+    Swal.fire({
+        title: '產生歸檔報表中...',
+        html: '此操作會提取所有金鑰與選票明細，資料量龐大，請耐心等候(約需幾十秒)...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const db = window.firebaseDb;
+        const container = document.getElementById('printContainer');
+        container.innerHTML = '';
+        
+        if (electionData && electionData.orgId) {
+            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', electionData.orgId));
+            if (orgDoc.exists() && orgDoc.data().seal_url) {
+                container.innerHTML += `<img src="${orgDoc.data().seal_url}" class="watermark-bg">`;
+            }
+        }
+        
+        const printTime = new Date().toLocaleString('zh-TW', { hour12: false });
+        
+        const allKeys = [];
+        const keysSnap = await window.fs.getDocs(window.fs.collection(db, 'elections', currentElectionId, 'keys'));
+        keysSnap.forEach(doc => allKeys.push({ id: doc.id, ...doc.data() }));
+        
+        const allVotes = [];
+        const votesSnap = await window.fs.getDocs(window.fs.collection(db, 'elections', currentElectionId, 'votes'));
+        votesSnap.forEach(doc => allVotes.push({ id: doc.id, ...doc.data() }));
+        
+        let html = '';
+        const rNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+        
+        for (const item of allItems) {
+            const itemKeys = allKeys.filter(k => k.item_id === item.id);
+            if (itemKeys.length === 0) continue;
+            
+            const rounds = [...new Set(itemKeys.map(k => k.round_id))].sort();
+            
+            for (const rId of rounds) {
+                const roundKeys = itemKeys.filter(k => k.round_id === rId);
+                roundKeys.sort((a, b) => a.key_string.localeCompare(b.key_string));
+                
+                const rName = rNames[rId] || rId;
+                
+                html += `
+                    <div class="page-break mb-4">
+                        <div class="text-center mb-3">
+                            <h2 style="font-weight: 900;">${electionData ? electionData.name : '選舉'}</h2>
+                            <h3>【${item.title} - ${rName}】 數位選票歸檔明細表</h3>
+                            <p class="text-muted">列印時間：${printTime} / 金鑰總數：${roundKeys.length} 把</p>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;" border="1">
+                            <thead>
+                                <tr style="background: #e9ecef;">
+                                    <th style="padding: 6px; width: 15%;">金鑰代碼</th>
+                                    <th style="padding: 6px; width: 10%;">狀態</th>
+                                    <th style="padding: 6px; width: 25%;">投票時間</th>
+                                    <th style="padding: 6px; width: 50%;">圈選對象</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                for (const k of roundKeys) {
+                    let statusTxt = '未使用';
+                    if (k.status === 'USED') statusTxt = '已投票';
+                    if (k.status === 'REVOKED') statusTxt = '作廢';
+                    
+                    let voteTime = '-';
+                    let candsTxt = '-';
+                    
+                    if (k.status === 'USED') {
+                        const vote = allVotes.find(v => v.key_id === k.id);
+                        if (vote) {
+                            voteTime = vote.createdAt ? new Date(vote.createdAt.toMillis()).toLocaleString('zh-TW', { hour12: false }) : '無紀錄';
+                            if (!vote.candidate_ids || vote.candidate_ids.length === 0) {
+                                candsTxt = '(空白票)';
+                            } else {
+                                candsTxt = vote.candidate_ids.map(id => {
+                                    const c = allCandidates.find(cand => cand.id === id);
+                                    return c ? `[${c.number||'-'}] ${c.name}` : id;
+                                }).join(' , ');
+                            }
+                        } else {
+                            candsTxt = '(查無選票紀錄)';
+                        }
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td style="padding: 6px; font-family: monospace;">${k.key_string}</td>
+                            <td style="padding: 6px;">${statusTxt}</td>
+                            <td style="padding: 6px; color: #dc3545;">${voteTime}</td>
+                            <td style="padding: 6px;">${candsTxt}</td>
+                        </tr>
+                    `;
+                }
+                
+                html += `</tbody></table></div>`;
+            }
+        }
+        
+        if (html === '') {
+            html = '<h2 class="text-center mt-5">查無任何金鑰與投票紀錄</h2>';
+        }
+        
+        container.innerHTML += html;
+        Swal.close();
+        
+        setTimeout(() => {
+            window.print();
+        }, 800);
+        
+    } catch (e) {
+        console.error(e);
+        Swal.fire('錯誤', '產生歸檔報表失敗: ' + e.message, 'error');
+    }
+};

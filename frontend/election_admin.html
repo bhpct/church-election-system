@@ -120,6 +120,36 @@
             position: relative;
             z-index: 1;
         }
+
+        /* 列印專用樣式 */
+        @media print {
+            body > *:not(#printContainer) {
+                display: none !important;
+            }
+            #printContainer {
+                display: block !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                background: white;
+                margin: 0;
+                padding: 0;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .watermark-bg {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                opacity: 0.1;
+                width: 60%;
+                pointer-events: none;
+                z-index: -1;
+            }
+        }
     </style>
 </head>
 <body>
@@ -624,9 +654,56 @@
 
                     <!-- 7. 當選名單與報表 -->
                     <div id="section-reports" class="nav-section">
-                        <div class="card p-4">
-                            <h5 class="mb-4"><i class="fas fa-file-alt text-primary"></i> 當選名單與報表</h5>
-                            <p class="text-muted">（報表功能建置中...未來將可在此檢視最終當選人清單並匯出 PDF 檔案）</p>
+                        <div class="row">
+                            <div class="col-12 mb-4">
+                                <div class="card p-4 border-primary">
+                                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                                        <h5 class="m-0"><i class="fas fa-trophy text-warning"></i> 全局當選名單總覽</h5>
+                                        <div>
+                                            <button class="btn btn-outline-primary me-2" onclick="openElectedProjection()"><i class="fas fa-desktop"></i> 開啟投影畫面</button>
+                                            <button class="btn btn-primary" onclick="printElectionResults()"><i class="fas fa-print"></i> 列印當選與得票結果</button>
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-hover align-middle">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th width="30%">選舉項次</th>
+                                                    <th>當選人名單</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="electedOverviewTableBody">
+                                                <tr><td colspan="2" class="text-center text-muted py-3">載入中...</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-4">
+                                <div class="card p-4 h-100">
+                                    <h5 class="mb-3"><i class="fas fa-search text-info"></i> 金鑰狀態與防弊查詢</h5>
+                                    <p class="text-muted small mb-3">輸入選民的金鑰代碼，可查驗該金鑰的投票紀錄與精確時間，以昭公信。(系統無記名，僅能證明金鑰本身投給誰)</p>
+                                    <div class="input-group mb-4">
+                                        <input type="text" class="form-control" id="auditKeyInput" placeholder="請輸入金鑰代碼...">
+                                        <button class="btn btn-info text-white" onclick="searchKeyStatus()"><i class="fas fa-search"></i> 查詢</button>
+                                    </div>
+                                    <div id="auditKeyResult" class="p-3 bg-light border rounded" style="display: none;">
+                                        <!-- 動態顯示查詢結果 -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-4">
+                                <div class="card p-4 h-100 border-danger">
+                                    <h5 class="mb-3 text-danger"><i class="fas fa-archive"></i> 數位選票列印歸檔</h5>
+                                    <p class="text-muted small mb-3">此功能將會印出「所有項次、所有輪次」的金鑰使用狀況，以及已使用金鑰的「圈選明細」與「精確時間戳記」。</p>
+                                    <div class="alert alert-danger p-2 small">
+                                        <i class="fas fa-exclamation-triangle"></i> 報表資料量可能非常龐大，列印過程需等待較長時間。印出後請妥善歸檔存查。
+                                    </div>
+                                    <button class="btn btn-danger w-100 mt-auto" onclick="printDigitalBallotArchive()"><i class="fas fa-file-pdf"></i> 產生數位選票歸檔報表</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1100,6 +1177,9 @@
 </div>
 
 
+<!-- 隱藏的列印容器 -->
+<div id="printContainer" style="display: none;"></div>
+
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -1133,6 +1213,6 @@
     };
 </script>
 
-<script src="election_admin.js?v=2.6"></script>
+<script src="election_admin.js?v=2.7"></script>
 </body>
 </html>
