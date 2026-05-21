@@ -440,6 +440,7 @@ async function handleSubmitVote() {
         const selectedDistrictsCount = {};
         let districtConflict = false;
         let conflictMsg = '';
+        const forcedId = itemData.forced_candidate_id; // 取得保留名額 ID
         
         for (const cid of selectedIds) {
             if (cid === forcedId) continue; // 保留名額不占用分區席次
