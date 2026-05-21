@@ -301,6 +301,8 @@ async function loadAdminDashboard() {
                 });
                 const orgsDisplay = orgNames.length > 0 ? orgNames.join(', ') : '<span class="text-muted">無</span>';
 
+                const note = u.note || '<span class="text-muted">無</span>';
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>
@@ -309,10 +311,15 @@ async function loadAdminDashboard() {
                             <span>${u.name}</span>
                         </div>
                     </td>
+                    <td>
+                        <span class="user-note-display">${note}</span>
+                    </td>
                     <td>${roleBadge}</td>
                     <td>${orgsDisplay}</td>
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="openEditNoteModal('${u.uid}', '${u.name}', '${u.note || ''}')">備註</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAdminUser('${u.uid}', '${u.name}')">刪除</button>
                     </td>
                 `;
                 tbodyUser.appendChild(tr);
@@ -792,6 +799,90 @@ async function loadAdminDashboard() {
             const btn = document.getElementById('saveAssignBtn');
             btn.disabled = false;
             btn.textContent = '儲存授權';
+        }
+    });
+
+    // 刪除系統管理員
+    window.deleteAdminUser = function(uid, name) {
+        Swal.fire({
+            title: '確定要刪除此帳號嗎？',
+            html: `您即將永久刪除 <b>${name}</b> 的帳號與所有權限。<br><br><span class="text-danger fw-bold">⚠️ 警告：刪除後對方將無法登入系統！</span>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: '是的，我要徹底刪除',
+            cancelButtonText: '取消'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const idToken = await window.firebaseAuth.currentUser.getIdToken(true);
+                    
+                    const response = await fetch(`${API_BASE_URL}/admin/users/${uid}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${idToken}`
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        Swal.fire('已刪除', '使用者帳號已成功刪除', 'success');
+                        loadAdminDashboard();
+                    } else {
+                        throw new Error(data.message || '伺服器拒絕刪除');
+                    }
+                } catch (error) {
+                    console.error("刪除使用者失敗:", error);
+                    Swal.fire('刪除失敗', error.message, 'error');
+                }
+            }
+        });
+    };
+
+    // 開啟編輯備註 Modal
+    window.openEditNoteModal = function(uid, name, currentNote) {
+        document.getElementById('editNoteTargetName').textContent = name;
+        document.getElementById('editNoteTargetUid').value = uid;
+        document.getElementById('editNoteInput').value = currentNote || '';
+        
+        const modal = new bootstrap.Modal(document.getElementById('editNoteModal'));
+        modal.show();
+    };
+
+    // 儲存備註
+    document.getElementById('saveNoteBtn')?.addEventListener('click', async () => {
+        const uid = document.getElementById('editNoteTargetUid').value;
+        const newNote = document.getElementById('editNoteInput').value.trim();
+        
+        if (!uid) return;
+
+        try {
+            const btn = document.getElementById('saveNoteBtn');
+            btn.disabled = true;
+            btn.textContent = '儲存中...';
+
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+            
+            await updateDoc(doc(db, 'users', uid), {
+                note: newNote
+            });
+
+            Swal.fire('成功', '備註已更新', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editNoteModal')).hide();
+            
+            // 重新載入列表以更新畫面
+            loadAdminDashboard();
+            
+        } catch (error) {
+            console.error("更新備註失敗:", error);
+            Swal.fire('錯誤', error.message, 'error');
+        } finally {
+            const btn = document.getElementById('saveNoteBtn');
+            btn.disabled = false;
+            btn.textContent = '儲存備註';
         }
     });
 

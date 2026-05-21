@@ -86,6 +86,8 @@ router.post('/update_user_claims', verifySuperAdmin, async (req, res) => {
             return res.status(400).json({ success: false, message: '缺少必要參數' });
         }
 
+        const db = admin.firestore();
+
         // 確認發出請求的用戶是否為 SUPER_ADMIN
         const callerUid = req.user.uid;
         const callerDoc = await db.collection('users').doc(callerUid).get();
@@ -109,6 +111,36 @@ router.post('/update_user_claims', verifySuperAdmin, async (req, res) => {
 
     } catch (error) {
         console.error('更新使用者權限失敗:', error);
+        res.status(500).json({ success: false, message: '伺服器錯誤', error: error.message });
+    }
+});
+
+// 4. 刪除管理員
+router.delete('/users/:uid', verifySuperAdmin, async (req, res) => {
+    try {
+        const targetUid = req.params.uid;
+        
+        if (!targetUid) {
+            return res.status(400).json({ success: false, message: '缺少必要參數' });
+        }
+
+        // 確保不會刪除自己
+        if (targetUid === req.user.uid) {
+            return res.status(403).json({ success: false, message: '不能刪除自己的帳號' });
+        }
+
+        const db = admin.firestore();
+
+        // 1. 從 Firebase Auth 刪除用戶
+        await admin.auth().deleteUser(targetUid);
+
+        // 2. 從 Firestore 刪除用戶記錄
+        await db.collection('users').doc(targetUid).delete();
+
+        res.json({ success: true, message: '使用者已成功刪除' });
+
+    } catch (error) {
+        console.error('刪除使用者失敗:', error);
         res.status(500).json({ success: false, message: '伺服器錯誤', error: error.message });
     }
 });
