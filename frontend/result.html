@@ -360,11 +360,16 @@
                       // 僅保留有得票的人 (得票數 > 0) 或者已當選的人
                       processedCandidates = processedCandidates.filter(c => c.total_votes > 0 || c.is_elected);
 
-                      // 依據當選與得票數排序
+                      // 依據當選、得票數、號次排序
                       processedCandidates.sort((a, b) => {
                           if (a.is_elected && !b.is_elected) return -1;
                           if (!a.is_elected && b.is_elected) return 1;
-                          return b.total_votes - a.total_votes;
+                          if (b.total_votes !== a.total_votes) {
+                              return b.total_votes - a.total_votes;
+                          }
+                          const numA = parseInt(a.number) || 9999;
+                          const numB = parseInt(b.number) || 9999;
+                          return numA - numB;
                       });
 
                       // 分組邏輯

@@ -486,7 +486,7 @@ async function handleSubmitVote() {
         const namesHtml = selectedIds.map((cid, idx) => {
             const c = candidatesMap[cid];
             return `<div class="text-start bg-light p-2 mb-1 border rounded fs-5">
-                <span class="badge bg-secondary me-2">${c.number || '-'}</span> <strong>${c.name}</strong> <small class="text-muted">${c.district || ''}</small>
+                <span class="badge bg-secondary me-2">${c.number || '-'}</span> <strong>${c.name}</strong> <small class="text-muted">${c.district || ''} ${c.unit || ''}</small>
             </div>`;
         }).join('');
         confirmHtml = `
