@@ -310,9 +310,8 @@ window.syncPendingRoundsWithGlobalCandidates = async function() {
         if (updatesCount > 0) {
             await batch.commit();
             console.log(`自動同步：已將全域候選人名單更新至 ${updatesCount} 個未開始的輪次`);
-            if (typeof renderItemsAccordion === 'function') {
-                renderItemsAccordion(); // 重新渲染畫面以顯示正確的候選人數
-            }
+            // 重新載入所有資料(包含金鑰狀態)以確保畫面同步
+            await loadItems();
         }
     } catch (error) {
         console.error("自動同步輪次候選人失敗:", error);
@@ -2032,8 +2031,9 @@ document.addEventListener('DOMContentLoaded', () => {
             Swal.fire('產生成功', `已成功產生 ${count} 組金鑰！`, 'success');
             document.getElementById('generateKeysCount').value = '';
             
-            // 重新載入
+            // 重新載入金鑰表格與左側選單狀態
             await loadKeys(itemId, roundId);
+            await loadItems();
 
         } catch (error) {
             console.error("產生金鑰失敗:", error);
@@ -2139,6 +2139,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentItemId && currentRoundId) {
                 await loadKeys(currentItemId, currentRoundId);
             }
+            // 更新左側選單狀態
+            await loadItems();
 
         } catch (error) {
             console.error("全域產生金鑰失敗:", error);
