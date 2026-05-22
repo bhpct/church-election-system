@@ -164,6 +164,10 @@
                 <div class="stat-label">應選名額</div>
                 <div class="stat-value" id="displaySeats">0</div>
             </div>
+            <div class="stat-item text-success">
+                <div class="stat-label">出席人數</div>
+                <div class="stat-value" id="displayAttending">0</div>
+            </div>
             <div class="stat-item text-primary">
                 <div class="stat-label">總發票數</div>
                 <div class="stat-value" id="displayTotalIssued">0</div>
@@ -176,6 +180,10 @@
                 <div class="stat-label">總空白票數</div>
                 <div class="stat-value" id="displayTotalBlank">0</div>
             </div>
+        </div>
+
+        <div class="alert alert-info mt-3 text-center fw-bold fs-5" id="quorumThresholdAlert" style="display: none; border-radius: 10px;">
+            過半當選門檻：<span id="quorumThresholdValue" class="text-danger fs-3">0</span> 票 <span id="quorumThresholdBase" class="fs-6 text-muted"></span>
         </div>
 
         <div id="resultsGrid" class="row g-4 mt-2">
@@ -231,7 +239,11 @@
                     }
                 });
                 
-                // 讀取項次資料 (單次讀取)
+                // 讀取選舉與項次資料 (單次讀取)
+                const electionDoc = await db.collection('elections').doc(electionId).get();
+                if (!electionDoc.exists) throw new Error("找不到選舉資料");
+                const electionData = electionDoc.data();
+
                 const itemDoc = await db.collection('elections').doc(electionId).collection('items').doc(itemId).get();
                 if (!itemDoc.exists) throw new Error("找不到項次資料");
                 const itemData = itemDoc.data();
@@ -341,6 +353,32 @@
                           }
                       });
                       document.getElementById('displayTotalBlank').textContent = digitalBlank + paperBlank;
+
+                      // 計算並顯示出席人數與過半門檻
+                      const totalIssued = digitalIssued + paperIssued;
+                      const attendingCount = roundData.attending_count || itemData.attending_count || electionData.init_attending_count || 0;
+                      document.getElementById('displayAttending').textContent = attendingCount;
+
+                      const quorumBase = roundData.quorum_base || itemData.quorum_base || 'ATTENDING';
+                      let threshold = 0;
+                      let baseText = '';
+
+                      if (quorumBase === 'ATTENDING') {
+                          threshold = Math.floor(attendingCount / 2) + 1;
+                          baseText = '(以出席人數計算)';
+                      } else if (quorumBase === 'BALLOTS' || quorumBase === 'ISSUED') {
+                          threshold = Math.floor(totalIssued / 2) + 1;
+                          baseText = '(以總發票數計算)';
+                      }
+
+                      const quorumAlert = document.getElementById('quorumThresholdAlert');
+                      if (threshold > 0) {
+                          document.getElementById('quorumThresholdValue').textContent = threshold;
+                          document.getElementById('quorumThresholdBase').textContent = baseText;
+                          quorumAlert.style.display = 'block';
+                      } else {
+                          quorumAlert.style.display = 'none';
+                      }
 
                       // 取得候選人並計算總票數
                       const candidateIds = roundData.candidate_ids || [];
@@ -533,8 +571,10 @@
                 // Set title
                 document.getElementById('displayTitle').textContent = `${orgName} ${electionName} 當選名單總覽`;
                 
-                // Hide stats bar
+                // Hide stats bar and quorum alert
                 document.querySelector('.stats-bar').style.display = 'none';
+                const qAlert = document.getElementById('quorumThresholdAlert');
+                if (qAlert) qAlert.style.display = 'none';
 
                 let html = '<div class="col-12"><div class="card shadow-sm border-0"><div class="card-body p-4">';
                 for (const item of allItems) {
