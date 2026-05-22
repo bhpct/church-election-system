@@ -22,6 +22,20 @@ window.logAuditAction = async function(orgId, action, target, details) {
         if (navNameEl && navNameEl.textContent && navNameEl.textContent !== '載入中...' && navNameEl.textContent !== '未知使用者') {
             displayName = navNameEl.textContent;
         }
+
+        // 如果依然沒有 displayName (例如在沒有 navUserName 的管理頁面)，嘗試從資料庫取得
+        if (!displayName) {
+            try {
+                const { doc, getDoc } = window.fs;
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists() && userDoc.data().name) {
+                    displayName = userDoc.data().name;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch user name for audit log', e);
+            }
+        }
+
         if (!displayName) displayName = '未知使用者';
 
         const { collection, addDoc, serverTimestamp } = window.fs;
