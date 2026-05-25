@@ -74,7 +74,7 @@ async function processLogin() {
         // 5. 登入成功，更新畫面
         spinner.style.display = 'none';
         userInfo.style.display = 'block';
-        document.getElementById('userPicture').src = user.picture || 'https://via.placeholder.com/80';
+        document.getElementById('userPicture').src = user.picture || 'assets/logo.png';
         document.getElementById('userName').textContent = user.name;
         document.getElementById('userStatus').textContent = '✅ 已成功連線至 Firebase';
 

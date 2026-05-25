@@ -2352,7 +2352,7 @@ function printBallotsA4(keysToPrint) {
             .page { width: 200mm; height: 287mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 0; gap: 4mm; margin: 0 auto; justify-content: flex-start; align-content: flex-start; }
             /* 2x2 Grid: each ballot is approx 95mm x 135mm (A6 size) */
             .ballot { width: calc(50% - 2mm); height: 140mm; padding: 8mm; box-sizing: border-box; border: 1px dashed #999; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: transparent; }
-            .watermark { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.25; z-index: 10; pointer-events: none; mix-blend-mode: multiply; filter: grayscale(1) sepia(1) hue-rotate(-45deg) saturate(5) brightness(1.1); }
+            .watermark { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.5; z-index: 10; pointer-events: none; mix-blend-mode: multiply; filter: grayscale(1) sepia(1) hue-rotate(330deg) saturate(15) contrast(1.2); }
             .content { position: relative; z-index: 1; text-align: center; display: flex; flex-direction: column; height: 100%; justify-content: space-between; }
             .header h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
             .header h2 { margin: 0 0 10px 0; font-size: 20px; color: #000; font-weight: bold; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }

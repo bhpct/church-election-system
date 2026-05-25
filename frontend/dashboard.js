@@ -35,7 +35,7 @@ async function loadUserProfile(user) {
             
             // 設定頂部頭像與名稱 (優先使用資料庫中的 LINE 資料)
             document.getElementById('navUserName').textContent = userData.name || user.displayName || '使用者';
-            document.getElementById('navUserPic').src = userData.picture || user.photoURL || 'https://via.placeholder.com/40';
+            document.getElementById('navUserPic').src = userData.picture || user.photoURL || 'assets/logo.png';
             
             applyRoleUI(role, org_ids);
         } else {
@@ -142,7 +142,7 @@ window.switchOrgContext = async function() {
             if (orgData.seal_url) {
                 preview.src = orgData.seal_url;
             } else {
-                preview.src = 'https://via.placeholder.com/150?text=未設定';
+                preview.src = 'assets/logo.png';
             }
         }
 
@@ -316,7 +316,7 @@ async function loadAdminDashboard() {
                 tr.innerHTML = `
                     <td>
                         <div class="d-flex align-items-center">
-                            <img src="${u.picture || 'https://via.placeholder.com/30'}" style="width:30px; border-radius:50%; margin-right:10px;">
+                            <img src="${u.picture || 'assets/logo.png'}" style="width:30px; border-radius:50%; margin-right:10px;">
                             <span>${u.name}</span>
                         </div>
                     </td>
