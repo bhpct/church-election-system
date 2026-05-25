@@ -144,11 +144,12 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                opacity: 0.12;
+                opacity: 0.25;
                 width: 60%;
                 pointer-events: none;
                 z-index: 10;
                 mix-blend-mode: multiply;
+                filter: grayscale(1) sepia(1) hue-rotate(-45deg) saturate(5) brightness(1.1);
             }
             /* Ensure table rows do not block the watermark if they have backgrounds */
             #printContainer table {

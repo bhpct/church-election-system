@@ -234,33 +234,21 @@
                                         </table>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ============================================== -->
-                    <!-- 區塊：系統操作手冊 -->
-                    <!-- ============================================== -->
-                    <div id="section-help" class="nav-section role-org-admin">
-                        <div class="row">
-                            <div class="col-12">
-                                <div class="card p-4">
-                                    <h4 class="mb-4"><i class="fas fa-book text-info"></i> 教會數位選舉系統 - 操作手冊</h4>
-                                    
-                                    <div class="accordion" id="helpAccordion">
+                                          <div class="accordion" id="helpAccordion">
                                         <!-- Step 1 -->
                                         <div class="accordion-item">
                                             <h2 class="accordion-header">
                                                 <button class="accordion-button fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help1">
-                                                    1. 機構與權限設定
+                                                    1. 基礎設定與安全稽核
                                                 </button>
                                             </h2>
                                             <div id="help1" class="accordion-collapse collapse show" data-bs-parent="#helpAccordion">
                                                 <div class="accordion-body">
-                                                    <p>系統採用多層級架構，分為「超級管理員」與「單位管理員」。</p>
+                                                    <p>本系統針對教會選舉提供嚴密的資安與設定環境：</p>
                                                     <ul>
-                                                        <li><strong>超級管理員</strong>：可建立中會、教會等新機構，並授權 LINE 登入的成員管理特定機構。</li>
-                                                        <li><strong>單位管理員</strong>：僅能觀看與管理被授權的機構。請先在總覽設定好「機構公印」，系統才能自動在選票上加上浮水印，避免偽造。</li>
+                                                        <li><strong>機構公印：</strong>請先在總覽設定好「機構公印」，系統才能自動在選票上加上防偽浮水印（系統會自動將印章轉換為紅色印泥效果，並襯於文字底層）。</li>
+                                                        <li><strong>多重管理員：</strong>每個單位可設定多位管理員共同監票，實現更務實的防弊機制。</li>
+                                                        <li><strong>完整稽核紀錄：</strong>為確保選務責任歸屬，系統內建嚴謹的操作稽核 (Audit Log) 機制。管理員的<strong>每一個新增、修改、刪除動作都會被永久記錄</strong>，任何異常操作皆有跡可循，確保選舉的絕對公正。</li>
                                                     </ul>
                                                 </div>
                                             </div>
@@ -270,16 +258,18 @@
                                         <div class="accordion-item">
                                             <h2 class="accordion-header">
                                                 <button class="accordion-button collapsed fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help2">
-                                                    2. 新增與管理選舉
+                                                    2. 選舉參數與法規設定
                                                 </button>
                                             </h2>
                                             <div id="help2" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
                                                 <div class="accordion-body">
-                                                    <p>點選總覽畫面的「新增選舉」，即可為該單位建立新的選舉場次。點選「進入管理」後即可開始規劃選票。</p>
+                                                    <p>點選總覽畫面的「新增選舉」後進入管理頁面，可進行詳細的法規設定：</p>
                                                     <ul>
-                                                        <li><strong>選舉設定：</strong>可調整當選門檻（過半數、多數決等）及是否開放重新投票。</li>
-                                                        <li><strong>建立輪次與項次：</strong>系統支援多輪選舉（如：長老選舉、執事選舉），您可為每一輪建立不同的候選人與應選名額。</li>
-                                                        <li>支援 Excel 批次匯入候選人名單。</li>
+                                                        <li><strong>當選門檻基準：</strong>可自由切換以「實際出席人數」或「總發票數(金鑰數)」作為過半門檻的計算基準，系統開票時將會自動運算公告，避免人為計算的爭議。</li>
+                                                        <li><strong>強制分區限制：</strong>可設定各個分區的當選名額上限，確保區域代表性。</li>
+                                                        <li><strong>保障名額：</strong>可指定某位候選人無條件保留一席當選名額。</li>
+                                                        <li><strong>排除已當選：</strong>開啟後，若某位候選人已在其他項次(例如長老)當選，系統會在後續選舉(例如執事)中自動將其標示為停權，防止一人身兼多職。</li>
+                                                        <li><strong>身分資格限制：</strong>可限制特定輪次僅限具備某些資格（如：牧師、長老）的人員參選。</li>
                                                     </ul>
                                                 </div>
                                             </div>
@@ -289,17 +279,16 @@
                                         <div class="accordion-item">
                                             <h2 class="accordion-header">
                                                 <button class="accordion-button collapsed fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help3">
-                                                    3. 產生金鑰與投票流程
+                                                    3. 候選人名單與金鑰選票
                                                 </button>
                                             </h2>
                                             <div id="help3" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
                                                 <div class="accordion-body">
-                                                    <p>數位選票的發放是透過「一次性金鑰」與「QR Code」來進行的。</p>
                                                     <ol>
-                                                        <li>在「選票金鑰管理」中輸入預計的發放數量。</li>
-                                                        <li>列印出包含 QR Code 與金鑰的紙本選票（會自動套印機構公印防止偽造）。</li>
-                                                        <li>會友掃描選票上的 QR Code，或至指定網址輸入金鑰，即可開始投票。</li>
-                                                        <li>投完票後金鑰即失效，確保一人一票。</li>
+                                                        <li><strong>名單建檔：</strong>請至「候選人資料庫」使用 Excel 批次匯入候選人名單與大頭照。</li>
+                                                        <li><strong>輪次微調：</strong>在總覽中點擊【調整名單】，透過雙欄穿梭框，可手動將符合資格的候選人加入本輪選票中。</li>
+                                                        <li><strong>產生金鑰：</strong>點擊【金鑰與選票發放】並輸入人數，系統會產生不重複的 8 碼一次性金鑰。</li>
+                                                        <li><strong>列印選票：</strong>點選一鍵列印，系統會產生 A4 排版的實體選票（含掃描用 QR Code 與機構紅色浮水印），供現場發放。</li>
                                                     </ol>
                                                 </div>
                                             </div>
@@ -309,16 +298,16 @@
                                         <div class="accordion-item">
                                             <h2 class="accordion-header">
                                                 <button class="accordion-button collapsed fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#help4">
-                                                    4. 開票與投影結果
+                                                    4. 開票轉播與「智慧晉級嚮導」
                                                 </button>
                                             </h2>
                                             <div id="help4" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
                                                 <div class="accordion-body">
-                                                    <p>在投票期間，管理員可隨時停止投票並進行結算。</p>
+                                                    <p>當選舉進入開票階段與跨輪次銜接時，系統提供強大輔助：</p>
                                                     <ul>
-                                                        <li><strong>開啟投影畫面：</strong>點擊即可開啟專屬投影頁面（可透過 OBS 或大螢幕播放）。</li>
-                                                        <li><strong>結算並儲存結果：</strong>計算該輪次得票數，系統會依據設定的門檻判定當選人。</li>
-                                                        <li><strong>發布全局名單：</strong>選舉完全結束後，可發布當選總覽，所有掃描過選票的手機會自動跳轉顯示最後的當選結果。</li>
+                                                        <li><strong>手機即單槍 (主動推送)：</strong>管理員可直接在控制台將計票畫面同步推播至所有選民的手機中，克服場地硬體限制，萬人同看零延遲。</li>
+                                                        <li><strong>智慧晉級嚮導：</strong>當一輪投票結束且需要進入下一輪（例如長老第一輪未選足額，需進行第二輪）時，系統會自動啟動晉級嚮導。它會<strong>自動扣除已當選人數來更新應選名額</strong>，並<strong>自動將已當選者從候選名單中剔除</strong>。無論是單選還是複雜的複選機制，嚮導都會為您算好一切，同時保留彈性修改介面，讓選務人員輕鬆銜接，不再手忙腳亂。</li>
+                                                        <li><strong>發布與封存：</strong>當全數選完後，點擊「全局發布」公開當選名單，最後執行「封存」，選舉資料將轉為唯讀並永久歸檔於歷史報表中。</li>
                                                     </ul>
                                                 </div>
                                             </div>
