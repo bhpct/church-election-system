@@ -4,7 +4,7 @@ service cloud.firestore {
     
     // 檢查是否為超級管理員
     function isSuperAdmin() {
-      return request.auth != null && request.auth.token.role == 'SUPER_ADMIN';
+      return request.auth != null && 'role' in request.auth.token && request.auth.token.role == 'SUPER_ADMIN';
     }
     
     // 檢查是否為該機構的管理員 (orgId 必須存在於使用者的 org_roles Map 或舊版 org_ids 陣列中)
