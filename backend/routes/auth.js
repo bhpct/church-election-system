@@ -210,15 +210,20 @@ router.post('/verify_auth_code', async (req, res) => {
         let org_roles = userData.org_roles || {};
         org_roles[orgId] = roleGranted; // 賦予權限
 
+        // 更新 Auth Custom Claims
+        let newRole = userData.role || 'GUEST';
+        if (newRole === 'GUEST' && Object.keys(org_roles).length > 0) {
+            newRole = 'ORG_ADMIN';
+        }
+        
         // 更新 Firestore
         await userRef.update({
             org_roles: org_roles,
+            role: newRole,
             auth_attempts: 0,
             auth_locked_until: null
         });
 
-        // 更新 Auth Custom Claims
-        const newRole = userData.role || 'GUEST';
         await admin.auth().setCustomUserClaims(uid, {
             role: newRole,
             org_roles: org_roles

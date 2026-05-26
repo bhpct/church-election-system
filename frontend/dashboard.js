@@ -978,7 +978,7 @@ function applyRoleUI(role, org_ids) {
 
         loadOrgSwitcher(role, org_ids).then(() => loadAdminDashboard());
 
-    } else if (role === 'ORG_ADMIN') {
+    } else if (role === 'ORG_ADMIN' || role === 'USER' || Object.keys(org_ids || {}).length > 0) {
         roleNameEl.textContent = '單位管理員';
         roleNameEl.className = 'badge bg-primary';
         displayRoleNameEl.textContent = '單位管理員';
@@ -989,12 +989,15 @@ function applyRoleUI(role, org_ids) {
         loadOrgSwitcher(role, org_ids);
 
     } else {
-        // GUEST 或未知權限
+        // GUEST 或未知權限，強制顯示輸入序號 Modal
         roleNameEl.textContent = '未授權帳號';
         roleNameEl.className = 'badge bg-secondary';
         
-        // 顯示無權限提示
-        noAccessEl.style.display = 'block';
+        contentEl.style.display = 'none';
+        noAccessEl.style.display = 'none'; // 完全隱藏原本的審核中畫面
+        
+        // 自動彈出序號輸入視窗
+        window.showOtpInputModal();
     }
 }
 
