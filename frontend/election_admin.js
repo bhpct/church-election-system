@@ -115,7 +115,7 @@ function initSystem() {
                 // 強制取得最新的 Custom Claims
                 const tokenResult = await user.getIdTokenResult(true);
                 currentUserRole = tokenResult.claims.role || 'GUEST';
-                currentUserOrgIds = tokenResult.claims.org_ids || [];
+                currentUserOrgIds = tokenResult.claims.org_ids || Object.keys(tokenResult.claims.org_roles || {});
                 
                 // 載入選舉資料
                 await loadElectionData();
