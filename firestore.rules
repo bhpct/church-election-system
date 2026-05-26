@@ -2,17 +2,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 檢查是否為超級管理員
+    // 檢查是否為超級管理員 (加入防崩潰檢查與資料庫回退)
     function isSuperAdmin() {
-      return request.auth != null && 'role' in request.auth.token && request.auth.token.role == 'SUPER_ADMIN';
+      return request.auth != null && 
+             ( ('role' in request.auth.token && request.auth.token.role == 'SUPER_ADMIN') ||
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SUPER_ADMIN' );
     }
     
-    // 檢查是否為該機構的管理員 (orgId 必須存在於使用者的 org_roles Map 或舊版 org_ids 陣列中)
+    // 檢查是否為該機構的管理員 (支援新舊版權限結構與資料庫回退)
     function isOrgAdmin(orgId) {
       return request.auth != null && 
              (isSuperAdmin() || 
               ('org_roles' in request.auth.token && orgId in request.auth.token.org_roles) ||
-              ('org_ids' in request.auth.token && orgId in request.auth.token.org_ids));
+              ('org_ids' in request.auth.token && orgId in request.auth.token.org_ids) ||
+              (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('org_roles', {}).keys().hasAny([orgId])) ||
+              (orgId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('org_ids', []))
+             );
     }
 
     // ==========================================
