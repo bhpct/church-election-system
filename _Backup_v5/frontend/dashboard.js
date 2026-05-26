@@ -29,19 +29,19 @@ async function loadUserProfile(user) {
             const userData = userSnap.data();
             const role = userData.role || 'GUEST';
             
-            // 取得 Custom Token 裡的 org_roles (強制更新以確保讀取到最新權限)
+            // 取得 Custom Token 裡的 org_ids (強制更新以確保讀取到最新權限)
             const tokenResult = await user.getIdTokenResult(true);
-            const org_roles = tokenResult.claims.org_roles || userData.org_roles || {};
+            const org_ids = tokenResult.claims.org_ids || userData.org_ids || [];
             
             // 設定頂部頭像與名稱 (優先使用資料庫中的 LINE 資料)
             document.getElementById('navUserName').textContent = userData.name || user.displayName || '使用者';
             document.getElementById('navUserPic').src = userData.picture || user.photoURL || 'assets/logo.png';
             
-            applyRoleUI(role, org_roles);
+            applyRoleUI(role, org_ids);
         } else {
             // 資料庫中沒有資料 (異常狀態)
             document.getElementById('navUserName').textContent = user.displayName || '未知使用者';
-            applyRoleUI('GUEST', {});
+            applyRoleUI('GUEST', []);
         }
 
         // 隱藏 Loader，顯示內容
@@ -62,7 +62,7 @@ let currentUserRole = 'GUEST';
 // ==========================================
 // 載入機構視角切換器
 // ==========================================
-async function loadOrgSwitcher(role, org_roles) {
+async function loadOrgSwitcher(role, org_ids) {
     const { collection, getDocs } = window.fs;
     const db = window.firebaseDb;
     const switcherContainer = document.getElementById('orgSwitcherContainer');
@@ -74,15 +74,14 @@ async function loadOrgSwitcher(role, org_roles) {
             // 超級管理員：載入所有機構
             const snap = await getDocs(collection(db, 'organizations'));
             snap.forEach(doc => allOrgs.push({ id: doc.id, ...doc.data() }));
-        } else if (role === 'ORG_ADMIN' || Object.keys(org_roles).length > 0) {
-            // 單位管理員：列出所有已被授權的機構
-            const org_ids = Object.keys(org_roles);
+        } else if (role === 'ORG_ADMIN' && org_ids.length > 0) {
+            // 單位管理員：只載入授權的機構 (逐一讀取避免權限不足錯誤)
             const { doc, getDoc } = window.fs;
             const promises = org_ids.map(id => getDoc(doc(db, 'organizations', id)));
             const snaps = await Promise.all(promises);
             snaps.forEach(snap => {
                 if (snap.exists()) {
-                    allOrgs.push({ id: snap.id, ...snap.data(), local_role: org_roles[snap.id] });
+                    allOrgs.push({ id: snap.id, ...snap.data() });
                 }
             });
         }
@@ -130,32 +129,6 @@ window.switchOrgContext = async function() {
     document.querySelectorAll('.current-org-name-display').forEach(el => {
         el.textContent = selectedOrg ? selectedOrg.name : '未知機構';
     });
-    
-    // 判斷該機構的權限
-    const localRole = selectedOrg ? selectedOrg.local_role : 'GUEST';
-    const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
-    const isOrgSuperAdmin = localRole === 'ORG_SUPER_ADMIN';
-    
-    const generateOtpBtn = document.getElementById('generateOtpBtn');
-    if (generateOtpBtn) {
-        if (isSuperAdmin || isOrgSuperAdmin) {
-            generateOtpBtn.classList.remove('d-none');
-            // 如果是單位超管，也要顯示系統管理員設定分頁
-            if (isOrgSuperAdmin) {
-                const adminSection = document.getElementById('section-admins');
-                if (adminSection) adminSection.style.display = 'block';
-                // 並且還要顯示對應的選單按鈕
-                document.querySelectorAll('[data-target="section-admins"]').forEach(el => el.parentElement.style.display = 'block');
-            }
-        } else {
-            generateOtpBtn.classList.add('d-none');
-            if (!isSuperAdmin) {
-                // 如果不是全域超管，隱藏管理員設定分頁
-                const adminSection = document.getElementById('section-admins');
-                if (adminSection) adminSection.style.display = 'none';
-            }
-        }
-    }
 
     try {
         const { doc, getDoc, collection, query, where, getDocs } = window.fs;
@@ -767,23 +740,21 @@ async function loadAdminDashboard() {
             orgSelectionBlock.style.display = 'block';
         }
 
-        const container = document.getElementById('orgRolesContainer');
+        const container = document.getElementById('orgCheckboxesContainer');
         container.innerHTML = '';
 
         if (allOrgs.length === 0) {
-            container.innerHTML = '<p class="text-muted p-3">尚無任何機構可供授權</p>';
+            container.innerHTML = '<p class="text-muted">尚無任何機構可供授權</p>';
         } else {
-            const userOrgRoles = targetUser.org_roles || {};
+            const userOrgIds = targetUser.org_ids || [];
             allOrgs.forEach(org => {
-                const currentRole = userOrgRoles[org.id] || '';
+                const isChecked = userOrgIds.includes(org.id) ? 'checked' : '';
                 container.innerHTML += `
-                    <div class="d-flex justify-content-between p-3 border-bottom align-items-center">
-                        <span class="fw-bold">${org.name}</span>
-                        <select class="form-select form-select-sm w-auto org-role-select" data-org-id="${org.id}">
-                            <option value="" ${currentRole === '' ? 'selected' : ''}>無權限</option>
-                            <option value="ORG_ADMIN" ${currentRole === 'ORG_ADMIN' ? 'selected' : ''}>一般管理員</option>
-                            <option value="ORG_SUPER_ADMIN" ${currentRole === 'ORG_SUPER_ADMIN' ? 'selected' : ''}>單位超級管理員</option>
-                        </select>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input org-checkbox" type="checkbox" value="${org.id}" id="chk_${org.id}" ${isChecked}>
+                        <label class="form-check-label" for="chk_${org.id}">
+                            ${org.name}
+                        </label>
                     </div>
                 `;
             });
@@ -798,13 +769,8 @@ async function loadAdminDashboard() {
         const uid = document.getElementById('assignTargetUid').value;
         if (!uid) return;
 
-        const selects = document.querySelectorAll('.org-role-select');
-        const org_roles = {};
-        selects.forEach(select => {
-            if (select.value) {
-                org_roles[select.dataset.orgId] = select.value;
-            }
-        });
+        const checkboxes = document.querySelectorAll('.org-checkbox:checked');
+        const selectedOrgIds = Array.from(checkboxes).map(cb => cb.value);
 
         try {
             const btn = document.getElementById('saveAssignBtn');
@@ -815,7 +781,7 @@ async function loadAdminDashboard() {
             if (document.getElementById('superAdminToggle').checked) {
                 newRole = 'SUPER_ADMIN';
             } else {
-                newRole = Object.keys(org_roles).length > 0 ? 'USER' : 'GUEST';
+                newRole = selectedOrgIds.length > 0 ? 'ORG_ADMIN' : 'GUEST';
             }
 
             // 取得目前的 Firebase ID Token
@@ -831,7 +797,7 @@ async function loadAdminDashboard() {
                 body: JSON.stringify({
                     targetUid: uid,
                     newRole: newRole,
-                    org_roles: org_roles
+                    org_ids: selectedOrgIds
                 })
             });
 
@@ -844,8 +810,8 @@ async function loadAdminDashboard() {
             
             // 針對每個被授權的機構寫入操作紀錄
             if (window.logAuditAction) {
-                for (const oid of Object.keys(org_roles)) {
-                    await window.logAuditAction(oid, 'UPDATE', '權限', `授權權限 (${org_roles[oid]}) 給: ${document.getElementById('assignTargetName').textContent}`);
+                for (const oid of selectedOrgIds) {
+                    await window.logAuditAction(oid, 'UPDATE', '權限', `授權管理員權限給: ${document.getElementById('assignTargetName').textContent}`);
                 }
             }
             
@@ -1015,157 +981,6 @@ function handleLogout() {
         }
     });
 }
-
-// ==========================================
-// 授權碼機制 (OTP)
-// ==========================================
-
-let otpTimerInterval = null;
-
-window.showOtpInputModal = function() {
-    const modal = new bootstrap.Modal(document.getElementById('otpInputModal'));
-    const closeBtn = document.getElementById('closeOtpInputBtn');
-    
-    document.getElementById('otpInputField').value = '';
-    document.getElementById('otpErrorAlert').classList.add('d-none');
-    
-    if (currentUserRole !== 'GUEST') {
-        closeBtn.classList.remove('d-none');
-    } else {
-        closeBtn.classList.add('d-none');
-    }
-    
-    modal.show();
-};
-
-window.verifyOtpCode = async function() {
-    const code = document.getElementById('otpInputField').value.trim();
-    const errorAlert = document.getElementById('otpErrorAlert');
-    const errorMsg = document.getElementById('otpErrorMsg');
-    const btn = document.getElementById('verifyOtpBtn');
-    
-    if (code.length !== 6) {
-        errorMsg.textContent = '請輸入完整的 6 位數授權碼';
-        errorAlert.classList.remove('d-none');
-        return;
-    }
-    
-    try {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 驗證中...';
-        errorAlert.classList.add('d-none');
-        
-        const token = await window.firebaseAuth.currentUser.getIdToken(true);
-        const response = await fetch(`${API_BASE_URL}/auth/verify_auth_code`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ code })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            Swal.fire({
-                icon: 'success',
-                title: '驗證成功',
-                text: result.message,
-                timer: 1500,
-                showConfirmButton: false
-            }).then(() => {
-                window.location.reload();
-            });
-        } else {
-            errorMsg.textContent = result.message;
-            errorAlert.classList.remove('d-none');
-        }
-    } catch (error) {
-        errorMsg.textContent = '系統連線發生錯誤，請稍後再試';
-        errorAlert.classList.remove('d-none');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '立即驗證';
-    }
-};
-
-window.generateOtpCode = async function() {
-    const orgId = document.getElementById('currentOrgSelect').value;
-    if (!orgId) {
-        Swal.fire('錯誤', '請先選擇欲產生序號的機構', 'error');
-        return;
-    }
-    
-    const modalEl = document.getElementById('generateOtpModal');
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
-    
-    document.getElementById('otpLoadingArea').classList.remove('d-none');
-    document.getElementById('otpDisplayArea').classList.add('d-none');
-    
-    if (otpTimerInterval) clearInterval(otpTimerInterval);
-    
-    try {
-        const token = await window.firebaseAuth.currentUser.getIdToken();
-        const response = await fetch(`${API_BASE_URL}/admin/generate_auth_code`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ orgId })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            document.getElementById('otpLoadingArea').classList.add('d-none');
-            document.getElementById('otpDisplayArea').classList.remove('d-none');
-            document.getElementById('generatedOtpCode').textContent = result.code;
-            
-            const expiresAt = result.expiresAt;
-            const progressBar = document.getElementById('otpProgressBar');
-            const timerText = document.getElementById('otpTimerText');
-            
-            // 倒數計時 5 分鐘 (300 秒)
-            const totalDuration = 5 * 60 * 1000;
-            
-            otpTimerInterval = setInterval(() => {
-                const now = new Date().getTime();
-                const remaining = expiresAt - now;
-                
-                if (remaining <= 0) {
-                    clearInterval(otpTimerInterval);
-                    timerText.textContent = '序號已過期';
-                    progressBar.style.width = '0%';
-                    progressBar.classList.remove('bg-danger');
-                    progressBar.classList.add('bg-secondary');
-                    document.getElementById('generatedOtpCode').classList.add('text-muted');
-                    document.getElementById('generatedOtpCode').classList.remove('text-success');
-                } else {
-                    const seconds = Math.floor((remaining / 1000) % 60);
-                    const minutes = Math.floor((remaining / 1000) / 60);
-                    timerText.textContent = `剩餘時間：0${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                    const percentage = (remaining / totalDuration) * 100;
-                    progressBar.style.width = percentage + '%';
-                }
-            }, 1000);
-            
-            // 當 modal 關閉時清除計時器
-            modalEl.addEventListener('hidden.bs.modal', function () {
-                if (otpTimerInterval) clearInterval(otpTimerInterval);
-            }, { once: true });
-            
-        } else {
-            modal.hide();
-            Swal.fire('錯誤', result.message, 'error');
-        }
-    } catch (error) {
-        modal.hide();
-        Swal.fire('錯誤', '無法產生序號: ' + error.message, 'error');
-    }
-};
 
 // 側邊欄導覽切換邏輯
 document.querySelectorAll('.nav-link-btn').forEach(btn => {

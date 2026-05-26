@@ -7,11 +7,10 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.role == 'SUPER_ADMIN';
     }
     
-    // 檢查是否為該機構的管理員 (orgId 必須存在於使用者的 org_ids 陣列中)
+    // 檢查是否為該機構的管理員 (orgId 必須存在於使用者的 org_roles Map 中)
     function isOrgAdmin(orgId) {
       return request.auth != null && 
-             (request.auth.token.role == 'ORG_ADMIN' || request.auth.token.role == 'SUPER_ADMIN') && 
-             (orgId in request.auth.token.org_ids || isSuperAdmin());
+             (isSuperAdmin() || (request.auth.token.org_roles != null && orgId in request.auth.token.org_roles));
     }
 
     // ==========================================
@@ -34,6 +33,14 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
       // 單位管理員只能修改自己的機構資料
       allow update: if isOrgAdmin(orgId);
+    }
+
+    // ==========================================
+    // Auth Codes 集合
+    // ==========================================
+    match /auth_codes/{codeId} {
+      allow read: if true; // 允許所有人讀取驗證
+      allow write: if false; // 只有後端 API 能產生
     }
 
     // ==========================================

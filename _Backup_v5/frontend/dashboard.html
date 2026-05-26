@@ -125,11 +125,10 @@
                     <h4 class="m-0" id="pageTitle">系統總覽</h4>
                     
                     <!-- 機構視角切換器 (只有有權限者顯示) -->
-                    <div class="org-switcher d-none d-flex align-items-center gap-2" id="orgSwitcherContainer">
+                    <div class="org-switcher d-none" id="orgSwitcherContainer">
                         <select class="form-select border-primary text-primary fw-bold shadow-sm" id="currentOrgSelect" onchange="switchOrgContext()">
                             <option value="">載入機構中...</option>
                         </select>
-                        <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="showOtpInputModal()"><i class="fas fa-plus"></i> 加入其他單位</button>
                     </div>
                 </div>
 
@@ -439,15 +438,8 @@
                         <div class="row">
                             <div class="col-12">
                                 <div class="card p-4">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <div>
-                                            <h5>系統管理員設定</h5>
-                                            <p class="text-muted mb-0">審核由 LINE 登入的申請者，並指派他們可以管理哪些機構。</p>
-                                        </div>
-                                        <button class="btn btn-warning fw-bold d-none shadow-sm" id="generateOtpBtn" onclick="generateOtpCode()">
-                                            <i class="fas fa-key"></i> 產生單位授權碼
-                                        </button>
-                                    </div>
+                                    <h5>系統管理員設定</h5>
+                                    <p class="text-muted mb-3">審核由 LINE 登入的申請者，並指派他們可以管理哪些機構。</p>
                                     <div class="table-responsive">
                                         <table class="table table-hover align-middle">
                                         <thead class="table-light">
@@ -522,16 +514,11 @@
             <label class="form-check-label fw-bold text-danger" for="superAdminToggle"><i class="fas fa-crown"></i> 設為超級管理員 (擁有系統所有機構與權限)</label>
         </div>
         <div id="orgSelectionBlock">
-            <div class="mb-2 fw-bold">個別機構權限設定：</div>
-            <div id="orgRolesContainer" class="border p-0 rounded bg-light" style="max-height: 350px; overflow-y: auto;">
-                <!-- 單位權限將由 JS 動態產生，例如：
-                     <div class="d-flex justify-content-between p-2 border-bottom align-items-center">
-                         <span>台中中會</span>
-                         <select class="form-select form-select-sm w-auto">...
-                     </div>
-                -->
+            <div class="mb-2 fw-bold">允許管轄的機構 (可複選)：</div>
+            <div id="orgCheckboxesContainer" class="border p-3 rounded bg-white" style="max-height: 250px; overflow-y: auto;">
+                <!-- 核取方塊將由 JS 動態產生 -->
             </div>
-            <div class="text-muted small mt-2">若全部皆選「無權限」且未開啟超級管理員，該帳號將自動轉為訪客狀態。</div>
+            <div class="text-muted small mt-1">若未勾選任何機構且未開啟超級管理員，該帳號將轉為「未授權」狀態。</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -611,59 +598,6 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
         <button type="button" class="btn btn-primary" id="saveNoteBtn">儲存備註</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 產生授權序號 Modal -->
-<div class="modal fade" id="generateOtpModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-success text-white">
-        <h5 class="modal-title"><i class="fas fa-key"></i> 產生單位授權碼</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body text-center py-4">
-        <p class="text-muted mb-4">請將此 6 碼序號提供給欲加入本單位的管理員。此序號將於 <strong class="text-danger">5 分鐘</strong> 後失效，並可供多人同時使用。</p>
-        <div id="otpDisplayArea" class="d-none">
-            <h1 class="display-1 fw-bold text-success tracking-widest mb-3" id="generatedOtpCode" style="letter-spacing: 10px;">------</h1>
-            <div class="progress mb-2" style="height: 10px;">
-                <div id="otpProgressBar" class="progress-bar bg-danger progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
-            </div>
-            <p class="text-muted small" id="otpTimerText">剩餘時間：05:00</p>
-        </div>
-        <div id="otpLoadingArea">
-            <div class="spinner-border text-success mb-3" role="status"></div>
-            <p>正在產生序號...</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 輸入授權序號 Modal (給使用者) -->
-<div class="modal fade" id="otpInputModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-primary">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title"><i class="fas fa-sign-in-alt"></i> 加入單位管理員</h5>
-        <!-- 只有在已經有身分時才允許關閉這個 Modal -->
-        <button type="button" class="btn-close btn-close-white d-none" id="closeOtpInputBtn" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body p-4 text-center">
-        <div class="mb-4">
-            <i class="fas fa-shield-alt text-primary" style="font-size: 3rem;"></i>
-        </div>
-        <h5 class="fw-bold mb-3">驗證您的身分</h5>
-        <p class="text-muted mb-4">請輸入由您的單位超級管理員所提供的 <strong class="text-primary">6 位數授權碼</strong>，以綁定您的管理權限。</p>
-        <div class="mb-4">
-            <input type="text" class="form-control form-control-lg text-center fs-2 fw-bold text-primary tracking-widest" id="otpInputField" placeholder="------" maxlength="6" style="letter-spacing: 15px;">
-        </div>
-        <button class="btn btn-primary btn-lg w-100" id="verifyOtpBtn" onclick="verifyOtpCode()">立即驗證</button>
-        <div class="mt-3 text-start d-none" id="otpErrorAlert">
-            <div class="alert alert-danger small mb-0" id="otpErrorMsg"></div>
-        </div>
       </div>
     </div>
   </div>

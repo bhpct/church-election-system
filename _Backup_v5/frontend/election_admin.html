@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>選舉設定 - 教會數位選舉系統</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Cropper.js -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background: #2c3e50;
+            color: #fff;
+            padding-top: 20px;
+        }
+        .sidebar a {
+            color: #bdc3c7;
+            text-decoration: none;
+            padding: 12px 20px;
+            display: block;
+            transition: 0.3s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background: #34495e;
+            color: #fff;
+            border-left: 4px solid #3498db;
+        }
+        .sidebar i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+        .main-content {
+            padding: 30px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .topbar {
+            background: #fff;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .shuttle-list .list-group-item.active {
+            background-color: #0d6efd !important;
+            color: white !important;
+            border-color: #0d6efd !important;
+        }
+        .nav-section {
+            display: none;
+        }
+        .nav-section.active {
+            display: block;
+        }
+        /* Shuttle Box 樣式 */
+        .shuttle-list .list-group-item {
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .shuttle-list .list-group-item:hover:not(.disabled) {
+            background-color: #f8f9fa;
+        }
+        .shuttle-list .list-group-item.active {
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+            color: #495057;
+        }
+        .shuttle-list .list-group-item.disabled {
+            background-color: #e9ecef;
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .candidate-img-preview {
+            width: 50px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: #eee;
+        }
+        
+        /* 選票預覽樣式 */
+        .ballot-preview {
+            background: white;
+            border: 1px solid #ccc;
+            padding: 20px;
+            position: relative;
+            min-height: 400px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .ballot-watermark {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            opacity: 0.15;
+            width: 200px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .ballot-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 列印專用樣式 */
+        @media print {
+            body > *:not(#printContainer) {
+                display: none !important;
+            }
+            #printContainer {
+                display: block !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                background: white;
+                margin: 0;
+                padding: 0;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .watermark-bg {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                opacity: 0.5;
+                width: 60%;
+                pointer-events: none;
+                z-index: 10;
+                mix-blend-mode: multiply;
+                filter: grayscale(1) sepia(1) hue-rotate(330deg) saturate(15) contrast(1.2);
+            }
+            /* Ensure table rows do not block the watermark if they have backgrounds */
+            #printContainer table {
+                position: relative;
+                z-index: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid p-0">
+    <div class="row g-0">
+        <!-- 側邊欄 -->
+        <div class="col-md-2 sidebar d-none d-md-block" id="sidebarMenu">
+            <div class="text-center mb-4">
+                <img src="assets/logo.png" alt="Logo" style="width: 80px; height: 80px; border-radius: 10px; object-fit: cover; margin-bottom: 10px; background: white; padding: 5px;">
+                <h5 class="fw-bold" id="sidebarElectionName">載入中...</h5>
+            </div>
+            
+            <a href="#" class="nav-link-btn active" data-target="section-overview"><i class="fas fa-home"></i> 選舉總覽</a>
+            <a href="#" class="nav-link-btn" data-target="section-candidates"><i class="fas fa-users"></i> 候選人資料庫</a>
+            <a href="#" class="nav-link-btn" data-target="section-keys"><i class="fas fa-key"></i> 金鑰與選票發放</a>
+            <a href="#" class="nav-link-btn" data-target="section-preview"><i class="fas fa-ticket-alt"></i> 選票預覽</a>
+            <hr class="border-secondary mx-3">
+            <a href="#" class="nav-link-btn" data-target="section-tally"><i class="fas fa-chart-bar"></i> 開票與計票中心</a>
+            <a href="#" class="nav-link-btn" data-target="section-reports"><i class="fas fa-file-alt"></i> 當選名單與報表</a>
+            
+            <div class="mt-auto pt-5">
+                <a href="dashboard.html"><i class="fas fa-arrow-left"></i> 回系統總覽</a>
+            </div>
+        </div>
+
+        <!-- 主內容區 -->
+        <div class="col-md-10 bg-light">
+            <!-- 頂部導覽列 -->
+            <div class="topbar">
+                <h4 class="m-0" id="pageTitle">載入中...</h4>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-secondary me-2" id="globalElectionStatusBadge">準備中</span>
+                    <span class="badge bg-primary me-2" id="orgNameBadge">載入中</span>
+                </div>
+            </div>
+
+            <!-- 內容區塊 -->
+            <div class="main-content">
+                <!-- 載入中動畫 -->
+                <div id="loader" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3 text-muted">資料載入中...</p>
+                </div>
+
+                <!-- 錯誤畫面 -->
+                <div id="errorView" class="text-center py-5" style="display:none;">
+                    <i class="fas fa-exclamation-triangle fa-4x text-danger mb-3"></i>
+                    <h3>無法讀取選舉資料</h3>
+                    <p class="text-muted" id="errorMsg">可能是權限不足或網址錯誤。</p>
+                    <a href="dashboard.html" class="btn btn-primary">回首頁</a>
+                </div>
+
+                <!-- 實際內容容器 -->
+                <div id="mainContainer" style="display:none;">
+                    
+                    <!-- 1. 總覽 -->
+                    <div id="section-overview" class="nav-section active">
+                        <div class="row mb-4">
+                            <!-- 統計卡片 1 -->
+                            <div class="col-md-3 mb-3 mb-md-0">
+                                <div class="card p-4 text-center h-100 d-flex flex-column justify-content-center">
+                                    <h1 class="text-primary display-4" id="statCandidates">0</h1>
+                                    <p class="text-muted mb-0 fw-bold">候選人總數</p>
+                                </div>
+                            </div>
+                            
+                            <!-- 統計卡片 2 -->
+                            <div class="col-md-3 mb-3 mb-md-0">
+                                <div class="card p-4 text-center h-100 d-flex flex-column justify-content-center">
+                                    <h1 class="text-success display-4" id="statItems">0</h1>
+                                    <p class="text-muted mb-0 fw-bold">選舉項次</p>
+                                </div>
+                            </div>
+                            
+                            <!-- 選舉進階設定 (移至總覽右上角) -->
+                            <div class="col-md-6">
+                                <div class="card p-3 border-info h-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="m-0 text-info fw-bold"><i class="fas fa-cog"></i> 選舉進階參數設定</h6>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="confirmSaveSettingsBtn"><i class="fas fa-save"></i> 儲存</button>
+                                    </div>
+                                    <p class="text-muted small mb-3" style="font-size: 0.8rem;">
+                                        此處設定將自動同步為「所有輪次」的預設參數。各別輪次在開票中心仍可微調。
+                                    </p>
+                                    <form id="globalInitForm" class="row g-2 align-items-end">
+                                        <div class="col-md-7">
+                                            <label class="form-label fw-bold small mb-1">預設過半基準 <span class="text-danger">*</span></label>
+                                            <div class="d-flex gap-3 mt-1">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseAttending" value="ATTENDING" checked>
+                                                    <label class="form-check-label small" for="baseAttending">出席人數</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="globalQuorumBase" id="baseBallots" value="BALLOTS">
+                                                    <label class="form-check-label small" for="baseBallots">發票數</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label fw-bold small mb-1">點名出席人數 (選填)</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" class="form-control" id="globalInitAttending" placeholder="例: 120" min="0">
+                                                <span class="input-group-text bg-light">人</span>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card p-4 border-success">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與輪次控制台</h5>
+                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
+                                    <i class="fas fa-plus"></i> 新增選舉項次
+                                </button>
+                            </div>
+
+                            <div class="accordion" id="itemsAccordion">
+                                <p class="text-muted text-center py-4">載入中...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. 候選人資料庫 -->
+                    <div id="section-candidates" class="nav-section">
+                        <div class="card p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="m-0"><i class="fas fa-users text-primary"></i> 候選人資料庫</h5>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-info me-2" id="downloadTemplateBtn">
+                                        <i class="fas fa-download"></i> 下載 Excel 範本
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success me-2" onclick="document.getElementById('excelUpload').click()">
+                                        <i class="fas fa-file-excel"></i> Excel 匯入
+                                    </button>
+                                    <input type="file" id="excelUpload" accept=".xlsx, .xls" style="display:none;">
+                                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addCandidateModal">
+                                        <i class="fas fa-plus"></i> 單筆新增
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="alert alert-info py-2">
+                                <i class="fas fa-info-circle"></i> 建議 Excel 欄位（含標題）：<strong>編號、姓名、分區(可空白)、單位(可空白)、候選資格(必填)</strong>。
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>照片</th>
+                                            <th>編號</th>
+                                            <th>姓名</th>
+                                            <th>資格</th>
+                                            <th>分區</th>
+                                            <th>單位</th>
+                                            <th>當選項次</th>
+                                            <th>狀態</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="candidatesTableBody">
+                                        <tr><td colspan="8" class="text-center text-muted py-3">載入中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <!-- 4. 選票預覽 -->
+                    <div id="section-preview" class="nav-section">
+                        <div class="card p-4">
+                            <h5 class="mb-4"><i class="fas fa-ticket-alt text-warning"></i> 選票預覽</h5>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要預覽的項次</label>
+                                    <select class="form-select" id="previewItemSelect">
+                                        <option value="">請選擇...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要預覽的輪次</label>
+                                    <select class="form-select" id="previewRoundSelect">
+                                        <option value="round_1">第一輪</option>
+                                        <option value="round_2">第二輪</option>
+                                        <option value="round_3">第三輪</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button class="btn btn-primary" id="btnGeneratePreview">產生預覽</button>
+                                </div>
+                            </div>
+
+                            <div class="ballot-preview rounded mt-4" id="ballotPreviewContainer" style="display:none; background-color: #f8f9fa; padding: 20px;">
+                                <!-- 模擬單張 A5 直式比例的選票 -->
+                                <div class="ballot-content position-relative shadow bg-white" style="width: 148mm; height: 210mm; margin: 0 auto; border: 2px dashed #999; padding: 15mm; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; background: transparent;">
+                                    
+                                    <!-- 浮水印 (正中間偏上，在文字後方) -->
+                                    <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印" style="position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.12; z-index: 10; pointer-events: none; mix-blend-mode: multiply;">
+                                    
+                                    <!-- 上方標題區 -->
+                                    <div class="text-center position-relative" style="z-index: 1;">
+                                        <h3 id="previewOrgName" class="fw-bold text-dark mb-3" style="font-size: 24px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">機構名稱</h3>
+                                        <h2 id="previewElectionName" class="text-dark mb-4 fw-bold" style="font-size: 32px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">選舉名稱</h2>
+                                        <h4 id="previewItemRoundName" class="text-secondary mt-2" style="font-size: 22px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">項次 - 輪次</h4>
+                                    </div>
+                                    
+                                    <!-- 下方 QR Code 與金鑰區 -->
+                                    <div class="position-relative d-flex flex-column justify-content-center align-items-center mt-auto" style="z-index: 1;">
+                                        <div class="qr-container bg-light p-4 border rounded text-center w-100" style="border: 2px solid #333 !important; position: relative;">
+                                            <span class="d-block text-muted mb-2" style="font-size: 18px;">請掃描下方 QR Code 或於網頁輸入此金鑰</span>
+                                            <!-- 模擬的 8 碼金鑰 -->
+                                            <strong class="d-block mb-4" style="font-size: 38px; letter-spacing: 8px; color: #000;">A1B2C3D4</strong>
+                                            
+                                            <!-- 模擬的 QR Code -->
+                                            <div id="previewQrCode" class="mx-auto border p-2" style="width: 180px; height: 180px; display: flex; align-items: center; justify-content: center; background: white; z-index: 2; position: relative;">
+                                                <i class="fas fa-qrcode fa-5x text-secondary"></i>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 text-center fw-bold" style="font-size: 16px;">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- 5. 金鑰與選票發放 -->
+                    <div id="section-keys" class="nav-section">
+                        <div class="card p-4">
+                            <h5 class="mb-4"><i class="fas fa-key text-warning"></i> 金鑰與選票發放</h5>
+                            
+                            <!-- 全域作業 -->
+                            <div class="card shadow-sm mb-4 border-warning">
+                                <div class="card-header bg-warning text-dark fw-bold">
+                                    <i class="fas fa-globe"></i> 全域作業 (批次處理所有項次與輪次)
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 border-end">
+                                            <h6 class="fw-bold">全域金鑰發放</h6>
+                                            <p class="text-muted small mb-2">系統將自動掃描所有「尚無金鑰」的項次與輪次，並統一發放。已發放過的輪次會被略過，不影響既有選票。</p>
+                                            <div class="input-group">
+                                                <span class="input-group-text">每輪發放張數</span>
+                                                <input type="number" class="form-control" id="globalKeysCount" min="1" placeholder="例如：120">
+                                                <button class="btn btn-warning fw-bold" id="btnGlobalGenerateKeys" type="button">一鍵發放金鑰</button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="fw-bold">多層級選票列印</h6>
+                                            <p class="text-muted small mb-2">列印不限次數。不同輪次的選票會自動換頁分隔，確保實體紙張不會混雜。</p>
+                                            <div class="d-flex gap-2 flex-wrap mt-3">
+                                                <button class="btn btn-primary shadow-sm" id="btnGlobalPrintAll"><i class="fas fa-print"></i> 1. 一鍵列印「所有輪次」選票</button>
+                                                <button class="btn btn-outline-primary" id="btnItemPrintAll"><i class="fas fa-print"></i> 2. 僅列印「下方所選項次 (三輪)」</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h6 class="fw-bold mb-3"><i class="fas fa-search"></i> 單一輪次檢視與管理</h6>
+                            <div class="row mb-4 bg-light p-3 rounded">
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要操作的項次</label>
+                                    <select class="form-select" id="keysItemSelect">
+                                        <option value="">請選擇...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要操作的輪次</label>
+                                    <select class="form-select" id="keysRoundSelect">
+                                        <option value="round_1">第一輪</option>
+                                        <option value="round_2">第二輪</option>
+                                        <option value="round_3">第三輪</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button class="btn btn-secondary" id="btnLoadKeys">載入該輪次金鑰</button>
+                                </div>
+                            </div>
+
+                            <div id="keysContentContainer" style="display: none;">
+                                <input type="hidden" id="manageKeysItemId">
+                                <input type="hidden" id="manageKeysRoundId">
+                                
+                                <div class="row mb-4">
+                                    <div class="col-md-4">
+                                        <div class="card text-center shadow-sm h-100 border-primary">
+                                            <div class="card-body">
+                                                <h2 class="text-primary" id="statKeysIssued">0</h2>
+                                                <p class="text-muted mb-0">已發放金鑰</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card text-center shadow-sm h-100 border-success">
+                                            <div class="card-body">
+                                                <h2 class="text-success" id="statKeysUsed">0</h2>
+                                                <p class="text-muted mb-0">已使用投票</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card text-center shadow-sm h-100 border-danger">
+                                            <div class="card-body">
+                                                <h2 class="text-danger" id="statKeysInvalid">0</h2>
+                                                <p class="text-muted mb-0">已作廢金鑰</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card shadow-sm mb-4">
+                                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-plus-circle text-success"></i> 單一輪次金鑰補發與列印</span>
+                                        <button class="btn btn-sm btn-outline-danger" id="btnDestroyAllKeys" style="display: none;"><i class="fas fa-trash-alt"></i> 銷毀所有未使用金鑰解除鎖定</button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="input-group mb-2">
+                                            <span class="input-group-text">發放數量</span>
+                                            <input type="number" class="form-control" id="generateKeysCount" min="1" placeholder="例如：120">
+                                            <button class="btn btn-primary" id="btnGenerateKeys" type="button">產生本輪金鑰</button>
+                                            <button class="btn btn-success fw-bold ms-2 rounded" id="btnPrintBallots" type="button" style="display: none;"><i class="fas fa-print"></i> 3. 僅列印本輪選票</button>
+                                        </div>
+                                        <small class="text-muted d-block" id="generateKeyHint">系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦發放金鑰，該輪次即鎖定產生功能，若要重配需先銷毀。</strong></small>
+                                    </div>
+                                </div>
+
+                                <div class="card shadow-sm">
+                                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-list text-primary"></i> 金鑰清單與作廢管理</span>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                            <table class="table table-hover table-striped mb-0 text-center align-middle">
+                                                <thead class="table-light sticky-top">
+                                                    <tr>
+                                                        <th>金鑰代碼</th>
+                                                        <th>狀態</th>
+                                                        <th>產生時間</th>
+                                                        <th>操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="keysTableBody">
+                                                    <tr><td colspan="4" class="text-muted py-3">載入中...</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6. 開票與計票中心 -->
+                    <div id="section-tally" class="nav-section">
+                        <div class="card p-4">
+                            <h5 class="mb-4"><i class="fas fa-chart-bar text-info"></i> 開票與計票中心</h5>
+                            <div class="row mb-4 bg-light p-3 rounded">
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要操作的項次</label>
+                                    <select class="form-select" id="tallyItemSelect">
+                                        <option value="">請選擇...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">選擇要操作的輪次</label>
+                                    <select class="form-select" id="tallyRoundSelect">
+                                        <option value="round_1">第一輪</option>
+                                        <option value="round_2">第二輪</option>
+                                        <option value="round_3">第三輪</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button class="btn btn-primary" id="btnLoadTally">載入開票資料</button>
+                                </div>
+                            </div>
+
+                            <div id="tallyContentContainer" style="display: none;">
+                                <input type="hidden" id="tallyItemId">
+                                <input type="hidden" id="tallyRoundId">
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h4 class="m-0 text-primary" id="tallyTitle"></h4>
+                                    <span class="badge bg-warning text-dark fs-6" id="tallyStatusBadge">狀態：載入中</span>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <!-- 左側：設定面板 -->
+                                    <div class="col-md-3">
+                                        <div class="card shadow-sm h-100">
+                                            <div class="card-header bg-white fw-bold"><i class="fas fa-cog text-secondary"></i> 選務參數設定</div>
+                                            <div class="card-body p-2">
+                                                <div class="mb-2">
+                                                    <label class="form-label fw-bold small mb-1">過半計算基準</label>
+                                                    <select class="form-select form-select-sm border-primary" id="tallyQuorumBase">
+                                                        <option value="ATTENDING">以「出席人數」為準</option>
+                                                        <option value="BALLOTS">以「總發票數」為準</option>
+                                                    </select>
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label text-primary fw-bold small mb-1">出席人數</label>
+                                                    <input type="number" class="form-control form-control-sm" id="tallyAttendingCount" min="0">
+                                                </div>
+                                                <hr class="my-2">
+                                                
+                                                <!-- 總發票數 -->
+                                                <div class="mb-2 bg-light p-2 rounded">
+                                                    <label class="form-label fw-bold text-dark small mb-1">總發票數 <span class="badge bg-secondary ms-1" id="tallyTotalIssued">0</span></label>
+                                                    <div class="d-flex align-items-center mb-1">
+                                                        <span class="small text-muted me-2" style="width: 80px;">發票數(數位)</span>
+                                                        <input type="number" class="form-control form-control-sm border-info" id="tallyDigitalIssued" min="0" value="0">
+                                                    </div>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="small text-muted me-2" style="width: 80px;">發票數(手寫)</span>
+                                                        <input type="number" class="form-control form-control-sm border-success" id="tallyPaperIssued" min="0" value="0">
+                                                    </div>
+                                                </div>
+
+                                                <!-- 總收票數 -->
+                                                <div class="mb-2 bg-light p-2 rounded border-start border-4 border-warning">
+                                                    <label class="form-label fw-bold text-dark small mb-1">總收票數(含空白票) <span class="badge bg-warning text-dark ms-1" id="tallyTotalReceived">0</span></label>
+                                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                                        <span class="small text-muted">收票數(數位) <i class="fas fa-robot text-secondary" title="系統自動計算"></i></span>
+                                                        <span class="badge bg-light text-dark border" id="tallyDigitalUsed">0</span>
+                                                    </div>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="small text-muted me-2" style="width: 80px;">收票數(手寫)</span>
+                                                        <input type="number" class="form-control form-control-sm border-warning" id="tallyPaperReceived" min="0" value="0">
+                                                    </div>
+                                                </div>
+
+                                                <!-- 總空白票 -->
+                                                <div class="mb-2 bg-light p-2 rounded border-start border-4 border-secondary">
+                                                    <label class="form-label fw-bold text-dark small mb-1">總空白票 <span class="badge bg-secondary ms-1" id="tallyTotalBlank">0</span></label>
+                                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                                        <span class="small text-muted">空白票(數位) <i class="fas fa-robot text-secondary" title="未勾選任何候選人"></i></span>
+                                                        <span class="badge bg-light text-dark border" id="tallyDigitalBlank">0</span>
+                                                    </div>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="small text-muted me-2" style="width: 80px;">空白票(手寫)</span>
+                                                        <input type="number" class="form-control form-control-sm border-secondary" id="tallyPaperBlank" min="0" value="0">
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                            <div class="card-footer bg-light text-center py-2">
+                                                <h6 class="mb-1 text-muted">過半當選門檻</h6>
+                                                <h2 class="text-danger fw-bold m-0" id="tallyThreshold">0</h2>
+                                                <small class="text-muted" style="font-size:0.7em" id="tallyThresholdFormula">(0 / 2) + 1</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 右側：開票計分板 -->
+                                    <div class="col-md-9">
+                                        <div class="card shadow-sm h-100 border-info">
+                                            <div class="card-header bg-info text-white fw-bold d-flex justify-content-between align-items-center">
+                                                <span><i class="fas fa-list-ol"></i> 候選人得票統計 (應選：<span id="tallyQuota">0</span> 名)</span>
+                                                <button class="btn btn-sm btn-light text-info fw-bold" id="btnSortTally"><i class="fas fa-sort-amount-down"></i> 重新排序</button>
+                                            </div>
+                                            <div class="card-body p-0">
+                                                <div class="table-responsive" style="height: 60vh; overflow-y: auto;">
+                                                    <table class="table table-hover table-striped align-middle text-center mb-0" id="tallyTable">
+                                                        <thead class="table-light sticky-top">
+                                                            <tr>
+                                                                <th width="10%">號次</th>
+                                                                <th width="20%">姓名</th>
+                                                                <th width="15%">數位得票</th>
+                                                                <th width="15%" class="text-success">紙本得票 (輸入)</th>
+                                                                <th width="15%" class="text-primary fs-5">總得票</th>
+                                                                <th width="10%">過半</th>
+                                                                <th width="15%" class="bg-warning">確認當選</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody id="tallyTableBody">
+                                                            <tr><td colspan="7" class="text-muted py-5">載入中...</td></tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between bg-white mt-3 p-3 border rounded shadow-sm">
+                                    <div>
+                                        <button type="button" class="btn btn-outline-danger" id="btnEndVoting" style="display: none;"><i class="fas fa-stop-circle"></i> 結束數位投票並鎖定</button>
+                                        <button type="button" class="btn btn-outline-success" id="btnReopenVoting" style="display: none;"><i class="fas fa-play-circle"></i> 重新開放數位投票</button>
+                                    </div>
+                                    <div>
+                                        <button type="button" class="btn btn-outline-info fw-bold me-2" id="btnOpenProjector"><i class="fas fa-desktop"></i> 開啟投影畫面</button>
+                                        <button type="button" class="btn btn-primary" id="btnSaveTallyResults"><i class="fas fa-save"></i> 儲存開票數據</button>
+                                        <button type="button" class="btn btn-warning fw-bold ms-2" id="btnPublishTally"><i class="fas fa-bullhorn"></i> 發布選舉結果</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 7. 當選名單與報表 -->
+                    <div id="section-reports" class="nav-section">
+                        <div class="row">
+                            <div class="col-12 mb-4">
+                                <div class="card p-4 border-primary">
+                                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                                        <h5 class="m-0"><i class="fas fa-trophy text-warning"></i> 全局當選名單總覽</h5>
+                                        <div>
+                                            <button class="btn btn-outline-danger me-2" onclick="unpublishElectedProjection()" id="unpublishGlobalBtn" style="display:none;"><i class="fas fa-undo"></i> 撤銷公布 (恢復單輪結果)</button>
+                                            <button class="btn btn-outline-primary me-2" onclick="openElectedProjection()" id="publishGlobalBtn"><i class="fas fa-desktop"></i> 公布當選總名單與開啟投影畫面</button>
+                                            <button class="btn btn-primary" onclick="printElectionResults()"><i class="fas fa-print"></i> 列印當選與得票結果</button>
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-hover align-middle">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th width="30%">選舉項次</th>
+                                                    <th>當選人名單</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="electedOverviewTableBody">
+                                                <tr><td colspan="2" class="text-center text-muted py-3">載入中...</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-4">
+                                <div class="card p-4 h-100">
+                                    <h5 class="mb-3"><i class="fas fa-search text-info"></i> 金鑰狀態與防弊查詢</h5>
+                                    <p class="text-muted small mb-3">輸入選民的金鑰代碼，可查驗該金鑰的投票紀錄與精確時間，以昭公信。(系統無記名，僅能證明金鑰本身投給誰)</p>
+                                    <div class="input-group mb-4">
+                                        <input type="text" class="form-control" id="auditKeyInput" placeholder="請輸入金鑰代碼...">
+                                        <button class="btn btn-info text-white" onclick="searchKeyStatus()"><i class="fas fa-search"></i> 查詢</button>
+                                    </div>
+                                    <div id="auditKeyResult" class="p-3 bg-light border rounded" style="display: none;">
+                                        <!-- 動態顯示查詢結果 -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-4">
+                                <div class="card p-4 h-100 border-danger">
+                                    <h5 class="mb-3 text-danger"><i class="fas fa-archive"></i> 數位選票列印歸檔</h5>
+                                    <p class="text-muted small mb-3">此功能將會印出「所有項次、所有輪次」的金鑰使用狀況，以及已使用金鑰的「圈選明細」與「精確時間戳記」。</p>
+                                    <div class="alert alert-danger p-2 small">
+                                        <i class="fas fa-exclamation-triangle"></i> 報表資料量可能非常龐大，列印過程需等待較長時間。印出後請妥善歸檔存查。
+                                    </div>
+                                    <button class="btn btn-danger w-100 mt-auto" onclick="printDigitalBallotArchive()"><i class="fas fa-file-pdf"></i> 產生數位選票歸檔報表</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增項次 Modal -->
+<div class="modal fade" id="addItemModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">新增選舉項次</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addItemForm">
+          <div class="mb-3">
+            <label class="form-label">項次名稱 (例如：議長、中委牧師) <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="itemTitleInput" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">應選名額 <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="itemSeatsInput" min="1" value="1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">允許的候選資格 (過濾用)</label>
+            <div id="qualCheckboxesContainer" class="p-3 bg-light border rounded">
+                <small class="text-muted">載入中...</small>
+            </div>
+            <small class="text-muted d-block mt-1">請勾選允許參與此項次的資格，空白代表不限制。</small>
+          </div>
+          <hr>
+          <h6 class="fw-bold mb-3 text-primary">進階篩選與保障機制</h6>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input bg-warning" type="checkbox" id="itemForcedCandidateInput">
+            <label class="form-check-label text-warning fw-bold" for="itemForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
+            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。開啟保留是強迫占用 1 個名額給予保留人員，保留人員若無當選，選舉結果會缺額 1 名。</div>
+          </div>
+          <div class="mb-3" id="forcedCandidateSelectContainer" style="display:none;">
+            <select class="form-select" id="itemForcedCandidateSelect">
+                <option value="">請選擇保留的候選人...</option>
+            </select>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="itemExcludeElectedInput" checked>
+            <label class="form-check-label" for="itemExcludeElectedInput"><strong>自動排除已當選者</strong> (產生名單時，剔除已被標記當選的候選人)</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="itemDistrictReqInput">
+            <label class="form-check-label" for="itemDistrictReqInput"><strong>強制分區競選限制</strong> (當選者必須來自不同地區，請在下方勾選地區)</label>
+          </div>
+          <div id="districtCheckboxesContainer" class="p-3 bg-light border rounded mb-3" style="display:none;">
+            <!-- 動態產生分區勾選框 -->
+            <small class="text-muted fw-bold text-primary">
+              勾選數量規則：<br>
+              各區應選人數加總要與「應選名額」一致。<br>
+              倘若同時間有勾選保留候選，則各區應選人數加總要與「應選名額 + 1」一致。
+            </small>
+            <div id="districtCheckboxesList" class="row mt-2"></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveItemBtn">建立項次與三輪設定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 修改輪次參數 Modal -->
+<div class="modal fade" id="editRoundModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-primary">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="fas fa-edit"></i> 修改輪次參數：<span id="editRoundTitleDisplay"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <input type="hidden" id="editRoundItemId">
+        <input type="hidden" id="editRoundRoundId">
+        <form id="editRoundForm">
+          <div class="alert alert-info py-2 small">
+              <i class="fas fa-info-circle"></i> 在此修改的參數將會覆寫該項次的預設值，且僅對此「單一輪次」生效。
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">本輪應選名額 <span class="text-danger">*</span></label>
+            <input type="number" class="form-control border-primary" id="editRoundSeatsInput" min="1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">允許的候選資格 (過濾用)</label>
+            <div id="editRoundQualCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm">
+                <small class="text-muted">載入中...</small>
+            </div>
+            <small class="text-muted d-block mt-1">請勾選允許參與此項次的資格，空白代表不限制。</small>
+          </div>
+          <hr>
+          <h6 class="fw-bold mb-3 text-primary">進階篩選與保障機制</h6>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input bg-warning" type="checkbox" id="editRoundForcedCandidateInput">
+            <label class="form-check-label text-warning fw-bold" for="editRoundForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
+            <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。開啟保留是強迫占用 1 個名額給予保留人員，保留人員若無當選，選舉結果會缺額 1 名。</div>
+          </div>
+          <div class="mb-3" id="editRoundForcedCandidateSelectContainer" style="display:none;">
+            <select class="form-select border-warning" id="editRoundForcedCandidateSelect">
+                <option value="">請選擇保留的候選人...</option>
+            </select>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="editRoundExcludeElectedInput" checked>
+            <label class="form-check-label" for="editRoundExcludeElectedInput"><strong>自動排除已當選者</strong></label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="editRoundDistrictReqInput">
+            <label class="form-check-label" for="editRoundDistrictReqInput"><strong>強制分區競選限制</strong></label>
+          </div>
+          <div id="editRoundDistrictCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm mb-3" style="display:none;">
+            <small class="text-muted fw-bold text-primary">
+              勾選數量規則：<br>
+              勾選數量規則：<br>
+              各區應選人數加總要與「應選名額」一致。<br>
+              倘若同時間有勾選保留候選，則各區應選人數加總要與「應選名額 + 1」一致。
+            </small>
+            <div id="editRoundDistrictCheckboxesList" class="row mt-2"></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveEditRoundBtn">儲存輪次專屬設定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增候選人 Modal -->
+<div class="modal fade" id="addCandidateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">新增單筆候選人</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addCandidateForm">
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">號次</label>
+              <input type="text" class="form-control" id="candNumberInput">
+            </div>
+            <div class="col-md-8 mb-3">
+              <label class="form-label">姓名 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="candNameInput" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">分區 (選填)</label>
+            <input type="text" class="form-control" id="candDistrictInput" placeholder="例如：東區">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">單位/教會/小組 (選填)</label>
+            <input type="text" class="form-control" id="candUnitInput" placeholder="例如：第一教會">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">候選資格 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="candQualInput" placeholder="例如：牧師, 長老" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveCandidateBtn">儲存候選人</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯候選人 Modal -->
+<div class="modal fade" id="editCandidateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">編輯候選人</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editCandidateForm">
+          <input type="hidden" id="editCandIdInput">
+          
+          <!-- 照片上傳區 -->
+          <div class="mb-3 text-center">
+            <div class="position-relative d-inline-block">
+              <img id="editCandPhotoPreview" src="" alt="照片預覽" class="rounded-circle border" style="width: 100px; height: 100px; object-fit: cover; display: none;">
+              <div id="editCandPhotoPlaceholder" class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted" style="width: 100px; height: 100px; font-size: 2rem;">
+                <i class="fas fa-user"></i>
+              </div>
+            </div>
+            <div class="mt-2">
+              <label for="editCandPhotoInput" class="btn btn-sm btn-outline-primary"><i class="fas fa-camera"></i> 上傳照片</label>
+              <input type="file" id="editCandPhotoInput" accept="image/*" style="display: none;">
+              <button type="button" class="btn btn-sm btn-outline-danger ms-1" id="btnRemoveEditCandPhoto" style="display: none;"><i class="fas fa-trash"></i></button>
+            </div>
+            <input type="hidden" id="editCandPhotoBase64">
+          </div>
+
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">號次</label>
+              <input type="text" class="form-control" id="editCandNumberInput">
+            </div>
+            <div class="col-md-8 mb-3">
+              <label class="form-label">姓名 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="editCandNameInput" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">分區 (選填)</label>
+            <input type="text" class="form-control" id="editCandDistrictInput">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">單位/教會/小組 (選填)</label>
+            <input type="text" class="form-control" id="editCandUnitInput">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">候選資格 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="editCandQualInput" required>
+          </div>
+          
+          <hr>
+          <h6 class="fw-bold mb-3 text-primary">進階狀態設定</h6>
+          
+          <div class="mb-3">
+            <label class="form-label">已當選項次</label>
+            <input type="text" class="form-control" id="editCandElectedItemInput" placeholder="尚未當選任何項次" readonly>
+            <small class="text-muted">此欄位為唯讀，將由開票中心自動於選舉結束後填入。</small>
+          </div>
+          
+          <div class="form-check form-switch mb-3 mt-3">
+            <input class="form-check-input bg-danger" type="checkbox" id="editCandIneligibleInput">
+            <label class="form-check-label text-danger fw-bold" for="editCandIneligibleInput">不可被選 (打 X)</label>
+            <div class="text-muted small mt-1">勾選後，此人將全域隱藏，絕對不會出現在任何選舉輪次中。</div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="updateCandidateBtn">儲存變更</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- 金鑰管理 Modal -->
+<div class="modal fade" id="manageKeysModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-secondary text-white">
+        <h5 class="modal-title"><i class="fas fa-key"></i> 輪次金鑰管理：<span id="manageKeysTitle"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <input type="hidden" id="manageKeysItemId">
+        <input type="hidden" id="manageKeysRoundId">
+        
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="text-primary" id="statKeysIssued">0</h2>
+                        <p class="text-muted mb-0">已發放金鑰</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="text-success" id="statKeysUsed">0</h2>
+                        <p class="text-muted mb-0">已使用投票</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="text-danger" id="statKeysInvalid">0</h2>
+                        <p class="text-muted mb-0">已作廢金鑰</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-plus-circle text-success"></i> 發放與列印新金鑰</span>
+                <button class="btn btn-sm btn-outline-danger" id="btnDestroyAllKeys" style="display: none;"><i class="fas fa-trash-alt"></i> 銷毀所有未使用金鑰解除鎖定</button>
+            </div>
+            <div class="card-body">
+                <div class="input-group mb-2">
+                    <span class="input-group-text">發放數量</span>
+                    <input type="number" class="form-control" id="generateKeysCount" min="1" placeholder="例如：120">
+                    <button class="btn btn-primary" id="btnGenerateKeys" type="button">產生金鑰</button>
+                    <button class="btn btn-success fw-bold ms-2 rounded" id="btnPrintBallots" type="button" style="display: none;"><i class="fas fa-print"></i> 列印實體選票 (A4套印)</button>
+                </div>
+                <small class="text-muted d-block" id="generateKeyHint">系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦執行列印，將會鎖定產生功能，避免印出的選票失效。</strong></small>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-list text-primary"></i> 金鑰清單與作廢管理</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-hover table-striped mb-0 text-center align-middle">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>金鑰代碼</th>
+                                <th>狀態</th>
+                                <th>產生時間</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="keysTableBody">
+                            <tr><td colspan="4" class="text-muted py-3">載入中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 下一輪晉級設定嚮導 Modal -->
+<div class="modal fade" id="nextRoundWizardModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-info">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title"><i class="fas fa-magic"></i> 晉級下一輪設定</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="wizardItemId">
+        <input type="hidden" id="wizardNextRoundId">
+        
+        <div class="alert alert-primary">
+            <h5>目前選情統計：</h5>
+            <ul class="mb-2">
+                <li>總應選：<strong id="wizardTotalQuota">0</strong> 名</li>
+                <li>已確認當選：<strong id="wizardElectedCount">0</strong> 名</li>
+                <li>剩餘待選名額：<strong id="wizardRemainingQuota" class="text-danger">0</strong> 名</li>
+            </ul>
+            <div id="wizardDistrictAlertsContainer" style="display:none;" class="mt-2 pt-2 border-top border-primary">
+                <!-- 動態插入分區剩餘名額 -->
+            </div>
+        </div>
+
+        <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-filter"></i> 下一輪候選人晉級篩選設定</h6>
+        <div class="list-group mb-3">
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="MULTIPLY" checked>
+                <span>
+                    <strong>N 倍數制</strong><br>
+                    <small class="text-muted">取剩餘名額的 N 倍人數晉級 (依本輪得票高低排序)。</small>
+                    <div class="input-group input-group-sm mt-2 w-50">
+                        <span class="input-group-text">N =</span>
+                        <input type="number" class="form-control" id="wizardFilterMultiplyN" value="2" min="1">
+                    </div>
+                </span>
+            </label>
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="ADD">
+                <span>
+                    <strong>N 加數制</strong><br>
+                    <small class="text-muted">取剩餘名額 + N 的人數晉級 (依本輪得票高低排序)。</small>
+                    <div class="input-group input-group-sm mt-2 w-50">
+                        <span class="input-group-text">N =</span>
+                        <input type="number" class="form-control" id="wizardFilterAddN" value="1" min="1">
+                    </div>
+                </span>
+            </label>
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="ALL">
+                <span>
+                    <strong>不進行自動篩選</strong><br>
+                    <small class="text-muted">直接將所有尚未當選的候選人帶入下一輪，再由您手動微調。</small>
+                </span>
+            </label>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">稍後設定</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmNextRound">產生下一輪名單</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 輪次名單微調 Modal (雙欄穿梭框) -->
+<div class="modal fade" id="adjustRoundCandidatesModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="fas fa-users-cog"></i> 調整輪次候選名單：<span id="adjustRoundTitle"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <input type="hidden" id="adjustItemId">
+        <input type="hidden" id="adjustRoundId">
+        
+        <div class="row align-items-stretch">
+            <!-- 左側：本輪候選區 -->
+            <div class="col-md-5">
+                <div class="card h-100 border-success shadow-sm">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-bold">本輪候選區 (<span id="countSelected">0</span>)</span>
+                            <button class="btn btn-sm btn-light ms-2 text-success py-0" id="btnSortByNumber" title="依號次重排"><i class="fas fa-sort-numeric-down"></i></button>
+                        </div>
+                        <input type="text" class="form-control form-control-sm w-50" id="searchSelected" placeholder="搜尋姓名/編號">
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush shuttle-list" id="listSelected" style="height: 400px; overflow-y: auto;">
+                            <!-- JS 生成 -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中間：操作按鈕區 -->
+            <div class="col-md-2 d-flex flex-column justify-content-center align-items-center gap-2 py-3">
+                <button class="btn btn-outline-danger w-75" id="btnMoveToRight" title="移出所選">&gt;</button>
+                <button class="btn btn-danger w-75 fw-bold" id="btnMoveAllToRight" title="全部移出">&gt;&gt;</button>
+                <hr class="w-75 text-secondary">
+                <button class="btn btn-outline-success w-75" id="btnMoveToLeft" title="移入所選">&lt;</button>
+                <button class="btn btn-success w-75 fw-bold" id="btnMoveAllToLeft" title="全部移入">&lt;&lt;</button>
+                <small class="text-muted mt-2 text-center" style="font-size: 0.8em;">(選取後請按箭頭移動)</small>
+            </div>
+
+            <!-- 右側：本輪排除區 -->
+            <div class="col-md-5">
+                <div class="card h-100 border-secondary shadow-sm">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">本輪非候選區 (<span id="countUnselected">0</span>)</span>
+                        <input type="text" class="form-control form-control-sm w-50" id="searchUnselected" placeholder="搜尋姓名/編號">
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush shuttle-list" id="listUnselected" style="height: 400px; overflow-y: auto;">
+                            <!-- JS 生成 -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="text-muted small me-auto"><i class="fas fa-info-circle"></i> 提示：若為「強制保障名額」或全域「不可被選者」，系統將鎖定該筆項目無法移動。</span>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveRoundCandidatesBtn">儲存輪次名單</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 隱藏的列印容器 -->
+<div id="printContainer" style="display: none;"></div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+<!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyABw9ATwX7E0YxtkM4PK_YCpAEH98X0nBs",
+        authDomain: "church-election-system-7c674.firebaseapp.com",
+        projectId: "church-election-system-7c674",
+        storageBucket: "church-election-system-7c674.firebasestorage.app",
+        messagingSenderId: "107251562289",
+        appId: "1:107251562289:web:a9cd450302d7c235aa6210"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebaseAuth = auth;
+    window.firebaseDb = db;
+    window.onAuthStateChanged = onAuthStateChanged;
+    
+    // Firestore Utils
+    window.fs = {
+        doc, getDoc, setDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, writeBatch, onSnapshot
+    };
+</script>
+
+<script src="utils.js?v=3.00"></script>
+<script src="election_admin.js?v=3.00"></script>
+</body>
+</html>

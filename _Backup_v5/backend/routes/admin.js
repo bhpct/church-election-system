@@ -80,7 +80,7 @@ router.delete('/organizations/:orgId', verifySuperAdmin, async (req, res) => {
 // 3. 更新使用者權限 (Custom Claims 與 Firestore)
 router.post('/update_user_claims', verifySuperAdmin, async (req, res) => {
     try {
-        const { targetUid, newRole, org_roles } = req.body;
+        const { targetUid, newRole, org_ids } = req.body;
         
         if (!targetUid || !newRole) {
             return res.status(400).json({ success: false, message: '缺少必要參數' });
@@ -95,15 +95,16 @@ router.post('/update_user_claims', verifySuperAdmin, async (req, res) => {
             return res.status(403).json({ success: false, message: '權限不足，必須為超級管理員' });
         }
 
+        // 1. 更新 Firebase Auth Custom Claims
         await admin.auth().setCustomUserClaims(targetUid, {
             role: newRole,
-            org_roles: org_roles || {}
+            org_ids: org_ids || []
         });
 
         // 2. 同步更新 Firestore users 集合
         await db.collection('users').doc(targetUid).update({
             role: newRole,
-            org_roles: org_roles || {}
+            org_ids: org_ids || []
         });
 
         res.json({ success: true, message: '權限更新成功，使用者重新載入後生效' });
@@ -140,61 +141,6 @@ router.delete('/users/:uid', verifySuperAdmin, async (req, res) => {
 
     } catch (error) {
         console.error('刪除使用者失敗:', error);
-        res.status(500).json({ success: false, message: '伺服器錯誤', error: error.message });
-    }
-});
-
-// 5. 產生限時 6 碼授權序號
-router.post('/generate_auth_code', async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ success: false, message: '缺少驗證憑證' });
-        }
-        
-        const idToken = authHeader.split('Bearer ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        const { orgId } = req.body;
-
-        if (!orgId) {
-            return res.status(400).json({ success: false, message: '必須指定機構 ID' });
-        }
-
-        // 權限檢查：必須是全域 SUPER_ADMIN，或者是該單位的 ORG_SUPER_ADMIN
-        const isSuperAdmin = decodedToken.role === 'SUPER_ADMIN';
-        const isOrgSuperAdmin = decodedToken.org_roles && decodedToken.org_roles[orgId] === 'ORG_SUPER_ADMIN';
-
-        if (!isSuperAdmin && !isOrgSuperAdmin) {
-            return res.status(403).json({ success: false, message: '權限不足，僅限該單位的超級管理員操作' });
-        }
-
-        const db = admin.firestore();
-        
-        // 產生 6 碼隨機數字
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        
-        // 寫入 Firestore，設定 5 分鐘後過期
-        const expiresAt = new Date();
-        expiresAt.setMinutes(expiresAt.getMinutes() + 5);
-
-        await db.collection('auth_codes').doc(code).set({
-            code: code,
-            orgId: orgId,
-            generatedBy: decodedToken.uid,
-            roleGranted: 'ORG_ADMIN', // 預設給予一般管理員權限
-            expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        res.json({ 
-            success: true, 
-            code: code,
-            expiresAt: expiresAt.getTime(),
-            message: '授權碼產生成功' 
-        });
-
-    } catch (error) {
-        console.error('產生授權碼失敗:', error);
         res.status(500).json({ success: false, message: '伺服器錯誤', error: error.message });
     }
 });
