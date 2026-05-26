@@ -329,13 +329,17 @@ async function loadAdminDashboard() {
                     roleBadge = '<span class="badge bg-primary">已授權單位管理員</span>';
                 }
                 
-                const uOrgIds = u.org_ids || [];
-                let orgNames = [];
-                uOrgIds.forEach(id => {
-                    const o = allOrgs.find(x => x.id === id);
-                    if (o) orgNames.push(o.name);
+                const uOrgRoles = u.org_roles || {};
+                let orgsDisplayArr = [];
+                Object.keys(uOrgRoles).forEach(orgId => {
+                    const o = allOrgs.find(x => x.id === orgId);
+                    if (o) {
+                        const localRole = uOrgRoles[orgId] === 'ORG_SUPER_ADMIN' ? '單位超管' : '一般管理員';
+                        const badgeColor = uOrgRoles[orgId] === 'ORG_SUPER_ADMIN' ? 'bg-danger' : 'bg-primary';
+                        orgsDisplayArr.push(`<div class="mb-1">${o.name} <span class="badge ${badgeColor} ms-1">${localRole}</span></div>`);
+                    }
                 });
-                const orgsDisplay = orgNames.length > 0 ? orgNames.join(', ') : '<span class="text-muted">無</span>';
+                const orgsDisplay = orgsDisplayArr.length > 0 ? orgsDisplayArr.join('') : '<span class="text-muted">無</span>';
 
                 const note = u.note || '<span class="text-muted">無</span>';
 
@@ -1074,7 +1078,8 @@ window.verifyOtpCode = async function() {
                 text: result.message,
                 timer: 1500,
                 showConfirmButton: false
-            }).then(() => {
+            }).then(async () => {
+                await window.firebaseAuth.currentUser.getIdToken(true); // 強制更新 token
                 window.location.reload();
             });
         } else {
@@ -1185,9 +1190,22 @@ document.querySelectorAll('.nav-link-btn').forEach(btn => {
         if (targetSec) {
             targetSec.classList.add('active');
             
-            // 如果是手機版，點擊後自動收起側邊欄 (如果有做 offcanvas 的話)
-            // const bsOffcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('sidebarMenu'));
-            // if (bsOffcanvas) bsOffcanvas.hide();
+            // 如果是手機版，點擊後自動收起側邊欄
+            if (window.innerWidth < 768) {
+                const sidebar = document.getElementById('sidebarMenu');
+                if (sidebar) sidebar.classList.add('d-none');
+            }
         }
     });
 });
+
+// 處理手機版側邊欄切換
+const mobileMenuBtn = document.getElementById('mobileMenuToggle');
+if (mobileMenuBtn) {
+    mobileMenuBtn.addEventListener('click', () => {
+        const sidebar = document.getElementById('sidebarMenu');
+        if (sidebar) {
+            sidebar.classList.toggle('d-none');
+        }
+    });
+}
