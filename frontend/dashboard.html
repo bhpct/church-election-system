@@ -80,7 +80,7 @@
         }
         /* 隱藏未授權區塊 */
         body:not(.is-super-admin) .role-super-admin {
-            display: none !important;
+            display: none;
         }
         body:not(.is-org-admin):not(.is-super-admin) .role-org-admin {
             display: none !important;
@@ -118,10 +118,10 @@
             </div>
 
             <!-- 超級管理員專屬選單 -->
-            <div class="role-super-admin">
+            <div class="role-super-admin" id="superAdminMenuBlock">
                 <h6 class="px-3 mt-4 mb-2 text-muted" style="font-size: 0.8rem; text-transform: uppercase;">超級管理員設定</h6>
-                <a href="#" class="nav-link-btn" data-target="section-orgs"><i class="fas fa-sitemap"></i> 機構與單位管理</a>
-                <a href="#" class="nav-link-btn" data-target="section-admins"><i class="fas fa-users-cog"></i> 系統管理員設定</a>
+                <a href="#" class="nav-link-btn" id="nav-section-orgs" data-target="section-orgs"><i class="fas fa-sitemap"></i> 機構與單位管理</a>
+                <a href="#" class="nav-link-btn" id="nav-section-admins" data-target="section-admins"><i class="fas fa-users-cog"></i> 系統管理員設定</a>
             </div>
 
             <div class="mt-auto pt-5">

@@ -159,20 +159,27 @@ window.switchOrgContext = async function() {
     if (generateOtpBtn) {
         if (isSuperAdmin || isOrgSuperAdmin) {
             generateOtpBtn.classList.remove('d-none');
-            // 如果是單位超管，也要顯示系統管理員設定分頁
-            if (isOrgSuperAdmin) {
-                const adminSection = document.getElementById('section-admins');
-                if (adminSection) adminSection.style.display = 'block';
-                // 並且還要顯示對應的選單按鈕
-                document.querySelectorAll('[data-target="section-admins"]').forEach(el => el.parentElement.style.display = 'block');
-            }
         } else {
             generateOtpBtn.classList.add('d-none');
-            if (!isSuperAdmin) {
-                // 如果不是全域超管，隱藏管理員設定分頁
-                const adminSection = document.getElementById('section-admins');
-                if (adminSection) adminSection.style.display = 'none';
-            }
+        }
+    }
+    
+    // 控制超級管理員選單區塊顯示邏輯
+    if (!isSuperAdmin) {
+        const superAdminMenuBlock = document.getElementById('superAdminMenuBlock');
+        const navSectionOrgs = document.getElementById('nav-section-orgs');
+        const navSectionAdmins = document.getElementById('nav-section-admins');
+        const adminSection = document.getElementById('section-admins');
+        
+        if (isOrgSuperAdmin) {
+            // 單位超管：顯示選單區塊，但隱藏「機構管理」，只顯示「系統管理員設定」
+            if (superAdminMenuBlock) superAdminMenuBlock.style.display = 'block';
+            if (navSectionOrgs) navSectionOrgs.style.display = 'none';
+            if (navSectionAdmins) navSectionAdmins.style.display = 'block';
+        } else {
+            // 一般管理員：完全隱藏特權選單區塊與頁面
+            if (superAdminMenuBlock) superAdminMenuBlock.style.display = 'none';
+            if (adminSection) adminSection.style.display = 'none';
         }
     }
 
