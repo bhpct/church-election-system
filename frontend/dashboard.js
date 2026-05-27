@@ -374,16 +374,22 @@ async function loadAdminDashboard() {
             tbodyUser.innerHTML = `<tr><td colspan="${isGlobalSuperAdmin ? '5' : '4'}" class="text-center text-muted py-3">無其他使用者</td></tr>`;
         } else {
             allUsers.forEach(u => {
+                const uOrgRoles = u.org_roles || {};
+                
                 let roleBadge = '';
                 if (u.role === 'SUPER_ADMIN') {
                     roleBadge = '<span class="badge bg-danger"><i class="fas fa-crown"></i> 系統超級管理員</span>';
                 } else if (!u.role || u.role === 'GUEST') {
-                    roleBadge = '<span class="badge bg-warning text-dark">審核中</span>';
+                    roleBadge = '<span class="badge bg-secondary">審核中</span>';
                 } else {
-                    roleBadge = '<span class="badge bg-primary">已授權單位管理員</span>';
+                    const hasOrgSuperAdmin = Object.values(uOrgRoles).includes('ORG_SUPER_ADMIN');
+                    if (hasOrgSuperAdmin) {
+                        roleBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-user-shield"></i> 已授權單位超級管理員</span>';
+                    } else {
+                        roleBadge = '<span class="badge bg-primary">已授權單位管理員</span>';
+                    }
                 }
                 
-                const uOrgRoles = u.org_roles || {};
                 let orgsDisplayArr = [];
                 Object.keys(uOrgRoles).forEach(orgId => {
                     const o = allOrgs.find(x => x.id === orgId);
