@@ -176,8 +176,8 @@ router.post('/update_user_claims', verifyAuth, async (req, res) => {
     }
 });
 
-// 4. 刪除管理員
-router.delete('/users/:uid', verifySuperAdmin, async (req, res) => {
+// 4. 刪除管理員 (全域管理員徹底刪除，單位超級管理員僅移除其轄下權限)
+router.delete('/users/:uid', verifyAuth, async (req, res) => {
     try {
         const targetUid = req.params.uid;
         
@@ -191,14 +191,72 @@ router.delete('/users/:uid', verifySuperAdmin, async (req, res) => {
         }
 
         const db = admin.firestore();
+        
+        // 取得請求者身分
+        const callerUid = req.user.uid;
+        const callerDoc = await db.collection('users').doc(callerUid).get();
+        if (!callerDoc.exists) {
+            return res.status(403).json({ success: false, message: '找不到發出請求的使用者' });
+        }
+        
+        const callerData = callerDoc.data();
+        const isGlobalSuperAdmin = callerData.role === 'SUPER_ADMIN';
+        const callerOrgRoles = callerData.org_roles || {};
 
-        // 1. 從 Firebase Auth 刪除用戶
-        await admin.auth().deleteUser(targetUid);
+        if (isGlobalSuperAdmin) {
+            // 1. 全域管理員：從 Firebase Auth 徹底刪除用戶
+            await admin.auth().deleteUser(targetUid);
+            // 2. 從 Firestore 刪除用戶記錄
+            await db.collection('users').doc(targetUid).delete();
+            return res.json({ success: true, message: '使用者已成功刪除' });
+        } else {
+            // 單位超級管理員：進行局部權限移除 (只移除自己管轄的機構權限)
+            const isOrgSuperAdmin = Object.values(callerOrgRoles).includes('ORG_SUPER_ADMIN');
+            if (!isOrgSuperAdmin) {
+                return res.status(403).json({ success: false, message: '權限不足，必須為超級管理員或單位超級管理員' });
+            }
 
-        // 2. 從 Firestore 刪除用戶記錄
-        await db.collection('users').doc(targetUid).delete();
+            const targetDoc = await db.collection('users').doc(targetUid).get();
+            if (!targetDoc.exists) {
+                return res.status(404).json({ success: false, message: '找不到目標使用者' });
+            }
 
-        res.json({ success: true, message: '使用者已成功刪除' });
+            let targetData = targetDoc.data();
+            let finalOrgRoles = { ...(targetData.org_roles || {}) };
+            let permissionsRemoved = 0;
+
+            // 移除請求者具備 ORG_SUPER_ADMIN 權限之機構的對應角色
+            for (const [orgId, localRole] of Object.entries(callerOrgRoles)) {
+                if (localRole === 'ORG_SUPER_ADMIN' && finalOrgRoles[orgId]) {
+                    delete finalOrgRoles[orgId];
+                    permissionsRemoved++;
+                }
+            }
+
+            if (permissionsRemoved === 0) {
+                return res.status(403).json({ success: false, message: '無法刪除，您對該使用者的機構沒有管轄權' });
+            }
+
+            // 更新角色狀態：若已無任何機構權限，則降級為 GUEST
+            let finalRole = targetData.role;
+            if (Object.keys(finalOrgRoles).length === 0) {
+                finalRole = 'GUEST';
+            }
+
+            // 寫入 Auth Custom Claims
+            await admin.auth().setCustomUserClaims(targetUid, {
+                role: finalRole,
+                org_roles: finalOrgRoles
+            });
+
+            // 寫入 Firestore
+            await db.collection('users').doc(targetUid).update({
+                role: finalRole,
+                org_roles: finalOrgRoles
+            });
+
+            return res.json({ success: true, message: '已成功移除該使用者在您管轄單位的權限' });
+        }
 
     } catch (error) {
         console.error('刪除使用者失敗:', error);
