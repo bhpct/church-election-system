@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // 監聽登入狀態
         window.onAuthStateChanged(window.firebaseAuth, async (user) => {
             if (user) {
+                currentUserId = user.uid;
                 // 已登入，讀取使用者資料
                 await loadUserProfile(user);
             } else {
@@ -58,6 +59,7 @@ const API_BASE_URL = "https://church-election-system-1089220354332.asia-east1.ru
 let allOrgs = [];
 let allUsers = [];
 let currentUserRole = 'GUEST';
+let currentUserId = null;
 
 // ==========================================
 // 載入機構視角切換器
@@ -353,7 +355,7 @@ async function loadAdminDashboard() {
                 const uOrgRoles = u.org_roles || {};
                 const managedOrgIds = allOrgs.filter(o => o.local_role === 'ORG_SUPER_ADMIN').map(o => o.id);
                 const hasOverlap = Object.keys(uOrgRoles).some(id => managedOrgIds.includes(id));
-                if (hasOverlap || u.uid === window.firebaseAuth.currentUser.uid) {
+                if (hasOverlap || u.uid === currentUserId) {
                     allUsers.push(u);
                 }
             } else {
@@ -404,7 +406,7 @@ async function loadAdminDashboard() {
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>
                         <button class="btn btn-sm btn-outline-secondary" onclick="openEditNoteModal('${u.uid}', '${u.name}', '${u.note || ''}')">備註</button>
-                        ${ u.uid === window.firebaseAuth.currentUser.uid 
+                        ${ u.uid === currentUserId 
                             ? `<button class="btn btn-sm btn-outline-danger" disabled title="無法刪除自己的帳號">刪除</button>` 
                             : `<button class="btn btn-sm btn-outline-danger" onclick="deleteAdminUser('${u.uid}', '${u.name}')">刪除</button>` 
                         }
