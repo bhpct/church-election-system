@@ -17,6 +17,16 @@ currentElectionId = urlParams.get('id');
 if (!currentElectionId) {
     showError('未提供選舉 ID');
 }
+// 處理手機版側邊欄切換
+const mobileMenuBtn = document.getElementById('mobileMenuToggle');
+if (mobileMenuBtn) {
+    mobileMenuBtn.addEventListener('click', () => {
+        const sidebar = document.getElementById('sidebarMenu');
+        if (sidebar) {
+            sidebar.classList.toggle('d-none');
+        }
+    });
+}
 
 // 監聽導覽列點擊
 document.querySelectorAll('.nav-link-btn').forEach(btn => {
@@ -28,6 +38,12 @@ document.querySelectorAll('.nav-link-btn').forEach(btn => {
         btn.classList.add('active');
         const targetId = btn.getAttribute('data-target');
         document.getElementById(targetId).classList.add('active');
+        
+        // 如果是手機版，點擊後自動收起側邊欄
+        if (window.innerWidth < 768) {
+            const sidebar = document.getElementById('sidebarMenu');
+            if (sidebar) sidebar.classList.add('d-none');
+        }
         
         // 切換到預覽時，更新選項
         if (targetId === 'section-preview') {
