@@ -872,9 +872,7 @@ async function loadAdminDashboard() {
         const selects = document.querySelectorAll('.org-role-select');
         const org_roles = {};
         selects.forEach(select => {
-            if (select.value) {
-                org_roles[select.dataset.orgId] = select.value;
-            }
+            org_roles[select.dataset.orgId] = select.value;
         });
 
         try {
@@ -886,7 +884,8 @@ async function loadAdminDashboard() {
             if (document.getElementById('superAdminToggle').checked) {
                 newRole = 'SUPER_ADMIN';
             } else {
-                newRole = Object.keys(org_roles).length > 0 ? 'USER' : 'GUEST';
+                const hasAnyValidRole = Object.values(org_roles).some(role => role !== '');
+                newRole = hasAnyValidRole ? 'USER' : 'GUEST';
             }
 
             // 取得目前的 Firebase ID Token
