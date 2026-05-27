@@ -363,8 +363,15 @@ async function loadAdminDashboard() {
             }
         });
 
+        // 根據角色決定是否顯示「可管轄機構」欄位
+        const isGlobalSuperAdmin = currentUserRole === 'SUPER_ADMIN';
+        const managedOrgsHeader = document.getElementById('managedOrgsHeader');
+        if (managedOrgsHeader) {
+            managedOrgsHeader.style.display = isGlobalSuperAdmin ? '' : 'none';
+        }
+
         if (allUsers.length === 0) {
-            tbodyUser.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">無其他使用者</td></tr>';
+            tbodyUser.innerHTML = `<tr><td colspan="${isGlobalSuperAdmin ? '5' : '4'}" class="text-center text-muted py-3">無其他使用者</td></tr>`;
         } else {
             allUsers.forEach(u => {
                 let roleBadge = '';
@@ -402,9 +409,9 @@ async function loadAdminDashboard() {
                         <span class="user-note-display">${note}</span>
                     </td>
                     <td>${roleBadge}</td>
-                    <td>${orgsDisplay}</td>
+                    ${isGlobalSuperAdmin ? `<td>${orgsDisplay}</td>` : ''}
                     <td>
-                        <button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>
+                        ${isGlobalSuperAdmin ? `<button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>` : ''}
                         <button class="btn btn-sm btn-outline-secondary" onclick="openEditNoteModal('${u.uid}', '${u.name}', '${u.note || ''}')">備註</button>
                         ${ u.uid === currentUserId 
                             ? `<button class="btn btn-sm btn-outline-danger" disabled title="無法刪除自己的帳號">刪除</button>` 
