@@ -136,6 +136,25 @@ window.switchOrgContext = async function() {
     const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
     const isOrgSuperAdmin = localRole === 'ORG_SUPER_ADMIN';
     
+    // 動態更新權限徽章 (非全域管理員才切換)
+    if (!isSuperAdmin) {
+        const roleNameEl = document.getElementById('navUserRole');
+        const displayRoleNameEl = document.getElementById('displayRoleName');
+        if (isOrgSuperAdmin) {
+            roleNameEl.textContent = '單位超級管理員';
+            roleNameEl.className = 'badge bg-warning text-dark';
+            displayRoleNameEl.textContent = '單位超級管理員';
+        } else if (localRole === 'ORG_ADMIN') {
+            roleNameEl.textContent = '單位管理員';
+            roleNameEl.className = 'badge bg-primary';
+            displayRoleNameEl.textContent = '單位管理員';
+        } else {
+            roleNameEl.textContent = '未授權帳號';
+            roleNameEl.className = 'badge bg-secondary';
+            displayRoleNameEl.textContent = '未授權帳號';
+        }
+    }
+    
     const generateOtpBtn = document.getElementById('generateOtpBtn');
     if (generateOtpBtn) {
         if (isSuperAdmin || isOrgSuperAdmin) {
@@ -269,7 +288,7 @@ window.switchOrgContext = async function() {
 
     } catch (error) {
         console.error("載入機構內容失敗:", error);
-        Swal.fire('錯誤', '無法載入機構專屬資料', 'error');
+        Swal.fire('錯誤', `無法載入機構專屬資料：${error.message}`, 'error');
     }
 };
 
@@ -313,7 +332,17 @@ async function loadAdminDashboard() {
         usersSnap.forEach(doc => {
             const u = doc.data();
             u.uid = doc.id;
-            allUsers.push(u);
+            
+            if (currentUserRole !== 'SUPER_ADMIN') {
+                const uOrgRoles = u.org_roles || {};
+                const managedOrgIds = allOrgs.filter(o => o.local_role === 'ORG_SUPER_ADMIN').map(o => o.id);
+                const hasOverlap = Object.keys(uOrgRoles).some(id => managedOrgIds.includes(id));
+                if (hasOverlap || u.uid === window.firebaseAuth.currentUser.uid) {
+                    allUsers.push(u);
+                }
+            } else {
+                allUsers.push(u);
+            }
         });
 
         if (allUsers.length === 0) {
@@ -762,6 +791,13 @@ async function loadAdminDashboard() {
         
         const superToggle = document.getElementById('superAdminToggle');
         const orgSelectionBlock = document.getElementById('orgSelectionBlock');
+        const superToggleBlock = document.getElementById('superAdminToggleBlock');
+        
+        if (currentUserRole !== 'SUPER_ADMIN') {
+            if (superToggleBlock) superToggleBlock.style.display = 'none';
+        } else {
+            if (superToggleBlock) superToggleBlock.style.display = 'block';
+        }
         
         if (targetUser.role === 'SUPER_ADMIN') {
             superToggle.checked = true;

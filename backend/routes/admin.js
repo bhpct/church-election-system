@@ -77,8 +77,29 @@ router.delete('/organizations/:orgId', verifySuperAdmin, async (req, res) => {
     }
 });
 
+/**
+ * 驗證請求者是否有登入憑證的 Middleware
+ */
+async function verifyAuth(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, message: '缺少驗證憑證' });
+        }
+        
+        const idToken = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        
+        req.user = decodedToken;
+        next();
+    } catch (error) {
+        console.error('驗證登入失敗:', error);
+        res.status(401).json({ success: false, message: '憑證無效' });
+    }
+}
+
 // 3. 更新使用者權限 (Custom Claims 與 Firestore)
-router.post('/update_user_claims', verifySuperAdmin, async (req, res) => {
+router.post('/update_user_claims', verifyAuth, async (req, res) => {
     try {
         const { targetUid, newRole, org_roles } = req.body;
         
@@ -88,22 +109,63 @@ router.post('/update_user_claims', verifySuperAdmin, async (req, res) => {
 
         const db = admin.firestore();
 
-        // 確認發出請求的用戶是否為 SUPER_ADMIN
+        // 確認發出請求的用戶身分與權限
         const callerUid = req.user.uid;
         const callerDoc = await db.collection('users').doc(callerUid).get();
-        if (!callerDoc.exists || callerDoc.data().role !== 'SUPER_ADMIN') {
-            return res.status(403).json({ success: false, message: '權限不足，必須為超級管理員' });
+        if (!callerDoc.exists) {
+            return res.status(403).json({ success: false, message: '找不到發出請求的使用者' });
+        }
+        
+        const callerData = callerDoc.data();
+        const isGlobalSuperAdmin = callerData.role === 'SUPER_ADMIN';
+        const callerOrgRoles = callerData.org_roles || {};
+
+        if (!isGlobalSuperAdmin) {
+            // 單位超級管理員不能授予或修改全域 SUPER_ADMIN
+            if (newRole === 'SUPER_ADMIN') {
+                return res.status(403).json({ success: false, message: '權限不足，不能授予全域超級管理員' });
+            }
+            
+            // 驗證是否具備至少一個單位的 ORG_SUPER_ADMIN
+            const isOrgSuperAdmin = Object.values(callerOrgRoles).includes('ORG_SUPER_ADMIN');
+            if (!isOrgSuperAdmin) {
+                return res.status(403).json({ success: false, message: '權限不足，必須為超級管理員或單位超級管理員' });
+            }
+        }
+
+        // 讀取目標使用者的當前權限，進行安全合併
+        const targetDoc = await db.collection('users').doc(targetUid).get();
+        let targetData = targetDoc.exists ? targetDoc.data() : { role: 'GUEST', org_roles: {} };
+        let finalOrgRoles = { ...(targetData.org_roles || {}) };
+
+        // 針對請求中傳來的 org_roles，逐一檢查發出請求者是否有權限修改
+        const requestedOrgRoles = org_roles || {};
+        for (const [orgId, role] of Object.entries(requestedOrgRoles)) {
+            // 如果是全域超管，或者在該機構是單位超管，才有權修改
+            if (isGlobalSuperAdmin || callerOrgRoles[orgId] === 'ORG_SUPER_ADMIN') {
+                if (!role || role === '') {
+                    delete finalOrgRoles[orgId];
+                } else {
+                    finalOrgRoles[orgId] = role;
+                }
+            }
+        }
+        
+        // 確保如果沒有任何 org_roles 時，角色不能是 ORG_ADMIN 或 ORG_SUPER_ADMIN
+        let finalRole = newRole;
+        if (!isGlobalSuperAdmin) {
+            finalRole = Object.keys(finalOrgRoles).length > 0 ? (newRole === 'GUEST' ? 'USER' : newRole) : 'GUEST';
         }
 
         await admin.auth().setCustomUserClaims(targetUid, {
-            role: newRole,
-            org_roles: org_roles || {}
+            role: finalRole,
+            org_roles: finalOrgRoles
         });
 
         // 2. 同步更新 Firestore users 集合
         await db.collection('users').doc(targetUid).update({
-            role: newRole,
-            org_roles: org_roles || {}
+            role: finalRole,
+            org_roles: finalOrgRoles
         });
 
         res.json({ success: true, message: '權限更新成功，使用者重新載入後生效' });
