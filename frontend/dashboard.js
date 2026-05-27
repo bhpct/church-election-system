@@ -183,12 +183,12 @@ window.switchOrgContext = async function() {
             if (superAdminMenuBlock) superAdminMenuBlock.style.display = 'none';
             if (adminSection) {
                 // 如果目前正在瀏覽系統管理員設定，強制切回總覽
-                if (adminSection.style.display === 'block' || window.getComputedStyle(adminSection).display !== 'none') {
-                    adminSection.style.display = 'none';
+                if (adminSection.classList.contains('active')) {
+                    adminSection.classList.remove('active');
                     const overviewSection = document.getElementById('section-overview');
-                    if (overviewSection) overviewSection.style.display = 'block';
+                    if (overviewSection) overviewSection.classList.add('active');
                 } else {
-                    adminSection.style.display = 'none';
+                    adminSection.classList.remove('active');
                 }
             }
         }
