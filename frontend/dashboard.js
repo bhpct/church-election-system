@@ -179,7 +179,16 @@ window.switchOrgContext = async function() {
         } else {
             // 一般管理員：完全隱藏特權選單區塊與頁面
             if (superAdminMenuBlock) superAdminMenuBlock.style.display = 'none';
-            if (adminSection) adminSection.style.display = 'none';
+            if (adminSection) {
+                // 如果目前正在瀏覽系統管理員設定，強制切回總覽
+                if (adminSection.style.display === 'block' || window.getComputedStyle(adminSection).display !== 'none') {
+                    adminSection.style.display = 'none';
+                    const overviewSection = document.getElementById('section-overview');
+                    if (overviewSection) overviewSection.style.display = 'block';
+                } else {
+                    adminSection.style.display = 'none';
+                }
+            }
         }
     }
 
@@ -1029,7 +1038,13 @@ function applyRoleUI(role, org_ids) {
         document.body.classList.add('is-org-admin');
         contentEl.style.display = 'block';
 
-        loadOrgSwitcher(role, org_ids);
+        loadOrgSwitcher(role, org_ids).then(() => {
+            // 如果具備任何單位的超管權限，則需要載入管理員列表
+            const isAnyOrgSuperAdmin = Object.values(org_ids || {}).includes('ORG_SUPER_ADMIN');
+            if (isAnyOrgSuperAdmin) {
+                loadAdminDashboard();
+            }
+        });
 
     } else {
         // GUEST 或未知權限，強制顯示輸入序號 Modal
