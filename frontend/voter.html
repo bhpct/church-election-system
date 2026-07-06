@@ -27,7 +27,16 @@
             border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             margin-bottom: 20px;
-            overflow: hidden;
+            /* overflow: hidden; 移除，避免候選人下拉選單被截斷 */
+        }
+        /* 補上圓角設定，取代原本 card 的 overflow: hidden 效果 */
+        .card-header, .header-banner {
+            border-top-left-radius: 15px !important;
+            border-top-right-radius: 15px !important;
+        }
+        .card-footer {
+            border-bottom-left-radius: 15px !important;
+            border-bottom-right-radius: 15px !important;
         }
         .header-banner {
             background: linear-gradient(135deg, #0d6efd, #0dcaf0);
