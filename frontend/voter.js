@@ -913,22 +913,25 @@ function startTutorial() {
                 const currSearchInput = document.getElementById('mockSearchInput');
                 currSearchInput.readOnly = false; // keep it focused/editable
                 
-                inlineTooltipText.innerHTML = "👉 步驟 6：請從搜尋結果中點選「<strong class='text-warning'>011 人員K</strong>」";
+                inlineTooltipText.innerHTML = "👉 步驟 6：請從搜尋結果中點選「<strong class='text-warning'>010 人員J</strong>」";
                 inlineTooltip.style.display = 'block';
                 dropdown.style.display = 'block';
                 dropdown.style.border = '1px solid #ced4da';
                 dropdown.style.animation = 'none';
                 
                 // Show filtered list
-                const filtered = candidatesAll.filter(c => c.num.includes('1') || c.name.includes('1'));
-                renderList(filtered, '011');
+                renderList([
+                    { num: '001', name: '人員A' },
+                    { num: '010', name: '人員J' },
+                    { num: '011', name: '人員K' }
+                ], '010');
                 
-                // Highlight ONLY 011 button
-                const targetBtn011 = Array.from(candidateList.children).find(b => b.innerHTML.includes('011'));
-                if (targetBtn011) {
-                    targetBtn011.style.border = '3px solid #dc3545';
-                    targetBtn011.style.animation = 'pulseRed 1.5s infinite';
-                    targetBtn011.style.borderRadius = '8px';
+                // Highlight ONLY 010 button
+                const targetBtn010 = Array.from(candidateList.children).find(b => b.innerHTML.includes('010'));
+                if (targetBtn010) {
+                    targetBtn010.style.border = '3px solid #dc3545';
+                    targetBtn010.style.animation = 'pulseRed 1.5s infinite';
+                    targetBtn010.style.borderRadius = '8px';
                 }
                 break;
                 
@@ -981,6 +984,7 @@ function startTutorial() {
 
     updateStepUI();
 }
+
 
 
 
