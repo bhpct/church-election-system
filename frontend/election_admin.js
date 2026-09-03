@@ -326,6 +326,14 @@ async function loadCandidates() {
     });
 
     document.getElementById('statCandidates').textContent = allCandidates.length;
+    
+    if (!window.sortListenersInitialized) {
+        if (typeof initSortListeners === 'function') {
+            initSortListeners();
+        }
+        window.sortListenersInitialized = true;
+    }
+    
     renderCandidatesTable();
     updateDynamicFormOptions(); // 更新 Modal 的動態選項 (資格、強制候選)
     
@@ -383,6 +391,9 @@ window.syncPendingRoundsWithGlobalCandidates = async function() {
     }
 }
 
+let currentSortColumn = 'number';
+let currentSortDirection = 'asc';
+
 function renderCandidatesTable() {
     const tbody = document.getElementById('candidatesTableBody');
     tbody.innerHTML = '';
@@ -392,7 +403,28 @@ function renderCandidatesTable() {
         return;
     }
 
-    allCandidates.forEach(c => {
+    // 複製一份進行排序
+    let sortedCandidates = [...allCandidates];
+    
+    sortedCandidates.sort((a, b) => {
+        let valA = a[currentSortColumn] || '';
+        let valB = b[currentSortColumn] || '';
+        
+        // 處理特殊欄位對應
+        if (currentSortColumn === 'status') {
+            valA = a.is_ineligible ? '停權' : '正常';
+            valB = b.is_ineligible ? '停權' : '正常';
+        } else if (currentSortColumn === 'zone') {
+            valA = a.district || '';
+            valB = b.district || '';
+        }
+
+        // 自然排序 (Numeric: true 解決 1, 11, 2, 3 的問題)
+        let compareResult = String(valA).localeCompare(String(valB), 'zh-TW', { numeric: true });
+        return currentSortDirection === 'asc' ? compareResult : -compareResult;
+    });
+
+    sortedCandidates.forEach(c => {
         const photoHtml = c.photo_base64 ? `<img src="${c.photo_base64}" class="rounded-circle border ms-1" style="width:40px;height:40px;object-fit:cover;">` : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted ms-1" style="width:40px;height:40px;"><i class="fas fa-user"></i></div>`;
         
         const districtHtml = c.district ? `<span class="badge bg-info">${c.district}</span>` : '<span class="text-muted">-</span>';
@@ -412,10 +444,44 @@ function renderCandidatesTable() {
                 <td>${statusHtml}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="openEditCandidate('${c.id}')"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-sm btn-outline-danger delete-cand-btn" onclick="deleteCandidate('${c.id}')" ${isElectionLocked ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-cand-btn" onclick="deleteCandidate('${c.id}')" ${typeof isElectionLocked !== 'undefined' && isElectionLocked ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                 </td>
             </tr>
         `;
+    });
+
+    updateSortIcons();
+}
+
+function updateSortIcons() {
+    document.querySelectorAll('.sortable-header').forEach(th => {
+        const icon = th.querySelector('i');
+        if (!icon) return;
+        
+        if (th.dataset.sort === currentSortColumn) {
+            icon.className = currentSortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            icon.classList.add('text-primary');
+        } else {
+            icon.className = 'fas fa-sort';
+            icon.classList.remove('text-primary');
+        }
+    });
+}
+
+function initSortListeners() {
+    document.querySelectorAll('.sortable-header').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.sort;
+            if (currentSortColumn === col) {
+                // 反轉排序方向
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                // 切換欄位，預設為升冪
+                currentSortColumn = col;
+                currentSortDirection = 'asc';
+            }
+            renderCandidatesTable();
+        });
     });
 }
 

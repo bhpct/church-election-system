@@ -323,16 +323,29 @@
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-hover align-middle">
+                                    <style>
+                                        .sortable-header {
+                                            cursor: pointer;
+                                            user-select: none;
+                                        }
+                                        .sortable-header:hover {
+                                            background-color: #e9ecef;
+                                        }
+                                        .sortable-header i {
+                                            margin-left: 5px;
+                                            color: #6c757d;
+                                        }
+                                    </style>
                                     <thead class="table-light">
                                         <tr>
                                             <th>照片</th>
-                                            <th>編號</th>
+                                            <th class="sortable-header" data-sort="number">編號 <i class="fas fa-sort"></i></th>
                                             <th>姓名</th>
-                                            <th>資格</th>
-                                            <th>分區</th>
+                                            <th class="sortable-header" data-sort="qualification">資格 <i class="fas fa-sort"></i></th>
+                                            <th class="sortable-header" data-sort="zone">分區 <i class="fas fa-sort"></i></th>
                                             <th>單位</th>
                                             <th>當選項次</th>
-                                            <th>狀態</th>
+                                            <th class="sortable-header" data-sort="status">狀態 <i class="fas fa-sort"></i></th>
                                             <th>操作</th>
                                         </tr>
                                     </thead>
