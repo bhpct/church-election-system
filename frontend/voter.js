@@ -735,7 +735,15 @@ function startTutorial() {
         });
     };
 
-    const updateStepUI = () => {
+    
+    // iOS Safari 終極鎖定：在步驟 3.5 時，強制攔截所有滑動事件，防止任何殘留動量或越獄滑動
+    document.addEventListener('touchmove', (e) => {
+        if (currentStep === 3.5) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+const updateStepUI = () => {
         // Reset states
         startBtnOverlay.style.display = 'none';
         searchGroup.style.border = '2px solid transparent';
