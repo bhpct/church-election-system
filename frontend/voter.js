@@ -140,10 +140,11 @@ async function handleVerifyKey() {
         buildBallotUI();
         
         // 檢查是否需要顯示教學模式
-        // 條件：目前這張選票是本次選舉「第一次被開啟投票的那一輪」，且該 QR Code 金鑰還未看過教學
+        // 條件：目前這張選票是本次選舉「第一次被開啟投票的那一輪」，且該 QR Code 金鑰尚未跑過教學，且管理員未關閉教學
         const isFirstEverRound = (electionData.first_active_round_id === roundId);
+        const tutorialEnabled = (electionData.enable_tutorial !== false);
 
-        if (isFirstEverRound && !localStorage.getItem(`tutorial_completed_${currentKeyCode}`)) {
+        if (isFirstEverRound && tutorialEnabled && !localStorage.getItem(`tutorial_completed_${currentKeyCode}`)) {
             startTutorial();
         } else {
             switchView('view-ballot');
@@ -670,10 +671,12 @@ function startTutorial() {
         
         candidateList.innerHTML = '';
         cands.forEach(c => {
-            const div = document.createElement('div');
-            div.className = 'list-group-item p-3 border-bottom d-flex align-items-center bg-white';
-            div.style.cursor = 'pointer';
-            div.innerHTML = `
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item p-3 border-bottom d-flex align-items-center bg-white text-start w-100';
+            btn.style.cursor = 'pointer';
+            btn.style.border = 'none';
+            btn.innerHTML = `
                 <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
                     <i class="fas fa-user"></i>
                 </div>
@@ -684,18 +687,25 @@ function startTutorial() {
             `;
             
             // Hover effect mimicking real UI
-            div.addEventListener('mouseenter', () => div.style.backgroundColor = '#f8f9fa');
-            div.addEventListener('mouseleave', () => div.style.backgroundColor = 'transparent');
+            btn.addEventListener('mouseenter', () => btn.style.backgroundColor = '#f8f9fa');
+            btn.addEventListener('mouseleave', () => btn.style.backgroundColor = 'transparent');
             
-            div.addEventListener('click', (e) => {
+            const handleInteract = (e) => {
                 e.stopPropagation();
+                // If it's a touchstart, prevent default so click doesn't fire twice
+                if (e.type === 'touchstart') e.preventDefault();
+                
                 if (requiredTarget && c.num !== requiredTarget) {
                     // Do nothing, just ignore the click.
                 } else {
                     handleCorrectSelection(c);
                 }
-            });
-            candidateList.appendChild(div);
+            };
+
+            btn.addEventListener('click', handleInteract);
+            btn.addEventListener('touchstart', handleInteract, { passive: false });
+            
+            candidateList.appendChild(btn);
         });
     };
 

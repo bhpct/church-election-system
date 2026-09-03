@@ -83,12 +83,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const quorumBase = baseElement ? baseElement.value : 'ATTENDING';
             const initAttending = parseInt(document.getElementById('globalInitAttending').value) || null;
             const sealOpacity = parseInt(document.getElementById('globalSealOpacity').value) || 15;
+            const enableTutorial = document.getElementById('globalEnableTutorial').checked;
 
             // 1. 寫入全域選舉設定 (不更動 status)
             await updateDoc(doc(db, 'elections', currentElectionId), {
                 quorum_base: quorumBase,
                 init_attending_count: initAttending,
                 seal_opacity: sealOpacity,
+                enable_tutorial: enableTutorial,
                 updatedAt: window.fs.serverTimestamp()
             });
             
@@ -96,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentElectionData.quorum_base = quorumBase;
                 currentElectionData.init_attending_count = initAttending;
                 currentElectionData.seal_opacity = sealOpacity;
+                currentElectionData.enable_tutorial = enableTutorial;
             }
 
             // 2. 連動更新所有已建立的輪次
@@ -278,6 +281,10 @@ async function loadElectionData() {
         }
         if (currentElectionData.init_attending_count !== undefined && currentElectionData.init_attending_count !== null) {
             document.getElementById('globalInitAttending').value = currentElectionData.init_attending_count;
+        }
+        
+        if (currentElectionData.enable_tutorial !== undefined) {
+            document.getElementById('globalEnableTutorial').checked = currentElectionData.enable_tutorial;
         }
         
         if (currentElectionData.seal_opacity !== undefined && currentElectionData.seal_opacity !== null) {
