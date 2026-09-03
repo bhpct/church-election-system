@@ -692,8 +692,6 @@ function startTutorial() {
             
             const handleInteract = (e) => {
                 e.stopPropagation();
-                // If it's a touchstart, prevent default so click doesn't fire twice
-                if (e.type === 'touchstart') e.preventDefault();
                 
                 if (requiredTarget && c.num !== requiredTarget) {
                     // Do nothing, just ignore the click.
@@ -703,7 +701,6 @@ function startTutorial() {
             };
 
             btn.addEventListener('click', handleInteract);
-            btn.addEventListener('touchstart', handleInteract, { passive: false });
             
             candidateList.appendChild(btn);
         });
@@ -822,15 +819,8 @@ function startTutorial() {
                         currentStep = 7;
                         updateStepUI();
                     } else if (val.length > 0) {
-                        Swal.fire({
-                            title: '輸入錯誤',
-                            text: `教學模式下請輸入數字「1」喔！`,
-                            icon: 'error',
-                            confirmButtonText: '再試一次'
-                        }).then(() => {
-                            newSearchInput.value = '';
-                            newSearchInput.focus();
-                        });
+                        // Just clear it silently without interrupting the user
+                        newSearchInput.value = '';
                     }
                 });
                 break;
