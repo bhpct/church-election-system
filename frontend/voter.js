@@ -691,9 +691,7 @@ function startTutorial() {
                 </div>
             `;
             
-            // Hover effect mimicking real UI
-            btn.addEventListener('mouseenter', () => btn.style.backgroundColor = '#f8f9fa');
-            btn.addEventListener('mouseleave', () => btn.style.backgroundColor = 'transparent');
+            // Hover effect mimicking real UI is handled by CSS :hover, avoid JS mouse events on iOS
             
             const handleInteract = (e) => {
                 e.stopPropagation();
