@@ -207,15 +207,26 @@
 </div>
 
 <!-- Tutorial Overlay (Advanced 8 Steps) -->
-<div id="advancedTutorialOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 15px; overflow-y: auto;">
+<div id="advancedTutorialOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: flex-start; padding: 15px; padding-top: 50px; overflow-y: auto;">
     
-    <!-- Tooltip / Dialogue Bubble -->
-    <div id="tutorialTooltip" style="background: #ffc107; color: #000; padding: 15px; border-radius: 12px; margin-bottom: 15px; font-weight: bold; font-size: 1.1rem; width: 100%; max-width: 600px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); position: relative; animation: fadeIn 0.3s; z-index: 10000;">
-        <i class="fas fa-chalkboard-teacher"></i> <span id="tutorialTooltipText">如何選擇候選人？</span>
+    <!-- Step 0 Intro Screen -->
+    <div id="tutorialIntroScreen" style="display: none; width: 100%; max-width: 500px; background: white; border-radius: 15px; padding: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: fadeIn 0.5s; margin-top: 50px;">
+        <div style="background: #0d6efd; color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <i class="fas fa-chalkboard-teacher" style="font-size: 3rem; margin-bottom: 10px;"></i>
+            <h3 class="fw-bold m-0">系統教學練習</h3>
+        </div>
+        <p class="text-dark fs-5 text-start mb-4" style="line-height: 1.6;">
+            歡迎！為了確保投票順利，我們將帶您進行 2 個基本操作練習：<br><br>
+            <i class="fas fa-check-circle text-success"></i> 1. 如何滑動名單選擇<br>
+            <i class="fas fa-check-circle text-success"></i> 2. 如何搜尋候選人
+        </p>
+        <button id="btnStartTutorial" class="btn btn-danger btn-lg w-100 fw-bold shadow-sm" style="border-radius: 50px; font-size: 1.3rem;">
+            <i class="fas fa-play"></i> 開始練習
+        </button>
     </div>
 
     <!-- The Mock Ballot UI -->
-    <div id="mockBallotCard" class="card" style="width: 100%; max-width: 600px; box-shadow: 0 0 25px rgba(255,255,255,0.2); transition: all 0.3s; border-radius: 15px;">
+    <div id="mockBallotCard" class="card" style="width: 100%; max-width: 600px; box-shadow: 0 0 25px rgba(255,255,255,0.2); transition: all 0.3s; border-radius: 15px; display: none;">
         <!-- Header -->
         <div class="header-banner" style="background: #0d6efd; color: white; padding: 20px 15px; text-align: center; border-top-left-radius: 15px; border-top-right-radius: 15px;">
             <h4 style="margin: 0; font-weight: bold;">TEST</h4>
@@ -227,29 +238,35 @@
                 <i class="fas fa-info-circle"></i> 本輪次應選名額：<span class="text-danger fs-5 mx-1">1</span> 名
             </div>
 
+            <!-- Main Input Area with Inline Tooltip -->
             <div class="mb-3" style="position: relative;">
                 <label class="form-label fw-bold text-secondary">圈選欄 1</label>
                 
-                <!-- Step 1 & 4 Start Learning Button Overlay -->
-                <div id="tutorialStartBtnOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; z-index: 10;">
-                    <button id="btnTutorialNext" class="btn btn-warning fw-bold shadow-sm" style="width: 100%; font-size: 1.1rem;"><i class="fas fa-play-circle"></i> 開始學習</button>
+                <!-- Inline Tooltip (Positioned above or below the target) -->
+                <div id="inlineTooltip" style="display: none; background: #dc3545; color: #fff; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); animation: fadeIn 0.3s; text-align: center; margin-bottom: 10px;">
+                    <span id="inlineTooltipText">👉 請點擊下方的『圈選欄』</span>
                 </div>
 
-                <div class="input-group input-group-lg candidate-search-box shadow-sm" id="mockSearchGroup" style="border: 2px solid transparent; border-radius: 8px;">
+                <!-- Step 1 & 4 Start Learning Button Overlay -->
+                <div id="tutorialStartBtnOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; z-index: 10;">
+                    <button id="btnTutorialNext" class="btn btn-danger fw-bold shadow-sm" style="width: 100%; font-size: 1.1rem;"><i class="fas fa-play-circle"></i> 開始學習</button>
+                </div>
+
+                <div class="input-group input-group-lg candidate-search-box shadow-sm" id="mockSearchGroup" style="border: 2px solid transparent; border-radius: 8px; transition: 0.2s;">
                     <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
                     <input type="text" id="mockSearchInput" class="form-control" placeholder="輸入號碼/姓名/分區搜尋..." readonly style="background: #fff; cursor: pointer;">
                 </div>
                 
                 <!-- Mock Dropdown -->
-                <div class="candidate-dropdown shadow-lg" id="mockDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ced4da; border-radius: 0 0 8px 8px; z-index: 1050; max-height: 250px; overflow-y: auto;">
-                    <div id="mockCandidateList">
+                <div class="candidate-dropdown shadow-lg" id="mockDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ced4da; border-radius: 0 0 8px 8px; z-index: 1050; max-height: 180px; overflow-y: auto;">
+                    <div id="mockCandidateList" style="position: relative;">
                         <!-- Filled dynamically by JS -->
                     </div>
                 </div>
             </div>
 
             <!-- Submit Button (Disabled until step 8) -->
-            <button id="mockSubmitBtn" class="btn btn-success btn-lg w-100 fw-bold shadow mt-3" disabled style="opacity: 0.6; transition: 0.3s; border-radius: 50px;">
+            <button id="mockSubmitBtn" class="btn btn-success btn-lg w-100 fw-bold shadow mt-3" disabled style="opacity: 0.6; transition: 0.3s; border-radius: 50px; border: 3px solid transparent;">
                 <i class="fas fa-paper-plane"></i> 確認送出選票
             </button>
         </div>
@@ -266,6 +283,31 @@
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulseRed {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+        50% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+    }
+    @keyframes bounceArrow {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(10px); }
+    }
+    .scroll-arrow-overlay {
+        position: fixed;
+        right: 15%;
+        top: 60%;
+        z-index: 1100;
+        color: #dc3545;
+        font-weight: bold;
+        font-size: 1.2rem;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px 15px;
+        border-radius: 50px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        animation: bounceArrow 1.5s infinite;
+        pointer-events: none;
+        border: 2px solid #dc3545;
     }
 </style>
 
