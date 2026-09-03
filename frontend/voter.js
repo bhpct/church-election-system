@@ -140,7 +140,10 @@ async function handleVerifyKey() {
         buildBallotUI();
         
         // 檢查是否需要顯示教學模式
-        if (!localStorage.getItem(`tutorial_completed_${currentKeyCode}`)) {
+        // 條件：目前這張選票是本次選舉「第一次被開啟投票的那一輪」，且該 QR Code 金鑰還未看過教學
+        const isFirstEverRound = (electionData.first_active_round_id === roundId);
+
+        if (isFirstEverRound && !localStorage.getItem(`tutorial_completed_${currentKeyCode}`)) {
             startTutorial();
         } else {
             switchView('view-ballot');

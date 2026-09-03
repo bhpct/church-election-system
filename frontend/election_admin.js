@@ -1484,6 +1484,13 @@ window.startRound = async function(itemId, roundId) {
                     updatedAt: window.fs.serverTimestamp()
                 }, { merge: true });
 
+                // 若這是全場選舉第一次開啟投票，紀錄該 roundId 作為新手教學判斷依據
+                if (typeof isElectionLocked !== 'undefined' && !isElectionLocked) {
+                    await setDoc(doc(db, 'elections', currentElectionId), {
+                        first_active_round_id: roundId
+                    }, { merge: true });
+                }
+
                 Swal.fire({
                     title: '成功',
                     text: '投票已正式啟動！即將進入開票中心...',
