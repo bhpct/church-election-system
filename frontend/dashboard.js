@@ -73,30 +73,46 @@ async function loadOrgSwitcher(role, org_roles) {
     try {
         allOrgs = [];
         if (role === 'SUPER_ADMIN') {
-            // 超級管理員：載入所有機構
-            const snap = await getDocs(collection(db, 'organizations'));
+            // 超級管理員：載入所有機構（使用分批載入避免封包過大當機）
+            const { query, limit, startAfter } = window.fs;
+            let lastDoc = null;
+            let hasMore = true;
             const migrationPromises = [];
             
-            snap.forEach(docSnap => {
-                const data = docSnap.data();
-                allOrgs.push({ id: docSnap.id, ...data });
-                
-                // 【資料庫瘦身自動遷移】
-                // 如果發現 organizations 裡面還有卡著巨大的 seal_url，自動搬移到 org_assets 並刪除
-                if (data.seal_url && window.fs.deleteField) {
-                    const p = async () => {
-                        try {
-                            const { doc, setDoc, updateDoc, deleteField } = window.fs;
-                            await setDoc(doc(db, 'org_assets', docSnap.id), { seal_url: data.seal_url }, { merge: true });
-                            await updateDoc(docSnap.ref, { seal_url: deleteField() });
-                            console.log(`機構 ${docSnap.id} 公印已自動遷移至 org_assets`);
-                        } catch(e) {
-                            console.error(`機構 ${docSnap.id} 遷移失敗:`, e);
-                        }
-                    };
-                    migrationPromises.push(p());
+            while (hasMore) {
+                let q = query(collection(db, 'organizations'), limit(10));
+                if (lastDoc) {
+                    q = query(collection(db, 'organizations'), startAfter(lastDoc), limit(10));
                 }
-            });
+                const snap = await getDocs(q);
+                
+                if (snap.empty) {
+                    hasMore = false;
+                    break;
+                }
+                
+                snap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    allOrgs.push({ id: docSnap.id, ...data });
+                    
+                    // 【資料庫瘦身自動遷移】
+                    if (data.seal_url && window.fs.deleteField) {
+                        const p = async () => {
+                            try {
+                                const { doc, setDoc, updateDoc, deleteField } = window.fs;
+                                await setDoc(doc(db, 'org_assets', docSnap.id), { seal_url: data.seal_url }, { merge: true });
+                                await updateDoc(docSnap.ref, { seal_url: deleteField() });
+                                console.log(`機構 ${docSnap.id} 公印已自動遷移至 org_assets`);
+                            } catch(e) {
+                                console.error(`機構 ${docSnap.id} 遷移失敗:`, e);
+                            }
+                        };
+                        migrationPromises.push(p());
+                    }
+                });
+                
+                lastDoc = snap.docs[snap.docs.length - 1];
+            }
             
             if (migrationPromises.length > 0) {
                 // 不 await 阻擋畫面載入，讓它在背景執行
