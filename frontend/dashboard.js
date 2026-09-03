@@ -75,7 +75,33 @@ async function loadOrgSwitcher(role, org_roles) {
         if (role === 'SUPER_ADMIN') {
             // 超級管理員：載入所有機構
             const snap = await getDocs(collection(db, 'organizations'));
-            snap.forEach(doc => allOrgs.push({ id: doc.id, ...doc.data() }));
+            const migrationPromises = [];
+            
+            snap.forEach(docSnap => {
+                const data = docSnap.data();
+                allOrgs.push({ id: docSnap.id, ...data });
+                
+                // 【資料庫瘦身自動遷移】
+                // 如果發現 organizations 裡面還有卡著巨大的 seal_url，自動搬移到 org_assets 並刪除
+                if (data.seal_url && window.fs.deleteField) {
+                    const p = async () => {
+                        try {
+                            const { doc, setDoc, updateDoc, deleteField } = window.fs;
+                            await setDoc(doc(db, 'org_assets', docSnap.id), { seal_url: data.seal_url }, { merge: true });
+                            await updateDoc(docSnap.ref, { seal_url: deleteField() });
+                            console.log(`機構 ${docSnap.id} 公印已自動遷移至 org_assets`);
+                        } catch(e) {
+                            console.error(`機構 ${docSnap.id} 遷移失敗:`, e);
+                        }
+                    };
+                    migrationPromises.push(p());
+                }
+            });
+            
+            if (migrationPromises.length > 0) {
+                // 不 await 阻擋畫面載入，讓它在背景執行
+                Promise.all(migrationPromises).then(() => console.log('資料庫瘦身遷移完成'));
+            }
         } else if (role === 'ORG_ADMIN' || Object.keys(org_roles).length > 0) {
             // 單位管理員：列出所有已被授權的機構
             const org_ids = Object.keys(org_roles);
