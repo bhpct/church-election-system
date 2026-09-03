@@ -209,7 +209,7 @@
 <!-- Firebase SDK -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, where, getDocs, writeBatch, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { initializeFirestore, doc, getDoc, collection, query, where, getDocs, writeBatch, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyABw9ATwX7E0YxtkM4PK_YCpAEH98X0nBs",
@@ -221,7 +221,10 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // 強制使用 Long Polling，避免手機 WebView 的 WebSocket 連線超時等待 30 秒
+    const db = initializeFirestore(app, {
+        experimentalForceLongPolling: true
+    });
 
     window.firebaseDb = db;
     window.fs = {
