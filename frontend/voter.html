@@ -143,11 +143,6 @@
                 <button class="btn btn-primary btn-lg w-100 fw-bold rounded-pill" id="btnVerifyKey">
                     進入投票 <i class="fas fa-arrow-right ms-1"></i>
                 </button>
-
-                <hr class="my-4">
-                <button class="btn btn-outline-secondary btn-sm" id="btnGoToAudit">
-                    <i class="fas fa-search"></i> 驗票查核 (事後驗證)
-                </button>
             </div>
         </div>
     </div>
@@ -205,34 +200,6 @@
             </div>
             <div class="card-footer bg-white">
                 <button class="btn btn-outline-primary w-100" onclick="location.reload()">重新整理 / 回首頁</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 視圖 4: 驗票查核 -->
-    <div id="view-audit" class="view-section">
-        <div class="card">
-            <div class="card-header bg-secondary text-white fw-bold">
-                <i class="fas fa-search"></i> 驗票查核中心
-            </div>
-            <div class="card-body">
-                <p class="text-muted small">為確保選票不被竄改，您可以輸入您投過的金鑰，系統將調出該金鑰所圈選的名單，供您核對。</p>
-                <div class="input-group mb-3">
-                    <input type="tel" id="auditKeyInput" class="form-control form-control-lg text-center fw-bold letter-spacing-2" placeholder="輸入8碼金鑰" maxlength="8">
-                    <button class="btn btn-primary" id="btnAuditSearch">查詢</button>
-                </div>
-                
-                <div id="auditResult" class="mt-4" style="display:none;">
-                    <div class="alert alert-success">
-                        <h6 class="alert-heading fw-bold">查詢成功</h6>
-                        <ul class="mb-0" id="auditVoteList">
-                            <!-- JS 生成 -->
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            <div class="card-footer bg-white text-center">
-                <button class="btn btn-link text-secondary" id="btnBackToAuth">返回首頁</button>
             </div>
         </div>
     </div>

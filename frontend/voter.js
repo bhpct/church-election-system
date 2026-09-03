@@ -11,7 +11,7 @@ let candidatesMap = {}; // 允許投票的候選人
 let unsubscribeRound = null;
 
 // DOM Elements
-const views = ['view-auth', 'view-ballot', 'view-waiting', 'view-audit'];
+const views = ['view-auth', 'view-ballot', 'view-waiting'];
 
 document.addEventListener("DOMContentLoaded", () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -25,9 +25,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // 事件綁定
     document.getElementById('btnVerifyKey')?.addEventListener('click', handleVerifyKey);
     document.getElementById('btnSubmitVote')?.addEventListener('click', handleSubmitVote);
-    document.getElementById('btnGoToAudit')?.addEventListener('click', () => switchView('view-audit'));
-    document.getElementById('btnBackToAuth')?.addEventListener('click', () => switchView('view-auth'));
-    document.getElementById('btnAuditSearch')?.addEventListener('click', handleAuditSearch);
 
     // 關閉 Loader (移至 switchView 處理，避免白畫面)
     // document.getElementById('loader').style.display = 'none';
@@ -604,70 +601,3 @@ function listenToRoundResult() {
 }
 
 // 驗票反查機制
-async function handleAuditSearch() {
-    const keyInput = document.getElementById('auditKeyInput').value.trim();
-    if (!keyInput || keyInput.length !== 8) {
-        Swal.fire('錯誤', '請輸入完整的 8 碼數字金鑰', 'error');
-        return;
-    }
-
-    if (!currentElectionId) {
-        Swal.fire('錯誤', '缺少選舉 EID 參數，無法反查。', 'error');
-        return;
-    }
-
-    const btn = document.getElementById('btnAuditSearch');
-    try {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        const { collection, query, where, getDocs, doc, getDoc } = window.fs;
-        const db = window.firebaseDb;
-
-        const keysRef = collection(db, 'elections', currentElectionId, 'keys');
-        const q = query(keysRef, where('code', '==', keyInput));
-        const snap = await getDocs(q);
-
-        if (snap.empty) {
-            throw new Error("找不到此金鑰紀錄。");
-        }
-
-        const keyData = snap.docs[0].data();
-        if (keyData.status !== 'USED' || !keyData.vote_ref) {
-            throw new Error("此金鑰尚未使用，或無投票紀錄。");
-        }
-
-        // 查詢 vote 紀錄
-        const voteSnap = await getDoc(doc(db, 'elections', currentElectionId, 'votes', keyData.vote_ref));
-        if (!voteSnap.exists()) {
-            throw new Error("無法讀取選票紀錄 (可能遺失或權限不足)。");
-        }
-
-        const voteData = voteSnap.data();
-        const candidateIds = voteData.candidate_ids || [];
-
-        // 查詢候選人名稱
-        const ul = document.getElementById('auditVoteList');
-        ul.innerHTML = '';
-        
-        for (const cid of candidateIds) {
-            const candSnap = await getDoc(doc(db, 'elections', currentElectionId, 'candidates', cid));
-            if (candSnap.exists()) {
-                const c = candSnap.data();
-                ul.innerHTML += `<li><strong>${c.number || '-'}</strong> ${c.name} <small class="text-muted">(${c.district || ''})</small></li>`;
-            } else {
-                ul.innerHTML += `<li>未知候選人 (ID: ${cid})</li>`;
-            }
-        }
-
-        document.getElementById('auditResult').style.display = 'block';
-
-    } catch (error) {
-        console.error(error);
-        document.getElementById('auditResult').style.display = 'none';
-        Swal.fire('查詢失敗', error.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '查詢';
-    }
-}
