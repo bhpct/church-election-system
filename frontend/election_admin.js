@@ -91,6 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 seal_opacity: sealOpacity,
                 updatedAt: window.fs.serverTimestamp()
             });
+            
+            if (currentElectionData) {
+                currentElectionData.quorum_base = quorumBase;
+                currentElectionData.init_attending_count = initAttending;
+                currentElectionData.seal_opacity = sealOpacity;
+            }
 
             // 2. 連動更新所有已建立的輪次
             if (allItems.length > 0) {
@@ -147,6 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 seal_opacity: sealOpacity,
                 updatedAt: window.fs.serverTimestamp()
             });
+            
+            if (currentElectionData) {
+                currentElectionData.seal_opacity = sealOpacity;
+            }
 
             Swal.fire('儲存成功', '印章透明度已更新，列印時將套用此設定！', 'success');
 
