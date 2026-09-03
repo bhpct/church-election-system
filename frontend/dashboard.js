@@ -208,7 +208,7 @@ window.switchOrgContext = async function() {
                 preview.src = orgData.seal_url;
                 if(deleteBtn) deleteBtn.style.display = 'block';
             } else {
-                preview.src = 'https://via.placeholder.com/150?text=未設定';
+                preview.src = 'assets/logo.png';
                 if(deleteBtn) deleteBtn.style.display = 'none';
             }
         }
@@ -548,11 +548,10 @@ async function loadAdminDashboard() {
                 data[i + 1] = 30;// G
                 data[i + 2] = 30;// B
                 
-                // 依據原本的深度設定透明度 (保留邊緣平滑)
-                // 亮度 0 = 最深 (alpha 255)
-                // 亮度 200 = 最淺 (alpha 0)
-                const opacity = 255 - (brightness * (255 / 200));
-                data[i + 3] = Math.min(255, Math.max(0, opacity));
+                // 依據原本的深度設定透明度，並強制增幅 2.5 倍以獲得飽滿的實心紅印章
+                const baseOpacity = 255 - (brightness * (255 / 200));
+                const boostedOpacity = baseOpacity * 2.5;
+                data[i + 3] = Math.min(255, Math.max(0, boostedOpacity));
             }
         }
         ctx.putImageData(imageData, 0, 0);
