@@ -318,11 +318,11 @@ async function loadCandidates() {
         allCandidates.push({ id: doc.id, ...doc.data() });
     });
     
-    // 依號碼排序
+    // 依號碼自然排序
     allCandidates.sort((a, b) => {
-        const numA = parseInt(a.number) || 0;
-        const numB = parseInt(b.number) || 0;
-        return numA - numB;
+        const valA = a.number || '';
+        const valB = b.number || '';
+        return String(valA).localeCompare(String(valB), 'zh-TW', { numeric: true });
     });
 
     document.getElementById('statCandidates').textContent = allCandidates.length;
@@ -1909,9 +1909,9 @@ window.openRoundCandidates = function(itemId, roundId) {
     document.getElementById('btnSortByNumber').onclick = () => {
         const items = Array.from(listSelected.children);
         items.sort((a, b) => {
-            const numA = parseInt(a.dataset.number) || 9999;
-            const numB = parseInt(b.dataset.number) || 9999;
-            return numA - numB;
+            const valA = a.dataset.number || '';
+            const valB = b.dataset.number || '';
+            return String(valA).localeCompare(String(valB), 'zh-TW', { numeric: true });
         });
         items.forEach(item => listSelected.appendChild(item));
         Swal.fire({
