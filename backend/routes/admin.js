@@ -163,10 +163,10 @@ router.post('/update_user_claims', verifyAuth, async (req, res) => {
         });
 
         // 2. 同步更新 Firestore users 集合
-        await db.collection('users').doc(targetUid).update({
+        await db.collection('users').doc(targetUid).set({
             role: finalRole,
             org_roles: finalOrgRoles
-        });
+        }, { merge: true });
 
         res.json({ success: true, message: '權限更新成功，使用者重新載入後生效' });
 
