@@ -693,6 +693,11 @@ function startTutorial() {
             const handleInteract = (e) => {
                 e.stopPropagation();
                 
+                // 步驟 6 正在教學「輸入搜尋」，禁止點擊名單干擾操作
+                if (currentStep === 6) {
+                    return;
+                }
+                
                 if (requiredTarget && c.num !== requiredTarget) {
                     // Do nothing, just ignore the click.
                 } else {
