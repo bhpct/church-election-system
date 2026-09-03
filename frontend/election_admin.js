@@ -2624,15 +2624,15 @@ function printBallotsA4(keysToPrint) {
             .page { width: 200mm; height: 287mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 0; gap: 4mm; margin: 0 auto; justify-content: flex-start; align-content: flex-start; }
             /* 2x2 Grid: each ballot is approx 95mm x 135mm (A6 size) */
             .ballot { width: calc(50% - 2mm); height: 140mm; padding: 8mm; box-sizing: border-box; border: 1px dashed #999; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: transparent; }
-            .watermark { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.5; z-index: 10; pointer-events: none; mix-blend-mode: multiply; filter: grayscale(1) sepia(1) hue-rotate(330deg) saturate(15) contrast(1.2); }
-            .content { position: relative; z-index: 1; text-align: center; display: flex; flex-direction: column; height: 100%; justify-content: space-between; }
-            .header h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
-            .header h2 { margin: 0 0 10px 0; font-size: 20px; color: #000; font-weight: bold; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
-            .header h4 { margin: 0; font-size: 14px; color: #555; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
+            .watermark { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: ${currentElectionData.seal_opacity !== undefined ? currentElectionData.seal_opacity / 100 : 0.15}; z-index: 0; pointer-events: none; }
+            .content { position: relative; z-index: 10; text-align: center; display: flex; flex-direction: column; height: 100%; justify-content: space-between; }
+            .header h3 { margin: 0 0 5px 0; font-size: 20px; color: #000; font-weight: bold; }
+            .header h2 { margin: 0 0 10px 0; font-size: 24px; color: #000; font-weight: bold; }
+            .header h4 { margin: 0; font-size: 18px; color: #000; font-weight: bold; }
             .qr-container { display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid #333; border-radius: 8px; padding: 10px; background: #f8f9fa; margin-top: auto; position: relative; z-index: 20; }
             .qr-container span { font-size: 12px; color: #666; margin-bottom: 5px; }
             .qr-container strong { font-size: 24px; letter-spacing: 5px; color: #000; margin-bottom: 10px; }
-            .qr-code { width: 120px; height: 120px; background: #fff; padding: 5px; border: 1px solid #ddd; z-index: 20; position: relative; }
+            .qr-code { width: 110px; height: 110px; background: #fff; padding: 0; border: none; z-index: 20; position: relative; display: flex; justify-content: center; align-items: center; }
             .hint { font-size: 11px; margin-top: 10px; font-weight: bold; text-align: center; }
         </style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
