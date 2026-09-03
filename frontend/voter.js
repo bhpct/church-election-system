@@ -806,6 +806,8 @@ function startTutorial() {
                 
             case 3.5:
                 overlay.style.overflowY = 'hidden'; // 鎖定滑動！強制學習點擊
+                dropdown.style.display = 'block'; // 確保選單依然可見
+                inlineTooltip.style.display = 'block'; // 確保提示視窗可見
                 
                 // Highlight 008 button
                 const targetBtn = Array.from(candidateList.children).find(b => b.innerHTML.includes('008'));
