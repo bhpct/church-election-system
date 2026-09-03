@@ -140,7 +140,7 @@ async function handleVerifyKey() {
         buildBallotUI();
         
         // 檢查是否需要顯示教學模式
-        if (!localStorage.getItem(`tutorial_completed_${currentElectionId}`)) {
+        if (!localStorage.getItem(`tutorial_completed_${currentKeyCode}`)) {
             startTutorial();
         } else {
             switchView('view-ballot');
@@ -659,7 +659,7 @@ function startTutorial() {
         // Wait 3 seconds, then close tutorial and enter ballot
         setTimeout(() => {
             overlay.style.display = 'none';
-            localStorage.setItem(	utorial_completed_, 'true');
+            localStorage.setItem(`tutorial_completed_${currentKeyCode}`, 'true');
             switchView('view-ballot');
         }, 3000);
     };
