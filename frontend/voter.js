@@ -708,6 +708,27 @@ function startTutorial() {
                 }
             };
 
+            // Robust touch handler for iOS (fixes finger-roll click failures and hover double-tap issues)
+            let startY = 0;
+            let startX = 0;
+            btn.addEventListener('touchstart', (e) => {
+                startY = e.touches[0].clientY;
+                startX = e.touches[0].clientX;
+            }, {passive: true});
+
+            btn.addEventListener('touchend', (e) => {
+                const endY = e.changedTouches[0].clientY;
+                const endX = e.changedTouches[0].clientX;
+                // If finger didn't move much, it's a tap!
+                if (Math.abs(endY - startY) < 15 && Math.abs(endX - startX) < 15) {
+                    if (e.cancelable) {
+                        e.preventDefault(); // Prevent ghost click, double-tap zoom, and hover simulation
+                    }
+                    handleInteract(e);
+                }
+            });
+
+            // Fallback for desktop/mouse users
             btn.addEventListener('click', handleInteract);
             
             candidateList.appendChild(btn);
