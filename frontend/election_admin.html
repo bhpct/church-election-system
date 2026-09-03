@@ -146,12 +146,11 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                opacity: 0.5;
+                opacity: var(--seal-opacity, 0.15);
                 width: 60%;
                 pointer-events: none;
                 z-index: 10;
                 mix-blend-mode: multiply;
-                filter: grayscale(1) sepia(1) hue-rotate(330deg) saturate(15) contrast(1.2);
             }
             /* Ensure table rows do not block the watermark if they have backgrounds */
             #printContainer table {
@@ -371,13 +370,26 @@
                                     <button class="btn btn-primary" id="btnGeneratePreview">產生預覽</button>
                                 </div>
                             </div>
+                            
+                            <!-- 加入透明度調整拉桿 -->
+                            <div class="row mb-4 bg-light p-3 rounded mx-0">
+                                <div class="col-md-12">
+                                    <label class="form-label fw-bold text-danger mb-1"><i class="fas fa-stamp"></i> 印章浮水印深淺度 (0% ~ 100%)</label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="range" class="form-range" id="globalSealOpacity" min="0" max="100" value="15" style="max-width: 300px;">
+                                        <span id="globalSealOpacityVal" class="badge bg-secondary" style="min-width: 45px;">15%</span>
+                                        <button class="btn btn-sm btn-outline-danger ms-3" id="saveSealOpacityBtn">儲存透明度設定</button>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">邊拉動即可看見下方浮水印深淺變化，確認後請按下儲存，未來列印選票即會套用此設定。</small>
+                                </div>
+                            </div>
 
                             <div class="ballot-preview rounded mt-4" id="ballotPreviewContainer" style="display:none; background-color: #f8f9fa; padding: 20px;">
                                 <!-- 模擬單張 A5 直式比例的選票 -->
                                 <div class="ballot-content position-relative shadow bg-white" style="width: 148mm; height: 210mm; margin: 0 auto; border: 2px dashed #999; padding: 15mm; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; background: transparent;">
                                     
                                     <!-- 浮水印 (正中間偏上，在文字後方) -->
-                                    <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印" style="position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: 0.12; z-index: 10; pointer-events: none; mix-blend-mode: multiply;">
+                                    <img id="ballotSealWatermark" src="" class="ballot-watermark" alt="公印浮水印" style="position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: var(--seal-opacity, 0.15); z-index: 10; pointer-events: none; mix-blend-mode: multiply;">
                                     
                                     <!-- 上方標題區 -->
                                     <div class="text-center position-relative" style="z-index: 1;">

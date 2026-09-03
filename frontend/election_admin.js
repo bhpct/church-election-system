@@ -82,11 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const baseElement = document.querySelector('input[name="globalQuorumBase"]:checked');
             const quorumBase = baseElement ? baseElement.value : 'ATTENDING';
             const initAttending = parseInt(document.getElementById('globalInitAttending').value) || null;
+            const sealOpacity = parseInt(document.getElementById('globalSealOpacity').value) || 15;
 
             // 1. 寫入全域選舉設定 (不更動 status)
             await updateDoc(doc(db, 'elections', currentElectionId), {
                 quorum_base: quorumBase,
                 init_attending_count: initAttending,
+                seal_opacity: sealOpacity,
                 updatedAt: window.fs.serverTimestamp()
             });
 
@@ -120,6 +122,41 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = document.getElementById('confirmSaveSettingsBtn');
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-save"></i> 儲存設定';
+        }
+    });
+
+    // 監聽印章透明度拉桿事件
+    document.getElementById('globalSealOpacity')?.addEventListener('input', (e) => {
+        const val = e.target.value;
+        document.getElementById('globalSealOpacityVal').textContent = val + '%';
+        document.documentElement.style.setProperty('--seal-opacity', val / 100);
+    });
+
+    // 獨立儲存透明度設定按鈕
+    document.getElementById('saveSealOpacityBtn')?.addEventListener('click', async () => {
+        try {
+            const btn = document.getElementById('saveSealOpacityBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
+
+            const sealOpacity = parseInt(document.getElementById('globalSealOpacity').value) || 15;
+            const { doc, updateDoc } = window.fs;
+            const db = window.firebaseDb;
+
+            await updateDoc(doc(db, 'elections', currentElectionId), {
+                seal_opacity: sealOpacity,
+                updatedAt: window.fs.serverTimestamp()
+            });
+
+            Swal.fire('儲存成功', '印章透明度已更新，列印時將套用此設定！', 'success');
+
+        } catch (error) {
+            console.error("儲存透明度失敗:", error);
+            Swal.fire('錯誤', '儲存透明度失敗', 'error');
+        } finally {
+            const btn = document.getElementById('saveSealOpacityBtn');
+            btn.disabled = false;
+            btn.innerHTML = '儲存透明度設定';
         }
     });
 });
@@ -225,6 +262,12 @@ async function loadElectionData() {
         }
         if (currentElectionData.init_attending_count !== undefined && currentElectionData.init_attending_count !== null) {
             document.getElementById('globalInitAttending').value = currentElectionData.init_attending_count;
+        }
+        
+        if (currentElectionData.seal_opacity !== undefined && currentElectionData.seal_opacity !== null) {
+            document.getElementById('globalSealOpacity').value = currentElectionData.seal_opacity;
+            document.getElementById('globalSealOpacityVal').textContent = currentElectionData.seal_opacity + '%';
+            document.documentElement.style.setProperty('--seal-opacity', currentElectionData.seal_opacity / 100);
         }
 
         // 根據 global_published 狀態切換按鈕

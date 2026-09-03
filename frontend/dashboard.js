@@ -203,10 +203,13 @@ window.switchOrgContext = async function() {
         if (orgSnap.exists()) {
             const orgData = orgSnap.data();
             const preview = document.getElementById('orgSealPreview');
+            const deleteBtn = document.getElementById('deleteSealBtn');
             if (orgData.seal_url) {
                 preview.src = orgData.seal_url;
+                if(deleteBtn) deleteBtn.style.display = 'block';
             } else {
-                preview.src = 'assets/logo.png';
+                preview.src = 'https://via.placeholder.com/150?text=未設定';
+                if(deleteBtn) deleteBtn.style.display = 'none';
             }
         }
 
@@ -485,6 +488,40 @@ async function loadAdminDashboard() {
     // 觸發選擇檔案 (原本的上傳按鈕改為觸發 Input)
     document.getElementById('uploadSealBtn')?.addEventListener('click', () => {
         document.getElementById('sealFileInput').click();
+    });
+
+    // 刪除公印
+    document.getElementById('deleteSealBtn')?.addEventListener('click', async () => {
+        const orgId = document.getElementById('currentOrgSelect').value;
+        if (!orgId) return;
+        
+        const result = await Swal.fire({
+            title: '確定要刪除公印嗎？',
+            text: "刪除後選票將不會有機構印章，可供單位自行實體蓋章。",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: '確定刪除',
+            cancelButtonText: '取消'
+        });
+        
+        if (result.isConfirmed) {
+            try {
+                const { doc, updateDoc } = window.fs;
+                const db = window.firebaseDb;
+                await updateDoc(doc(db, 'organizations', orgId), {
+                    seal_url: null
+                });
+                Swal.fire('成功', '公印已刪除', 'success');
+                if (window.logAuditAction) {
+                    await window.logAuditAction(orgId, 'DELETE', '公印', '移除了機構公印');
+                }
+                window.switchOrgContext(); // 重新整理當前機構畫面
+            } catch (error) {
+                console.error('刪除公印失敗:', error);
+                Swal.fire('錯誤', '刪除失敗', 'error');
+            }
+        }
     });
 
     // 印章去背與鮮紅化演算法
