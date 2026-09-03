@@ -787,7 +787,22 @@ function startTutorial() {
                 inlineTooltip.style.display = 'block';
                 searchGroup.style.border = '3px solid #dc3545';
                 dropdown.style.display = 'block';
-                renderList(candidatesAll, null); // Show all before typing
+                
+                // Show 11 candidates for long dropdown effect
+                const candidatesStep6 = [
+                    { num: '001', name: '人員A' },
+                    { num: '002', name: '人員B' },
+                    { num: '003', name: '人員C' },
+                    { num: '004', name: '人員D' },
+                    { num: '005', name: '人員E' },
+                    { num: '006', name: '人員F' },
+                    { num: '007', name: '人員G' },
+                    { num: '008', name: '人員H' },
+                    { num: '009', name: '人員I' },
+                    { num: '010', name: '人員J' },
+                    { num: '011', name: '人員K' }
+                ];
+                renderList(candidatesStep6, null); // Show all before typing
                 
                 searchInput.readOnly = false;
                 searchInput.focus();
@@ -867,27 +882,13 @@ function startTutorial() {
         const currInput = document.getElementById('mockSearchInput');
         currInput.value = `${c.num} ${c.name}`;
         if (currentStep === 3) {
-            Swal.fire({
-                title: '正確！',
-                text: '您已經學會如何滑動名單並點選了。',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            }).then(() => {
-                currentStep = 4;
-                updateStepUI();
-            });
+            // Instant advance
+            currentStep = 4;
+            updateStepUI();
         } else if (currentStep === 7) {
-             Swal.fire({
-                title: '正確！',
-                text: '您已經學會如何搜尋並點選了。',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            }).then(() => {
-                currentStep = 8;
-                updateStepUI();
-            });
+            // Instant advance
+            currentStep = 8;
+            updateStepUI();
         }
     };
 

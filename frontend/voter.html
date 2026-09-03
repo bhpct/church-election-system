@@ -207,16 +207,16 @@
 </div>
 
 <!-- Tutorial Overlay (Advanced 8 Steps) -->
-<div id="advancedTutorialOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: flex-start; padding: 15px; padding-top: 50px; overflow-y: auto;">
+<div id="advancedTutorialOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 15px; padding-top: env(safe-area-inset-top, 15px); padding-bottom: env(safe-area-inset-bottom, 15px); overflow-y: auto;">
     
     <!-- Step 0 Intro Screen -->
-    <div id="tutorialIntroScreen" style="display: none; width: 100%; max-width: 500px; background: white; border-radius: 15px; padding: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: fadeIn 0.5s; margin-top: 50px;">
-        <div style="background: #0d6efd; color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+    <div id="tutorialIntroScreen" style="display: none; width: 100%; max-width: 500px; background: white; border-radius: 15px; padding: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: fadeIn 0.5s;">
+        <div style="background: #ffc107; color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
             <i class="fas fa-chalkboard-teacher" style="font-size: 3rem; margin-bottom: 10px;"></i>
-            <h3 class="fw-bold m-0">系統教學練習</h3>
+            <h3 class="fw-bold m-0 text-white">操作教學</h3>
         </div>
         <p class="text-dark fs-5 text-start mb-4" style="line-height: 1.6;">
-            歡迎！為了確保投票順利，我們將帶您進行 2 個基本操作練習：<br><br>
+            歡迎！第一次使用本系統，請先完成 2 個基本操作練習幫助投票更順利：<br><br>
             <i class="fas fa-check-circle text-success"></i> 1. 如何滑動名單選擇<br>
             <i class="fas fa-check-circle text-success"></i> 2. 如何搜尋候選人
         </p>
