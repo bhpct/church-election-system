@@ -218,6 +218,12 @@ async function loadElectionData() {
         if (orgSnap.exists()) {
             currentOrgData = orgSnap.data();
             document.getElementById('orgNameBadge').textContent = currentOrgData.name;
+            
+            // 從 org_assets 抓取公印圖檔並塞入 currentOrgData 供後續使用
+            const assetSnap = await getDoc(doc(db, 'org_assets', orgId));
+            if (assetSnap.exists() && assetSnap.data().seal_url) {
+                currentOrgData.seal_url = assetSnap.data().seal_url;
+            }
         }
 
         // 4. 更新畫面文字與狀態
@@ -3606,9 +3612,9 @@ window.printElectionResults = async function() {
         
         // 加入浮水印
         if (currentElectionData && currentElectionData.org_id) {
-            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', currentElectionData.org_id));
-            if (orgDoc.exists() && orgDoc.data().seal_url) {
-                container.innerHTML += `<img src="${orgDoc.data().seal_url}" class="watermark-bg">`;
+            const assetDoc = await window.fs.getDoc(window.fs.doc(db, 'org_assets', currentElectionData.org_id));
+            if (assetDoc.exists() && assetDoc.data().seal_url) {
+                container.innerHTML += `<img src="${assetDoc.data().seal_url}" class="watermark-bg">`;
             }
         }
         
@@ -3856,9 +3862,9 @@ window.printDigitalBallotArchive = async function() {
         container.innerHTML = '';
         
         if (currentElectionData && currentElectionData.org_id) {
-            const orgDoc = await window.fs.getDoc(window.fs.doc(db, 'organizations', currentElectionData.org_id));
-            if (orgDoc.exists() && orgDoc.data().seal_url) {
-                container.innerHTML += `<img src="${orgDoc.data().seal_url}" class="watermark-bg">`;
+            const assetDoc = await window.fs.getDoc(window.fs.doc(db, 'org_assets', currentElectionData.org_id));
+            if (assetDoc.exists() && assetDoc.data().seal_url) {
+                container.innerHTML += `<img src="${assetDoc.data().seal_url}" class="watermark-bg">`;
             }
         }
         

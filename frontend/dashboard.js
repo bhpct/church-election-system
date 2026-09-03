@@ -101,6 +101,13 @@ async function loadOrgSwitcher(role, org_roles) {
             selectEl.innerHTML = '<option value="">目前無可用機構</option>';
             document.getElementById('orgContextArea').style.display = 'none';
         } else {
+            if (allOrgs.length > 1) {
+                const opt = document.createElement('option');
+                opt.value = "";
+                opt.textContent = "請選擇單位...";
+                selectEl.appendChild(opt);
+            }
+            
             allOrgs.forEach(org => {
                 const opt = document.createElement('option');
                 opt.value = org.id;
@@ -198,19 +205,16 @@ window.switchOrgContext = async function() {
         const { doc, getDoc, collection, query, where, getDocs } = window.fs;
         const db = window.firebaseDb;
 
-        // 1. 載入公印
-        const orgSnap = await getDoc(doc(db, 'organizations', selectedOrgId));
-        if (orgSnap.exists()) {
-            const orgData = orgSnap.data();
-            const preview = document.getElementById('orgSealPreview');
-            const deleteBtn = document.getElementById('deleteSealBtn');
-            if (orgData.seal_url) {
-                preview.src = orgData.seal_url;
-                if(deleteBtn) deleteBtn.style.display = 'block';
-            } else {
-                preview.src = 'assets/logo.png';
-                if(deleteBtn) deleteBtn.style.display = 'none';
-            }
+        // 1. 載入公印 (改由 org_assets 讀取)
+        const orgAssetSnap = await getDoc(doc(db, 'org_assets', selectedOrgId));
+        const preview = document.getElementById('orgSealPreview');
+        const deleteBtn = document.getElementById('deleteSealBtn');
+        if (orgAssetSnap.exists() && orgAssetSnap.data().seal_url) {
+            preview.src = orgAssetSnap.data().seal_url;
+            if(deleteBtn) deleteBtn.style.display = 'block';
+        } else {
+            preview.src = 'assets/logo.png';
+            if(deleteBtn) deleteBtn.style.display = 'none';
         }
 
         // 2. 載入選舉場次
@@ -507,11 +511,11 @@ async function loadAdminDashboard() {
         
         if (result.isConfirmed) {
             try {
-                const { doc, updateDoc } = window.fs;
+                const { doc, setDoc } = window.fs;
                 const db = window.firebaseDb;
-                await updateDoc(doc(db, 'organizations', orgId), {
+                await setDoc(doc(db, 'org_assets', orgId), {
                     seal_url: null
-                });
+                }, { merge: true });
                 Swal.fire('成功', '公印已刪除', 'success');
                 if (window.logAuditAction) {
                     await window.logAuditAction(orgId, 'DELETE', '公印', '移除了機構公印');
@@ -597,12 +601,12 @@ async function loadAdminDashboard() {
                 throw new Error(`圖片過大 (${sizeInKB} KB)，請重試！上限為 800 KB。`);
             }
 
-            // 5. 寫入 Firestore
-            const { doc, updateDoc } = window.fs;
+            // 5. 寫入 Firestore (改存至 org_assets)
+            const { doc, setDoc } = window.fs;
             const db = window.firebaseDb;
-            await updateDoc(doc(db, 'organizations', orgId), {
+            await setDoc(doc(db, 'org_assets', orgId), {
                 seal_url: base64String
-            });
+            }, { merge: true });
 
             Swal.fire('成功', `公印已自動去背並成功儲存！(大小: ${sizeInKB} KB)`, 'success');
             

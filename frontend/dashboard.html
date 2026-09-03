@@ -696,7 +696,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     // 注意：這裡必須貼上您與 index.html 相同的 Firebase Config
     const firebaseConfig = {
@@ -719,7 +719,7 @@
     
     // Firestore 與 Base64 Utils
     window.fs = {
-        doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp
+        doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, setDoc
     };
 </script>
 
