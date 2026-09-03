@@ -662,6 +662,11 @@ function startTutorial() {
         { num: '003', name: '人員C' },
         { num: '004', name: '人員D' },
         { num: '005', name: '人員E' },
+        { num: '006', name: '人員F' },
+        { num: '007', name: '人員G' },
+        { num: '008', name: '人員H' },
+        { num: '009', name: '人員I' },
+        { num: '010', name: '人員J' }
     ];
     
     const renderList = (cands, requiredTarget = null) => {
@@ -728,9 +733,12 @@ function startTutorial() {
         
         switch (currentStep) {
             case 1:
-                inlineTooltipText.innerHTML = "【第一部分】<br>如何選擇候選人？";
-                inlineTooltip.style.display = 'block';
+                inlineTooltip.style.display = 'none';
                 startBtnOverlay.style.display = 'flex';
+                document.getElementById('tutorialOverlayTitle').innerHTML = '<i class="fas fa-hand-pointer text-primary mb-3" style="font-size:3rem;"></i><br>第一部分：滑動選人';
+                document.getElementById('tutorialOverlayDesc').innerHTML = '學習如何滑動名單並點選';
+                btnNext.innerHTML = '<i class="fas fa-play-circle"></i> 開始學習';
+                btnNext.className = 'btn btn-primary fw-bold shadow-sm w-75';
                 btnNext.onclick = () => { currentStep = 2; updateStepUI(); };
                 break;
                 
@@ -748,12 +756,12 @@ function startTutorial() {
                 break;
                 
             case 3:
-                inlineTooltipText.innerHTML = "👉 步驟 2：請點選「<strong class='text-warning'>004 人員D</strong>」";
+                inlineTooltipText.innerHTML = "👉 步驟 2：請往上滑動找到「<strong class='text-warning'>008 人員H</strong>」並點擊";
                 inlineTooltip.style.display = 'block';
                 dropdown.style.display = 'block';
                 dropdown.style.border = '3px solid #dc3545';
                 dropdown.style.animation = 'pulseRed 1.5s infinite';
-                renderList(candidatesAll, '004');
+                renderList(candidatesAll, '008');
                 
                 // Add Scroll Arrow
                 const arrow = document.createElement('div');
@@ -763,6 +771,17 @@ function startTutorial() {
                 overlay.appendChild(arrow);
                 break;
                 
+            case 3.5:
+                inlineTooltip.style.display = 'none';
+                dropdown.style.display = 'none';
+                startBtnOverlay.style.display = 'flex';
+                document.getElementById('tutorialOverlayTitle').innerHTML = '<i class="fas fa-check-circle text-success mb-3" style="font-size:3rem;"></i><br>選擇成功！';
+                document.getElementById('tutorialOverlayDesc').innerHTML = '您已完成第一項學習：滑動與點選';
+                btnNext.innerHTML = '<i class="fas fa-arrow-right"></i> 繼續下一項學習';
+                btnNext.className = 'btn btn-success fw-bold shadow-sm w-75';
+                btnNext.onclick = () => { currentStep = 4; updateStepUI(); };
+                break;
+                
             case 4:
                 // Reset Selection
                 searchInput.value = "";
@@ -770,9 +789,12 @@ function startTutorial() {
                 dropdown.style.border = '1px solid #ced4da';
                 dropdown.style.animation = 'none';
                 
-                inlineTooltipText.innerHTML = "【第二部分】<br>名單太長時，如何搜尋候選人？";
-                inlineTooltip.style.display = 'block';
+                inlineTooltip.style.display = 'none';
                 startBtnOverlay.style.display = 'flex';
+                document.getElementById('tutorialOverlayTitle').innerHTML = '<i class="fas fa-search text-info mb-3" style="font-size:3rem;"></i><br>第二部分：搜尋功能';
+                document.getElementById('tutorialOverlayDesc').innerHTML = '名單太長？學習如何快速搜尋';
+                btnNext.innerHTML = '<i class="fas fa-play-circle"></i> 開始學習';
+                btnNext.className = 'btn btn-info text-white fw-bold shadow-sm w-75';
                 btnNext.onclick = () => { currentStep = 5; updateStepUI(); };
                 break;
                 
@@ -864,15 +886,18 @@ function startTutorial() {
                 submitBtn.onclick = () => {
                     // Success End
                     inlineTooltip.style.display = 'none';
-                    mockBallotCard.style.display = 'none';
-                    finalSuccess.style.display = 'block';
-                    
-                    setTimeout(() => {
+                    dropdown.style.display = 'none';
+                    startBtnOverlay.style.display = 'flex';
+                    document.getElementById('tutorialOverlayTitle').innerHTML = '<i class="fas fa-check-circle text-success mb-3" style="font-size:3rem;"></i><br>教學完成！';
+                    document.getElementById('tutorialOverlayDesc').innerHTML = '您現在可以正式開始投票了';
+                    btnNext.innerHTML = '<i class="fas fa-vote-yea"></i> 進入投票';
+                    btnNext.className = 'btn btn-success fw-bold shadow-sm w-75';
+                    btnNext.onclick = () => {
                         overlay.style.display = 'none';
                         document.body.style.overflow = ''; // Restore scrolling
                         localStorage.setItem(`tutorial_completed_${currentKeyCode}`, 'true');
                         switchView('view-ballot');
-                    }, 4000);
+                    };
                 };
                 break;
         }
@@ -882,16 +907,8 @@ function startTutorial() {
         const currInput = document.getElementById('mockSearchInput');
         currInput.value = `${c.num} ${c.name}`;
         if (currentStep === 3) {
-            Swal.fire({
-                title: '選擇成功！',
-                text: '您已完成第一項學習：滑動與點選',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            }).then(() => {
-                currentStep = 4;
-                updateStepUI();
-            });
+            currentStep = 3.5;
+            updateStepUI();
         } else if (currentStep === 7) {
             // Instant advance
             currentStep = 8;
