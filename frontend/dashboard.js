@@ -368,13 +368,20 @@ async function loadAdminDashboard() {
         const db = window.firebaseDb;
 
         // 1. 載入機構列表
+        const assetSnap = await getDocs(collection(db, 'org_assets'));
+        const assetMap = {};
+        assetSnap.forEach(doc => {
+            assetMap[doc.id] = doc.data();
+        });
+
         const tbodyOrg = document.getElementById('orgTableBody');
         tbodyOrg.innerHTML = '';
         if (allOrgs.length === 0) {
             tbodyOrg.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">尚無任何機構，請點擊新增</td></tr>';
         } else {
             allOrgs.forEach(org => {
-                const sealStatus = org.seal_url ? '<span class="badge bg-success">已上傳</span>' : '<span class="badge bg-warning text-dark">未上傳</span>';
+                const hasSeal = assetMap[org.id] && assetMap[org.id].seal_url;
+                const sealStatus = hasSeal ? '<span class="badge bg-success">已上傳</span>' : '<span class="badge bg-warning text-dark">未上傳</span>';
                 const createDate = org.createdAt ? new Date(org.createdAt.toDate()).toLocaleDateString() : '未知';
 
                 const tr = document.createElement('tr');
@@ -419,64 +426,26 @@ async function loadAdminDashboard() {
             managedOrgsHeader.style.display = isGlobalSuperAdmin ? '' : 'none';
         }
 
-        if (allUsers.length === 0) {
-            tbodyUser.innerHTML = `<tr><td colspan="${isGlobalSuperAdmin ? '5' : '4'}" class="text-center text-muted py-3">無其他使用者</td></tr>`;
-        } else {
-            allUsers.forEach(u => {
-                const uOrgRoles = u.org_roles || {};
-                
-                let roleBadge = '';
-                if (u.role === 'SUPER_ADMIN') {
-                    roleBadge = '<span class="badge bg-danger"><i class="fas fa-crown"></i> 系統超級管理員</span>';
-                } else if (!u.role || u.role === 'GUEST') {
-                    roleBadge = '<span class="badge bg-secondary">審核中</span>';
-                } else {
-                    const hasOrgSuperAdmin = Object.values(uOrgRoles).includes('ORG_SUPER_ADMIN');
-                    if (hasOrgSuperAdmin) {
-                        roleBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-user-shield"></i> 已授權單位超級管理員</span>';
+        if (!window.adminUsersSortInitialized) {
+            window.currentAdminUserSortColumn = 'orgs'; // default sort by orgs
+            window.currentAdminUserSortDirection = 'asc';
+            
+            document.querySelectorAll('th.sortable-header').forEach(th => {
+                th.addEventListener('click', () => {
+                    const col = th.dataset.sort;
+                    if (window.currentAdminUserSortColumn === col) {
+                        window.currentAdminUserSortDirection = window.currentAdminUserSortDirection === 'asc' ? 'desc' : 'asc';
                     } else {
-                        roleBadge = '<span class="badge bg-primary">已授權單位管理員</span>';
+                        window.currentAdminUserSortColumn = col;
+                        window.currentAdminUserSortDirection = 'asc';
                     }
-                }
-                
-                let orgsDisplayArr = [];
-                Object.keys(uOrgRoles).forEach(orgId => {
-                    const o = allOrgs.find(x => x.id === orgId);
-                    if (o) {
-                        const localRole = uOrgRoles[orgId] === 'ORG_SUPER_ADMIN' ? '單位超管' : '一般管理員';
-                        const badgeColor = uOrgRoles[orgId] === 'ORG_SUPER_ADMIN' ? 'bg-danger' : 'bg-primary';
-                        orgsDisplayArr.push(`<div class="mb-1">${o.name} <span class="badge ${badgeColor} ms-1">${localRole}</span></div>`);
-                    }
+                    renderAdminUsersTable();
                 });
-                const orgsDisplay = orgsDisplayArr.length > 0 ? orgsDisplayArr.join('') : '<span class="text-muted">無</span>';
-
-                const note = u.note || '<span class="text-muted">無</span>';
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <img src="${u.picture || 'assets/logo.png'}" style="width:30px; border-radius:50%; margin-right:10px;">
-                            <span>${u.name}</span>
-                        </div>
-                    </td>
-                    <td>
-                        <span class="user-note-display">${note}</span>
-                    </td>
-                    <td>${roleBadge}</td>
-                    ${isGlobalSuperAdmin ? `<td>${orgsDisplay}</td>` : ''}
-                    <td>
-                        ${isGlobalSuperAdmin ? `<button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>` : ''}
-                        <button class="btn btn-sm btn-outline-secondary" onclick="openEditNoteModal('${u.uid}', '${u.name}', '${u.note || ''}')">備註</button>
-                        ${ u.uid === currentUserId 
-                            ? `<button class="btn btn-sm btn-outline-danger" disabled title="無法刪除自己的帳號">刪除</button>` 
-                            : `<button class="btn btn-sm btn-outline-danger" onclick="deleteAdminUser('${u.uid}', '${u.name}')">刪除</button>` 
-                        }
-                    </td>
-                `;
-                tbodyUser.appendChild(tr);
             });
+            window.adminUsersSortInitialized = true;
         }
+
+        renderAdminUsersTable();
     } catch (error) {
         console.error("載入管理員資料失敗:", error);
         Swal.fire('錯誤', '無法載入列表', 'error');
@@ -1366,3 +1335,114 @@ if (mobileMenuBtn) {
         }
     });
 }
+
+
+window.renderAdminUsersTable = function() {
+    const tbodyUser = document.getElementById('adminUsersTableBody');
+    if (!tbodyUser) return;
+    
+    // Update header icons
+    document.querySelectorAll('th.sortable-header').forEach(th => {
+        const icon = th.querySelector('i');
+        if (icon) {
+            icon.className = 'fas fa-sort text-muted ms-1';
+            if (th.dataset.sort === window.currentAdminUserSortColumn) {
+                icon.className = window.currentAdminUserSortDirection === 'asc' ? 'fas fa-sort-down text-primary ms-1' : 'fas fa-sort-up text-primary ms-1';
+            }
+        }
+    });
+
+    const isGlobalSuperAdmin = currentUserRole === 'SUPER_ADMIN';
+
+    if (allUsers.length === 0) {
+        tbodyUser.innerHTML = `<tr><td colspan="${isGlobalSuperAdmin ? '5' : '4'}" class="text-center text-muted py-3">無其他使用者</td></tr>`;
+        return;
+    }
+
+    // Pre-calculate sort values
+    const usersWithSortValues = allUsers.map(u => {
+        const uOrgRoles = u.org_roles || {};
+        
+        let roleBadge = '';
+        let statusScore = 99;
+        if (u.role === 'SUPER_ADMIN') {
+            roleBadge = '<span class="badge bg-danger"><i class="fas fa-crown"></i> 系統超級管理員</span>';
+            statusScore = 1;
+        } else if (!u.role || u.role === 'GUEST') {
+            roleBadge = '<span class="badge bg-secondary">審核中</span>';
+            statusScore = 4;
+        } else {
+            const hasOrgSuperAdmin = Object.values(uOrgRoles).includes('ORG_SUPER_ADMIN');
+            if (hasOrgSuperAdmin) {
+                roleBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-user-shield"></i> 已授權單位超級管理員</span>';
+                statusScore = 2;
+            } else {
+                roleBadge = '<span class="badge bg-primary">已授權單位管理員</span>';
+                statusScore = 3;
+            }
+        }
+        
+        let orgNames = [];
+        let orgsDisplayArr = [];
+        Object.keys(uOrgRoles).forEach(orgId => {
+            const o = allOrgs.find(x => x.id === orgId);
+            if (o) {
+                orgNames.push(o.name);
+                const localRole = uOrgRoles[orgId] === 'ORG_SUPER_ADMIN' ? '單位超管' : '一般管理員';
+                const badgeColor = uOrgRoles[orgId] === 'ORG_SUPER_ADMIN' ? 'bg-danger' : 'bg-primary';
+                orgsDisplayArr.push(`<div class="mb-1">${o.name} <span class="badge ${badgeColor} ms-1">${localRole}</span></div>`);
+            }
+        });
+        
+        orgNames.sort((a, b) => a.localeCompare(b, 'zh-TW'));
+        const orgsText = orgNames.length > 0 ? orgNames.join(',') : '無';
+        const orgsDisplay = orgsDisplayArr.length > 0 ? orgsDisplayArr.join('') : '<span class="text-muted">無</span>';
+        
+        return {
+            ...u,
+            _roleBadge: roleBadge,
+            _statusScore: statusScore,
+            _orgsDisplay: orgsDisplay,
+            _orgsText: orgsText
+        };
+    });
+
+    // Sort
+    usersWithSortValues.sort((a, b) => {
+        const dir = window.currentAdminUserSortDirection === 'asc' ? 1 : -1;
+        if (window.currentAdminUserSortColumn === 'status') {
+            return (a._statusScore - b._statusScore) * dir;
+        } else if (window.currentAdminUserSortColumn === 'orgs') {
+            return a._orgsText.localeCompare(b._orgsText, 'zh-TW', { numeric: true }) * dir;
+        }
+        return 0;
+    });
+
+    tbodyUser.innerHTML = '';
+    usersWithSortValues.forEach(u => {
+        const note = u.note || '<span class="text-muted">無</span>';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <div class="d-flex align-items-center">
+                    <img src="${u.picture || 'assets/logo.png'}" style="width:30px; border-radius:50%; margin-right:10px;">
+                    <span>${u.name}</span>
+                </div>
+            </td>
+            <td>
+                <span class="user-note-display">${note}</span>
+            </td>
+            <td>${u._roleBadge}</td>
+            ${isGlobalSuperAdmin ? `<td>${u._orgsDisplay}</td>` : ''}
+            <td>
+                ${isGlobalSuperAdmin ? `<button class="btn btn-sm btn-primary" onclick="openAssignModal('${u.uid}', '${u.name}')">授權/編輯</button>` : ''}
+                <button class="btn btn-sm btn-outline-secondary" onclick="openEditNoteModal('${u.uid}', '${u.name}', '${u.note || ''}')">備註</button>
+                ${ u.uid === currentUserId 
+                    ? `<button class="btn btn-sm btn-outline-danger" disabled title="無法刪除自己的帳號">刪除</button>` 
+                    : `<button class="btn btn-sm btn-outline-danger" onclick="deleteAdminUser('${u.uid}', '${u.name}')">刪除</button>` 
+                }
+            </td>
+        `;
+        tbodyUser.appendChild(tr);
+    });
+};
