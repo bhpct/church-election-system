@@ -696,8 +696,8 @@ function startTutorial() {
             const handleInteract = (e) => {
                 e.stopPropagation();
                 
-                // 步驟 6 正在教學「輸入搜尋」，禁止點擊名單干擾操作
-                if (currentStep === 6) {
+                // 步驟 3 是純滑動，步驟 6 是純打字，禁止點選清單
+                if (currentStep === 6 || currentStep === 3) {
                     return;
                 }
                 
@@ -775,12 +775,13 @@ function startTutorial() {
                 break;
                 
             case 3:
-                inlineTooltipText.innerHTML = "👉 步驟 2：請往上滑動找到「<strong class='text-warning'>008 人員H</strong>」並點擊";
+                overlay.style.overflowY = 'auto'; // 確保可滑動
+                inlineTooltipText.innerHTML = "👉 步驟 2：請往上滑動畫面，找到「<strong class='text-warning'>008 人員H</strong>」";
                 inlineTooltip.style.display = 'block';
                 dropdown.style.display = 'block';
-                dropdown.style.border = '3px solid #dc3545';
-                dropdown.style.animation = 'pulseRed 1.5s infinite';
-                renderList(candidatesAll, '008');
+                dropdown.style.border = '1px solid #ced4da';
+                dropdown.style.animation = 'none';
+                renderList(candidatesAll, '008'); // 第一階段：純滑動，不接受點擊
                 
                 // Add Scroll Arrow
                 const arrow = document.createElement('div');
@@ -788,9 +789,36 @@ function startTutorial() {
                 arrow.className = 'scroll-arrow-overlay';
                 arrow.innerHTML = '⬆ 請往上滑動';
                 overlay.appendChild(arrow);
+
+                // Auto advance when 008 is visible
+                const btn008 = Array.from(candidateList.children).find(b => b.innerHTML.includes('008'));
+                if (btn008) {
+                    const observer = new IntersectionObserver((entries) => {
+                        if (entries[0].isIntersecting && currentStep === 3) {
+                            observer.disconnect();
+                            currentStep = 3.5;
+                            updateStepUI();
+                        }
+                    }, { root: overlay, threshold: 0.9 });
+                    observer.observe(btn008);
+                }
                 break;
                 
             case 3.5:
+                overlay.style.overflowY = 'hidden'; // 鎖定滑動！強制學習點擊
+                
+                // Highlight 008 button
+                const targetBtn = Array.from(candidateList.children).find(b => b.innerHTML.includes('008'));
+                if (targetBtn) {
+                    targetBtn.style.border = '3px solid #dc3545';
+                    targetBtn.style.animation = 'pulseRed 1.5s infinite';
+                    targetBtn.style.borderRadius = '8px';
+                }
+                
+                inlineTooltipText.innerHTML = "👉 步驟 3：畫面已鎖定，請點選剛出現的「<strong class='text-warning'>008 人員H</strong>」";
+                break;
+                
+            case 3.8:
                 inlineTooltip.style.display = 'none';
                 dropdown.style.display = 'none';
                 startBtnOverlay.style.display = 'flex';
@@ -798,7 +826,11 @@ function startTutorial() {
                 document.getElementById('tutorialOverlayDesc').innerHTML = '您已完成第一項學習：滑動與點選';
                 btnNext.innerHTML = '<i class="fas fa-arrow-right"></i> 繼續下一項學習';
                 btnNext.className = 'btn btn-success fw-bold shadow-sm w-75';
-                btnNext.onclick = () => { currentStep = 4; updateStepUI(); };
+                btnNext.onclick = () => { 
+                    overlay.style.overflowY = 'auto'; // 恢復滑動
+                    currentStep = 4; 
+                    updateStepUI(); 
+                };
                 break;
                 
             case 4:
@@ -925,8 +957,8 @@ function startTutorial() {
     const handleCorrectSelection = (c) => {
         const currInput = document.getElementById('mockSearchInput');
         currInput.value = `${c.num} ${c.name}`;
-        if (currentStep === 3) {
-            currentStep = 3.5;
+        if (currentStep === 3.5) {
+            currentStep = 3.8;
             updateStepUI();
         } else if (currentStep === 7) {
             // Instant advance
@@ -937,3 +969,4 @@ function startTutorial() {
 
     updateStepUI();
 }
+
