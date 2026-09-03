@@ -206,6 +206,56 @@
 
 </div>
 
+<!-- Tutorial Overlay -->
+<div id="tutorialOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+    
+    <div style="background: #fff; width: 100%; max-width: 500px; border-radius: 15px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; position: relative;">
+        <!-- Banner -->
+        <div style="background: #ffc107; color: #000; padding: 10px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; font-size: 1.2rem;">
+            <i class="fas fa-graduation-cap"></i> 【模擬練習模式】
+        </div>
+        
+        <p id="tutorialMsg" style="font-size: 1.1rem; margin-bottom: 20px; color: #333; line-height: 1.5;">
+            這是一場投票模擬練習！<br>請先點擊下方的搜尋框，並隨意輸入<strong class="text-primary">文字</strong>或<strong class="text-primary">數字</strong>。
+        </p>
+
+        <!-- Dummy Search Box -->
+        <div class="input-group mb-3" style="box-shadow: 0 0 15px rgba(13, 110, 253, 0.5); border-radius: 8px; transition: 0.3s;" id="tutorialSearchGroup">
+            <span class="input-group-text bg-white border-primary"><i class="fas fa-search text-primary"></i></span>
+            <input type="text" id="tutorialSearchInput" class="form-control border-primary form-control-lg" placeholder="請點擊此處並輸入...">
+        </div>
+
+        <!-- Dummy Candidate List -->
+        <div id="tutorialCandidateList" style="display: none; text-align: left; animation: fadeIn 0.5s;">
+            <div id="tutorialCandidateCard" style="background: #f8f9fa; border: 2px dashed #198754; border-radius: 10px; padding: 15px; cursor: pointer; display: flex; align-items: center; transition: all 0.2s;">
+                <div style="width: 40px; height: 40px; background: #198754; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 15px; font-size: 1.2rem;">
+                    1
+                </div>
+                <div style="flex-grow: 1;">
+                    <h5 style="margin: 0; font-weight: bold; color: #198754;">測試人員</h5>
+                    <small class="text-muted">點擊此卡片即可投票</small>
+                </div>
+                <div>
+                    <span class="badge bg-success shadow-sm" style="font-size: 1rem;"><i class="fas fa-hand-pointer"></i> 點擊我</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div id="tutorialSuccess" style="display: none; margin-top: 20px; animation: fadeIn 0.5s;">
+            <i class="fas fa-check-circle text-success" style="font-size: 4rem; margin-bottom: 15px;"></i>
+            <h4 class="text-success" style="font-weight: bold;">太棒了！您已經學會了。</h4>
+            <p class="text-muted mt-2" style="font-size: 0.95rem;">即將進入正式投票頁面，<br><strong class="text-danger">請注意正式投票點選後無法重來喔！</strong></p>
+        </div>
+    </div>
+</div>
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
 <!-- Firebase SDK -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";

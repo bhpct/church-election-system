@@ -138,7 +138,13 @@ async function handleVerifyKey() {
 
         // 4. 建立選票 UI 並切換視窗
         buildBallotUI();
-        switchView('view-ballot');
+        
+        // 檢查是否需要顯示教學模式
+        if (!localStorage.getItem(`tutorial_completed_${currentElectionId}`)) {
+            startTutorial();
+        } else {
+            switchView('view-ballot');
+        }
 
     } catch (error) {
         console.error(error);
@@ -607,3 +613,55 @@ function listenToRoundResult() {
 }
 
 // 驗票反查機制
+
+// ==========================================
+// �оǼҦ� (Tutorial Mode)
+// ==========================================
+function startTutorial() {
+    const overlay = document.getElementById('tutorialOverlay');
+    const searchInput = document.getElementById('tutorialSearchInput');
+    const candidateList = document.getElementById('tutorialCandidateList');
+    const candidateCard = document.getElementById('tutorialCandidateCard');
+    const successMsg = document.getElementById('tutorialSuccess');
+    const searchGroup = document.getElementById('tutorialSearchGroup');
+    const tutorialMsg = document.getElementById('tutorialMsg');
+
+    // Reset state
+    overlay.style.display = 'flex';
+    searchInput.value = '';
+    candidateList.style.display = 'none';
+    successMsg.style.display = 'none';
+    searchGroup.style.display = 'flex';
+    tutorialMsg.style.display = 'block';
+
+    // Step 1: Listen for any input
+    const handleInput = () => {
+        if (searchInput.value.trim().length > 0) {
+            candidateList.style.display = 'block';
+        } else {
+            candidateList.style.display = 'none';
+        }
+    };
+    searchInput.addEventListener('input', handleInput);
+
+    // Step 2: Listen for click on dummy candidate
+    const handleCardClick = () => {
+        // Remove listeners
+        searchInput.removeEventListener('input', handleInput);
+        candidateCard.removeEventListener('click', handleCardClick);
+
+        // Hide search UI, show success
+        candidateList.style.display = 'none';
+        searchGroup.style.display = 'none';
+        tutorialMsg.style.display = 'none';
+        successMsg.style.display = 'block';
+
+        // Wait 3 seconds, then close tutorial and enter ballot
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            localStorage.setItem(	utorial_completed_, 'true');
+            switchView('view-ballot');
+        }, 3000);
+    };
+    candidateCard.addEventListener('click', handleCardClick);
+}
