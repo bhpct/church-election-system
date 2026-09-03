@@ -43,6 +43,14 @@ service cloud.firestore {
     }
 
     // ==========================================
+    // Org Assets 集合 (機構公印等獨立大型資料)
+    // ==========================================
+    match /org_assets/{orgId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || isOrgAdmin(orgId);
+    }
+
+    // ==========================================
     // Auth Codes 集合
     // ==========================================
     match /auth_codes/{codeId} {
