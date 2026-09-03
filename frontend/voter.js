@@ -621,50 +621,249 @@ function listenToRoundResult() {
 // �оǼҦ� (Tutorial Mode)
 // ==========================================
 function startTutorial() {
-    const overlay = document.getElementById('tutorialOverlay');
-    const searchInput = document.getElementById('tutorialSearchInput');
-    const candidateList = document.getElementById('tutorialCandidateList');
-    const candidateCard = document.getElementById('tutorialCandidateCard');
-    const successMsg = document.getElementById('tutorialSuccess');
-    const searchGroup = document.getElementById('tutorialSearchGroup');
-    const tutorialMsg = document.getElementById('tutorialMsg');
+    const overlay = document.getElementById('advancedTutorialOverlay');
+    const tooltipText = document.getElementById('tutorialTooltipText');
+    const tooltip = document.getElementById('tutorialTooltip');
+    const mockBallotCard = document.getElementById('mockBallotCard');
+    const startBtnOverlay = document.getElementById('tutorialStartBtnOverlay');
+    const btnNext = document.getElementById('btnTutorialNext');
+    
+    const searchGroup = document.getElementById('mockSearchGroup');
+    const searchInput = document.getElementById('mockSearchInput');
+    const dropdown = document.getElementById('mockDropdown');
+    const candidateList = document.getElementById('mockCandidateList');
+    const submitBtn = document.getElementById('mockSubmitBtn');
+    const finalSuccess = document.getElementById('tutorialFinalSuccess');
 
-    // Reset state
+    let currentStep = 1;
+    let selectedCandidate = null;
+
     overlay.style.display = 'flex';
-    searchInput.value = '';
-    candidateList.style.display = 'none';
-    successMsg.style.display = 'none';
-    searchGroup.style.display = 'flex';
-    tutorialMsg.style.display = 'block';
+    
+    // Virtual candidates for Step 3 and 7
+    const candidatesAll = [
+        { num: '001', name: '人員A' },
+        { num: '002', name: '人員B' },
+        { num: '003', name: '人員C' },
+        { num: '004', name: '人員D' },
+        { num: '005', name: '人員E' },
+    ];
+    
+    const renderList = (cands, requiredTarget = null) => {
+        candidateList.innerHTML = '';
+        cands.forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'list-group-item p-3 border-bottom d-flex align-items-center bg-white';
+            div.style.cursor = 'pointer';
+            div.innerHTML = `
+                <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <span class="badge bg-dark me-2 fs-6">${c.num}</span>
+                    <strong class="fs-5">${c.name}</strong>
+                </div>
+            `;
+            
+            // Hover effect mimicking real UI
+            div.addEventListener('mouseenter', () => div.style.backgroundColor = '#f8f9fa');
+            div.addEventListener('mouseleave', () => div.style.backgroundColor = 'transparent');
+            
+            div.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (requiredTarget && c.num !== requiredTarget) {
+                    Swal.fire({
+                        title: '選錯囉！',
+                        text: `請依照教學指示選擇「${requiredTarget}」喔！`,
+                        icon: 'error',
+                        confirmButtonText: '再試一次'
+                    });
+                } else {
+                    handleCorrectSelection(c);
+                }
+            });
+            candidateList.appendChild(div);
+        });
+    };
 
-    // Step 1: Listen for any input
-    const handleInput = () => {
-        if (searchInput.value.trim().length > 0) {
-            candidateList.style.display = 'block';
-        } else {
-            candidateList.style.display = 'none';
+    const updateStepUI = () => {
+        // Reset states
+        startBtnOverlay.style.display = 'none';
+        searchGroup.style.border = '2px solid transparent';
+        searchGroup.style.boxShadow = '0 0 15px rgba(0,0,0,0.1)';
+        searchInput.readOnly = true;
+        dropdown.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.6';
+        submitBtn.classList.remove('btn-warning');
+        submitBtn.classList.add('btn-success');
+        
+        switch (currentStep) {
+            case 1:
+                tooltipText.innerHTML = "【第一部分】<br>如何選擇候選人？";
+                startBtnOverlay.style.display = 'flex';
+                btnNext.onclick = () => { currentStep = 2; updateStepUI(); };
+                break;
+                
+            case 2:
+                tooltipText.innerHTML = "👉 步驟 1：請點選下方的『圈選欄』";
+                searchGroup.style.border = '3px solid #ffc107'; // Highlight
+                searchGroup.style.boxShadow = '0 0 20px rgba(255, 193, 7, 0.6)';
+                searchInput.onclick = (e) => {
+                    if (currentStep === 2) {
+                        currentStep = 3; 
+                        updateStepUI();
+                    }
+                };
+                break;
+                
+            case 3:
+                tooltipText.innerHTML = "👉 步驟 2：請滑動名單，並點選「<strong class='text-danger'>004 人員D</strong>」";
+                searchGroup.style.border = '2px solid #0d6efd';
+                dropdown.style.display = 'block';
+                renderList(candidatesAll, '004');
+                break;
+                
+            case 4:
+                // Reset Selection
+                searchInput.value = "";
+                selectedCandidate = null;
+                
+                tooltipText.innerHTML = "【第二部分】<br>名單太長時，如何搜尋候選人？";
+                startBtnOverlay.style.display = 'flex';
+                btnNext.onclick = () => { currentStep = 5; updateStepUI(); };
+                break;
+                
+            case 5:
+                tooltipText.innerHTML = "👉 步驟 1：請再次點選下方的『圈選欄』";
+                searchGroup.style.border = '3px solid #ffc107'; // Highlight
+                searchGroup.style.boxShadow = '0 0 20px rgba(255, 193, 7, 0.6)';
+                searchInput.onclick = (e) => {
+                    if (currentStep === 5) {
+                        currentStep = 6; 
+                        updateStepUI();
+                    }
+                };
+                break;
+                
+            case 6:
+                tooltipText.innerHTML = "👉 步驟 2：請在此欄位輸入數字「<strong class='text-danger'>1</strong>」";
+                searchGroup.style.border = '2px solid #0d6efd';
+                dropdown.style.display = 'block';
+                renderList(candidatesAll, null); // Show all before typing
+                
+                searchInput.readOnly = false;
+                searchInput.focus();
+                
+                // Clear old listener
+                const newSearchInput = searchInput.cloneNode(true);
+                searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+                
+                newSearchInput.addEventListener('input', (e) => {
+                    const val = e.target.value.trim();
+                    if (val === '1') {
+                        currentStep = 7;
+                        updateStepUI();
+                    } else if (val.length > 0) {
+                        Swal.fire({
+                            title: '輸入錯誤',
+                            text: `教學模式下請輸入數字「1」喔！`,
+                            icon: 'error',
+                            confirmButtonText: '再試一次'
+                        }).then(() => {
+                            newSearchInput.value = '';
+                            newSearchInput.focus();
+                        });
+                    }
+                });
+                break;
+                
+            case 7:
+                // Restore search input reference
+                const currSearchInput = document.getElementById('mockSearchInput');
+                currSearchInput.readOnly = false; // keep it focused/editable
+                
+                tooltipText.innerHTML = "👉 步驟 3：名單已過濾！請選擇「<strong class='text-danger'>011 人員K</strong>」";
+                searchGroup.style.border = '2px solid #0d6efd';
+                dropdown.style.display = 'block';
+                // Show filtered list
+                renderList([
+                    { num: '001', name: '人員A' },
+                    { num: '011', name: '人員K' }
+                ], '011');
+                break;
+                
+            case 8:
+                const finalSearchInput = document.getElementById('mockSearchInput');
+                finalSearchInput.readOnly = true;
+                finalSearchInput.value = `011 人員K`;
+                
+                tooltipText.innerHTML = "👉 最後一步：確認無誤，請點擊最下方綠色的『確認送出選票』";
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+                submitBtn.classList.remove('btn-success');
+                submitBtn.classList.add('btn-warning'); // Make it flash or stand out
+                
+                // Pulsate effect
+                submitBtn.style.animation = 'pulseBtn 1s infinite';
+                
+                submitBtn.onclick = () => {
+                    // Success End
+                    tooltip.style.display = 'none';
+                    mockBallotCard.style.display = 'none';
+                    finalSuccess.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        overlay.style.display = 'none';
+                        localStorage.setItem(`tutorial_completed_${currentKeyCode}`, 'true');
+                        switchView('view-ballot');
+                    }, 4000);
+                };
+                break;
         }
     };
-    searchInput.addEventListener('input', handleInput);
 
-    // Step 2: Listen for click on dummy candidate
-    const handleCardClick = () => {
-        // Remove listeners
-        searchInput.removeEventListener('input', handleInput);
-        candidateCard.removeEventListener('click', handleCardClick);
-
-        // Hide search UI, show success
-        candidateList.style.display = 'none';
-        searchGroup.style.display = 'none';
-        tutorialMsg.style.display = 'none';
-        successMsg.style.display = 'block';
-
-        // Wait 3 seconds, then close tutorial and enter ballot
-        setTimeout(() => {
-            overlay.style.display = 'none';
-            localStorage.setItem(`tutorial_completed_${currentKeyCode}`, 'true');
-            switchView('view-ballot');
-        }, 3000);
+    const handleCorrectSelection = (c) => {
+        const currInput = document.getElementById('mockSearchInput');
+        currInput.value = `${c.num} ${c.name}`;
+        if (currentStep === 3) {
+            Swal.fire({
+                title: '正確！',
+                text: '您已經學會如何滑動名單並點選了。',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                currentStep = 4;
+                updateStepUI();
+            });
+        } else if (currentStep === 7) {
+             Swal.fire({
+                title: '正確！',
+                text: '您已經學會如何搜尋並點選了。',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                currentStep = 8;
+                updateStepUI();
+            });
+        }
     };
-    candidateCard.addEventListener('click', handleCardClick);
+
+    // Add pulse animation style
+    if (!document.getElementById('pulseStyle')) {
+        const style = document.createElement('style');
+        style.id = 'pulseStyle';
+        style.innerHTML = `
+            @keyframes pulseBtn {
+                0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+                50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+                100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    updateStepUI();
 }
