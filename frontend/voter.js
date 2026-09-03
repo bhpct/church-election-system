@@ -752,7 +752,7 @@ function startTutorial() {
                 const arrow = document.createElement('div');
                 arrow.id = 'scrollArrowOverlay';
                 arrow.className = 'scroll-arrow-overlay';
-                arrow.innerHTML = '⬇ 請往下滑動';
+                arrow.innerHTML = '⬆ 請往上滑動';
                 overlay.appendChild(arrow);
                 break;
                 
