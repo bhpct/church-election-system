@@ -40,9 +40,11 @@ document.addEventListener("DOMContentLoaded", () => {
 function switchView(viewId) {
     document.getElementById('loader').style.display = 'none';
     views.forEach(v => {
-        document.getElementById(v).classList.remove('active');
+        const el = document.getElementById(v);
+        if (el) el.classList.remove('active');
     });
-    document.getElementById(viewId).classList.add('active');
+    const targetEl = document.getElementById(viewId);
+    if (targetEl) targetEl.classList.add('active');
 }
 
 // 驗證金鑰
