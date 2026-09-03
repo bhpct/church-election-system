@@ -391,16 +391,14 @@
                           return;
                       }
 
-                      // 分批讀取候選人資料
+                      // 效能優化：一次性讀取所有候選人，避免分批查詢造成的延遲
                       const candidates = [];
-                      for (let i = 0; i < candidateIds.length; i += 10) {
-                          const batchIds = candidateIds.slice(i, i + 10);
-                          const cSnap = await db.collection('elections').doc(electionId).collection('candidates')
-                              .where(firebase.firestore.FieldPath.documentId(), 'in', batchIds).get();
-                          cSnap.forEach(d => {
+                      const cSnap = await db.collection('elections').doc(electionId).collection('candidates').get();
+                      cSnap.forEach(d => {
+                          if (candidateIds.includes(d.id)) {
                               candidates.push({ id: d.id, ...d.data() });
-                          });
-                      }
+                          }
+                      });
 
                       const electedIds = roundData.elected_ids || [];
                       const forcedId = roundData.forced_candidate_id !== undefined ? roundData.forced_candidate_id : itemData.forced_candidate_id;

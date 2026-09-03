@@ -29,8 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('btnBackToAuth')?.addEventListener('click', () => switchView('view-auth'));
     document.getElementById('btnAuditSearch')?.addEventListener('click', handleAuditSearch);
 
-    // 關閉 Loader
-    document.getElementById('loader').style.display = 'none';
+    // 關閉 Loader (移至 switchView 處理，避免白畫面)
+    // document.getElementById('loader').style.display = 'none';
     
     // 如果 URL 有提供 EID 和 KEY，自動驗證
     if (currentElectionId && urlKey) {
@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function switchView(viewId) {
+    document.getElementById('loader').style.display = 'none';
     views.forEach(v => {
         document.getElementById(v).classList.remove('active');
     });
@@ -143,6 +144,8 @@ async function handleVerifyKey() {
     } catch (error) {
         console.error(error);
         Swal.fire('錯誤', error.message, 'error');
+        // 若發生錯誤，退回認證頁面，避免卡在白畫面
+        switchView('view-auth');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '進入投票 <i class="fas fa-arrow-right ms-1"></i>';
@@ -153,17 +156,17 @@ async function handleVerifyKey() {
 async function loadCandidatesForBallot(candidateIds) {
     if (!candidateIds || candidateIds.length === 0) return;
     
-    const { doc, getDoc } = window.fs;
+    const { collection, getDocs } = window.fs;
     const db = window.firebaseDb;
 
     candidatesMap = {};
     
-    // 雖然可以批次，但候選人清單通常不會上千，這裡採 Promise.all 並行讀取
-    const promises = candidateIds.map(cid => getDoc(doc(db, 'elections', currentElectionId, 'candidates', cid)));
-    const snaps = await Promise.all(promises);
+    // 效能優化：一次性讀取所有候選人，避免 N+1 查詢瓶頸
+    const candidatesRef = collection(db, 'elections', currentElectionId, 'candidates');
+    const snaps = await getDocs(candidatesRef);
 
     snaps.forEach(snap => {
-        if (snap.exists()) {
+        if (candidateIds.includes(snap.id)) {
             candidatesMap[snap.id] = snap.data();
         }
     });
