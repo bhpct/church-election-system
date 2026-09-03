@@ -229,7 +229,7 @@ function buildBallotUI() {
                 <input type="text" class="form-control form-control-lg candidate-search-input" placeholder="輸入號碼/姓名/分區搜尋...">
                 <input type="hidden" class="ballot-vote-val" value="">
                 <div class="invalid-feedback text-start fw-bold" style="font-size: 0.9rem;">
-                    <i class="fas fa-exclamation-triangle"></i> 請務必點擊選單內的候選人，才算有效圈選！
+                    <i class="fas fa-exclamation-triangle"></i> 你尚未選取候選人
                 </div>
             </div>
             <div class="candidate-dropdown"></div>
@@ -320,7 +320,10 @@ function buildBallotUI() {
 }
 
 function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
-    const keyword = inputEl.value.trim().toLowerCase();
+    // 攔截全形數字並轉換為半形 (解決 iOS 鍵盤常自動輸入全形數字導致找不到人的問題)
+    const rawVal = inputEl.value.trim();
+    const halfWidthVal = rawVal.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248));
+    const keyword = halfWidthVal.toLowerCase();
     dropdownEl.innerHTML = '';
     
     // 取得目前所有已選擇的 ID (除了自己)
@@ -353,7 +356,8 @@ function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
         const c = candidatesMap[cid];
         if (!c) return;
         
-        const searchStr = `${c.number || ''} ${c.name} ${c.district || ''} ${c.unit || ''}`.toLowerCase();
+        const rawSearchStr = `${c.number || ''} ${c.name} ${c.district || ''} ${c.unit || ''}`;
+        const searchStr = rawSearchStr.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248)).toLowerCase();
         
         if (keyword === '' || searchStr.includes(keyword)) {
             const isAlreadySelected = allSelectedVals.includes(cid);
