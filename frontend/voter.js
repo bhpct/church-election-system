@@ -690,12 +690,7 @@ function startTutorial() {
             div.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (requiredTarget && c.num !== requiredTarget) {
-                    Swal.fire({
-                        title: '選錯囉！',
-                        text: `請依照教學指示選擇「${requiredTarget}」喔！`,
-                        icon: 'error',
-                        confirmButtonText: '再試一次'
-                    });
+                    // Do nothing, just ignore the click.
                 } else {
                     handleCorrectSelection(c);
                 }
