@@ -946,7 +946,7 @@ const updateStepUI = () => {
             case 8:
                 const finalSearchInput = document.getElementById('mockSearchInput');
                 finalSearchInput.readOnly = true;
-                finalSearchInput.value = `011 保羅`;
+                finalSearchInput.value = `010 路加`;
                 dropdown.style.border = '1px solid #ced4da';
                 
                 inlineTooltipText.innerHTML = "👉 最後一步：確認無誤，請點擊下方的『確認送出選票』";
@@ -992,6 +992,7 @@ const updateStepUI = () => {
 
     updateStepUI();
 }
+
 
 
 
