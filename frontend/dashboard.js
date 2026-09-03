@@ -80,9 +80,9 @@ async function loadOrgSwitcher(role, org_roles) {
             const migrationPromises = [];
             
             while (hasMore) {
-                let q = query(collection(db, 'organizations'), limit(10));
+                let q = query(collection(db, 'organizations'), limit(1));
                 if (lastDoc) {
-                    q = query(collection(db, 'organizations'), startAfter(lastDoc), limit(10));
+                    q = query(collection(db, 'organizations'), startAfter(lastDoc), limit(1));
                 }
                 const snap = await getDocs(q);
                 
