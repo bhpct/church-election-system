@@ -1,4 +1,4 @@
-// voter.js
+﻿// voter.js
 
 let currentElectionId = null;
 let currentKeyCode = null;
@@ -809,6 +809,9 @@ function startTutorial() {
                 dropdown.style.display = 'block'; // 確保選單依然可見
                 inlineTooltip.style.display = 'block'; // 確保提示視窗可見
                 
+                // 強制重新渲染列表，強迫 WebKit 重新計算鎖定後的點擊感應區塊座標
+                renderList(candidatesAll, '008');
+                
                 // Highlight 008 button
                 const targetBtn = Array.from(candidateList.children).find(b => b.innerHTML.includes('008'));
                 if (targetBtn) {
@@ -910,16 +913,23 @@ function startTutorial() {
                 const currSearchInput = document.getElementById('mockSearchInput');
                 currSearchInput.readOnly = false; // keep it focused/editable
                 
-                inlineTooltipText.innerHTML = "👉 步驟 3：名單已過濾！請選擇「<strong class='text-warning'>011 人員K</strong>」";
+                inlineTooltipText.innerHTML = "👉 步驟 6：請從搜尋結果中點選「<strong class='text-warning'>011 人員K</strong>」";
                 inlineTooltip.style.display = 'block';
                 dropdown.style.display = 'block';
-                dropdown.style.border = '3px solid #dc3545';
-                dropdown.style.animation = 'pulseRed 1.5s infinite';
+                dropdown.style.border = '1px solid #ced4da';
+                dropdown.style.animation = 'none';
+                
                 // Show filtered list
-                renderList([
-                    { num: '001', name: '人員A' },
-                    { num: '011', name: '人員K' }
-                ], '011');
+                const filtered = candidatesAll.filter(c => c.num.includes('1') || c.name.includes('1'));
+                renderList(filtered, '011');
+                
+                // Highlight ONLY 011 button
+                const targetBtn011 = Array.from(candidateList.children).find(b => b.innerHTML.includes('011'));
+                if (targetBtn011) {
+                    targetBtn011.style.border = '3px solid #dc3545';
+                    targetBtn011.style.animation = 'pulseRed 1.5s infinite';
+                    targetBtn011.style.borderRadius = '8px';
+                }
                 break;
                 
             case 8:
@@ -971,4 +981,7 @@ function startTutorial() {
 
     updateStepUI();
 }
+
+
+
 
