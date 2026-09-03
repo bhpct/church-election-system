@@ -561,9 +561,64 @@ async function processExcelData(rows) {
             await b.commit();
         }
 
-        Swal.fire('成功', `已清空舊資料並成功匯入 ${validCount} 筆新候選人資料！`, 'success');
-        
         await loadCandidates(); // 重新載入列表
+
+        // 實作方案 C：Excel 上傳全域自動重置 PENDING 輪次名單快照
+        if (allItems && allItems.length > 0) {
+            Swal.fire({
+                title: '同步名單中...',
+                text: '正在根據新上傳的資料庫，重新計算所有未開始輪次的候選名單快照...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            let syncBatch = writeBatch(db);
+            let syncOpCount = 0;
+            const syncBatches = [syncBatch];
+
+            for (const item of allItems) {
+                if (!item.rounds) continue;
+                for (const round of item.rounds) {
+                    if (round.status === 'PENDING') {
+                        // 讀取該輪次的參數 (相容 fallback 到 item 層級)
+                        const qArray = round.qualifications !== undefined ? round.qualifications : (item.qualifications || []);
+                        const excludeElected = round.exclude_elected !== undefined ? round.exclude_elected : (item.exclude_elected !== false);
+                        const forcedCandidateId = round.forced_candidate_id !== undefined ? round.forced_candidate_id : item.forced_candidate_id;
+
+                        // 套用過濾邏輯產生新快照
+                        let initialCandidateIds = allCandidates.filter(c => {
+                            if (c.is_ineligible) return false;
+                            if (excludeElected && c.elected_item && c.elected_item.trim() !== '') return false;
+                            if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
+                            return true;
+                        }).map(c => c.id);
+
+                        // 強制候選人若被濾掉，強硬加回
+                        if (forcedCandidateId && !initialCandidateIds.includes(forcedCandidateId)) {
+                            initialCandidateIds.push(forcedCandidateId);
+                        }
+
+                        const roundRef = doc(db, 'elections', currentElectionId, 'items', item.id, 'rounds', round.id);
+                        syncBatch.update(roundRef, { candidate_ids: initialCandidateIds, updatedAt: serverTimestamp() });
+                        syncOpCount++;
+
+                        if (syncOpCount >= 450) {
+                            syncBatch = writeBatch(db);
+                            syncBatches.push(syncBatch);
+                            syncOpCount = 0;
+                        }
+                    }
+                }
+            }
+
+            for (const b of syncBatches) {
+                await b.commit();
+            }
+            await loadItems(); // 重新載入 Items 以反映新的 candidate_ids
+            Swal.fire('完成', `已成功匯入 ${validCount} 筆新資料，且所有待命中的選舉輪次名單已自動同步完畢！`, 'success');
+        } else {
+            Swal.fire('成功', `已清空舊資料並成功匯入 ${validCount} 筆新候選人資料！`, 'success');
+        }
     } catch (error) {
         console.error("匯入失敗:", error);
         Swal.fire('錯誤', '匯入過程中發生錯誤: ' + error.message, 'error');
@@ -1600,7 +1655,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const db = window.firebaseDb;
 
             const roundRef = doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId);
-            await updateDoc(roundRef, {
+            const updatedRoundData = {
                 seats: seats,
                 qualifications: qArray,
                 require_district: reqDistrict,
@@ -1608,9 +1663,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 exclude_elected: excludeElected,
                 forced_candidate_id: forcedCandidateId,
                 updatedAt: serverTimestamp()
-            });
+            };
+            await updateDoc(roundRef, updatedRoundData);
 
-            Swal.fire('成功', '輪次專屬設定已更新！', 'success');
+            // 實作方案 A：詢問是否要重新產生預設候選名單 (僅對 PENDING 有效)
+            const item = allItems.find(i => i.id === itemId);
+            const round = item ? item.rounds.find(r => r.id === roundId) : null;
+            
+            if (round && round.status === 'PENDING') {
+                const syncResult = await Swal.fire({
+                    title: '參數已更新！',
+                    text: '是否要根據新的設定規則，自動重新產生本輪的「預設候選名單」？\n(注意：這將清除您先前在此輪次手動微調的任何名單！)',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: '是，自動重製名單',
+                    cancelButtonText: '否，保留現有名單',
+                    confirmButtonColor: '#0d6efd',
+                    cancelButtonColor: '#6c757d'
+                });
+
+                if (syncResult.isConfirmed) {
+                    let initialCandidateIds = allCandidates.filter(c => {
+                        if (c.is_ineligible) return false;
+                        if (excludeElected && c.elected_item && c.elected_item.trim() !== '') return false;
+                        if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
+                        return true;
+                    }).map(c => c.id);
+
+                    if (forcedCandidateId && !initialCandidateIds.includes(forcedCandidateId)) {
+                        initialCandidateIds.push(forcedCandidateId);
+                    }
+
+                    await updateDoc(roundRef, {
+                        candidate_ids: initialCandidateIds,
+                        updatedAt: serverTimestamp()
+                    });
+                    Swal.fire('成功', '輪次專屬設定與名單快照均已更新！', 'success');
+                } else {
+                    Swal.fire('成功', '輪次專屬設定已更新！(保留您原有的名單快照)', 'success');
+                }
+            } else {
+                Swal.fire('成功', '輪次專屬設定已更新！', 'success');
+            }
+
             bootstrap.Modal.getInstance(document.getElementById('editRoundModal')).hide();
             await loadItems();
 
@@ -1760,6 +1855,52 @@ window.openRoundCandidates = function(itemId, roundId) {
             title: '已依號次重新排序',
             showConfirmButton: false,
             timer: 1500
+        });
+    };
+
+    // 實作方案 B：綁定「自動分配名單」魔法按鈕
+    document.getElementById('btnAutoAssign').onclick = () => {
+        listSelected.innerHTML = '';
+        listUnselected.innerHTML = '';
+
+        allCandidates.forEach(c => {
+            // (1) 檢查是否符合資格
+            let isQualified = true;
+            if (allowedQuals.length > 0 && (!c.qualification || !allowedQuals.includes(c.qualification))) {
+                isQualified = false;
+            }
+
+            // (2) 檢查是否已當選且需排除
+            const isExcluded = effectiveExclude && c.elected_item && c.elected_item.trim() !== '';
+
+            // (3) 判斷最終歸屬
+            let shouldBeLeft = false;
+            if (c.id === forceId) {
+                shouldBeLeft = true; // 保障名額一定在左邊
+            } else if (c.is_ineligible) {
+                shouldBeLeft = false; // 全域不可選一定在右邊
+            } else if (isExcluded) {
+                shouldBeLeft = false; // 已當選且排除一定在右邊
+            } else if (isQualified) {
+                shouldBeLeft = true; // 符合資格在左邊
+            }
+
+            const li = createCandidateNode(c, shouldBeLeft);
+            if (shouldBeLeft) {
+                listSelected.appendChild(li);
+            } else {
+                listUnselected.appendChild(li);
+            }
+        });
+
+        updateShuttleCounts();
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: '名單已自動歸位！(記得按右下角儲存才會生效)',
+            showConfirmButton: false,
+            timer: 3000
         });
     };
 
