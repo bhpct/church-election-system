@@ -657,16 +657,16 @@ function startTutorial() {
 
     // Virtual candidates for Step 3 and 7
     const candidatesAll = [
-        { num: '001', name: '人員A' },
-        { num: '002', name: '人員B' },
-        { num: '003', name: '人員C' },
-        { num: '004', name: '人員D' },
-        { num: '005', name: '人員E' },
-        { num: '006', name: '人員F' },
-        { num: '007', name: '人員G' },
-        { num: '008', name: '人員H' },
-        { num: '009', name: '人員I' },
-        { num: '010', name: '人員J' }
+        { num: '001', name: '亞伯拉罕' },
+        { num: '002', name: '以撒' },
+        { num: '003', name: '雅各' },
+        { num: '004', name: '摩西' },
+        { num: '005', name: '撒母耳' },
+        { num: '006', name: '大衛' },
+        { num: '007', name: '以利亞' },
+        { num: '008', name: '馬太' },
+        { num: '009', name: '馬可' },
+        { num: '010', name: '路加' }
     ];
     
     const renderList = (cands, requiredTarget = null) => {
@@ -784,7 +784,7 @@ const updateStepUI = () => {
                 
             case 3:
                 overlay.style.overflowY = 'auto'; // 確保可滑動
-                inlineTooltipText.innerHTML = "👉 步驟 2：請往上滑動畫面，找到「<strong class='text-warning'>008 人員H</strong>」";
+                inlineTooltipText.innerHTML = "👉 步驟 2：請往上滑動畫面，找到「<strong class='text-warning'>008 馬太</strong>」";
                 inlineTooltip.style.display = 'block';
                 dropdown.style.display = 'block';
                 dropdown.style.border = '1px solid #ced4da';
@@ -828,7 +828,7 @@ const updateStepUI = () => {
                     targetBtn.style.borderRadius = '8px';
                 }
                 
-                inlineTooltipText.innerHTML = "👉 步驟 3：畫面已鎖定，請點選剛出現的「<strong class='text-warning'>008 人員H</strong>」";
+                inlineTooltipText.innerHTML = "👉 步驟 3：選擇你要圈選的候選人「<strong class='text-warning'>008 馬太</strong>」";
                 break;
                 
             case 3.8:
@@ -883,17 +883,17 @@ const updateStepUI = () => {
                 
                 // Show 11 candidates for long dropdown effect
                 const candidatesStep6 = [
-                    { num: '001', name: '人員A' },
-                    { num: '002', name: '人員B' },
-                    { num: '003', name: '人員C' },
-                    { num: '004', name: '人員D' },
-                    { num: '005', name: '人員E' },
-                    { num: '006', name: '人員F' },
-                    { num: '007', name: '人員G' },
-                    { num: '008', name: '人員H' },
-                    { num: '009', name: '人員I' },
-                    { num: '010', name: '人員J' },
-                    { num: '011', name: '人員K' }
+                    { num: '001', name: '亞伯拉罕' },
+                    { num: '002', name: '以撒' },
+                    { num: '003', name: '雅各' },
+                    { num: '004', name: '摩西' },
+                    { num: '005', name: '撒母耳' },
+                    { num: '006', name: '大衛' },
+                    { num: '007', name: '以利亞' },
+                    { num: '008', name: '馬太' },
+                    { num: '009', name: '馬可' },
+                    { num: '010', name: '路加' },
+                    { num: '011', name: '保羅' }
                 ];
                 renderList(candidatesStep6, null); // Show all before typing
                 
@@ -921,7 +921,7 @@ const updateStepUI = () => {
                 const currSearchInput = document.getElementById('mockSearchInput');
                 currSearchInput.readOnly = false; // keep it focused/editable
                 
-                inlineTooltipText.innerHTML = "👉 步驟 6：請從搜尋結果中點選「<strong class='text-warning'>010 人員J</strong>」";
+                inlineTooltipText.innerHTML = "👉 步驟 6：請從搜尋結果中點選「<strong class='text-warning'>010 路加</strong>」";
                 inlineTooltip.style.display = 'block';
                 dropdown.style.display = 'block';
                 dropdown.style.border = '1px solid #ced4da';
@@ -929,9 +929,9 @@ const updateStepUI = () => {
                 
                 // Show filtered list
                 renderList([
-                    { num: '001', name: '人員A' },
-                    { num: '010', name: '人員J' },
-                    { num: '011', name: '人員K' }
+                    { num: '001', name: '亞伯拉罕' },
+                    { num: '010', name: '路加' },
+                    { num: '011', name: '保羅' }
                 ], '010');
                 
                 // Highlight ONLY 010 button
@@ -946,7 +946,7 @@ const updateStepUI = () => {
             case 8:
                 const finalSearchInput = document.getElementById('mockSearchInput');
                 finalSearchInput.readOnly = true;
-                finalSearchInput.value = `011 人員K`;
+                finalSearchInput.value = `011 保羅`;
                 dropdown.style.border = '1px solid #ced4da';
                 
                 inlineTooltipText.innerHTML = "👉 最後一步：確認無誤，請點擊下方的『確認送出選票』";
