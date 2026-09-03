@@ -882,9 +882,16 @@ function startTutorial() {
         const currInput = document.getElementById('mockSearchInput');
         currInput.value = `${c.num} ${c.name}`;
         if (currentStep === 3) {
-            // Instant advance
-            currentStep = 4;
-            updateStepUI();
+            Swal.fire({
+                title: '選擇成功！',
+                text: '您已完成第一項學習：滑動與點選',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                currentStep = 4;
+                updateStepUI();
+            });
         } else if (currentStep === 7) {
             // Instant advance
             currentStep = 8;
