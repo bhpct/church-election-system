@@ -2984,12 +2984,24 @@ async function loadTallyStats(itemId, roundId) {
         
         await Promise.all([pKeys, pVotes]);
     } else {
-        // 非進行中狀態，只需單次讀取以節省資源
-        const snapKeys = await getDocs(qKeys);
-        processKeys(snapKeys);
-        
-        const snapVotes = await getDocs(qVotes);
-        processVotes(snapVotes);
+        // 非進行中狀態 (例如 CLOSED 或 PUBLISHED)
+        // 若 round 已經有儲存快照，優先使用快照以節省讀取量
+        const currentItem = allItems.find(i => i.id === itemId);
+        const currentRound = (currentItem?.rounds || []).find(r => r.id === roundId);
+        if (currentRound && currentRound.digital_votes !== undefined && currentRound.digital_used !== undefined) {
+            currentTallyData.digitalUsed = currentRound.digital_used || 0;
+            currentTallyData.digitalBlank = currentRound.digital_blank || 0;
+            currentTallyData.digitalVotesMap = currentRound.digital_votes || {};
+            document.getElementById('tallyDigitalUsed').textContent = currentTallyData.digitalUsed;
+            document.getElementById('tallyDigitalBlank').textContent = currentTallyData.digitalBlank;
+            updateTallyThreshold();
+        } else {
+            const snapKeys = await getDocs(qKeys);
+            processKeys(snapKeys);
+            
+            const snapVotes = await getDocs(qVotes);
+            processVotes(snapVotes);
+        }
     }
 }
 
@@ -3009,11 +3021,14 @@ async function doSaveTallyData(itemId, roundId) {
             electedIds.push(chk.dataset.id);
         });
 
-        // 正確更新子集合中的 round 文件
+        // 正確更新子集合中的 round 文件 (包含數位票統計快照以凍結發布結果並節省讀取額度)
         await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
             quorum_base: document.getElementById('tallyQuorumBase').value,
             attending_count: parseInt(document.getElementById('tallyAttendingCount').value) || 0,
             digital_issued: parseInt(document.getElementById('tallyDigitalIssued').value) || 0,
+            digital_used: currentTallyData.digitalUsed || 0,
+            digital_blank: currentTallyData.digitalBlank || 0,
+            digital_votes: currentTallyData.digitalVotesMap || {},
             paper_issued: parseInt(document.getElementById('tallyPaperIssued').value) || 0,
             paper_received: parseInt(document.getElementById('tallyPaperReceived').value) || 0,
             paper_blank: parseInt(document.getElementById('tallyPaperBlank').value) || 0,

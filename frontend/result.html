@@ -329,31 +329,42 @@
                       const paperIssued = roundData.paper_issued || 0;
                       document.getElementById('displayTotalIssued').textContent = digitalIssued + paperIssued;
 
-                      // 總收票數需計算 digitalUsed
-                      const keysSnap = await db.collection('elections').doc(electionId).collection('keys')
-                          .where('item_id', '==', itemId).where('round_id', '==', roundId).where('status', '==', 'USED').get();
-                      const digitalUsed = keysSnap.size;
+                      // 總收票數需計算 digitalUsed 與數位得票
+                      let digitalUsed = 0;
+                      let digitalBlank = 0;
+                      let digitalVotesMap = {};
+
+                      if (roundData.digital_votes !== undefined && roundData.digital_used !== undefined) {
+                          // 優先使用 round 文件中的發布快照 (徹底防止數字跳動並大幅節省 votes 讀取額度)
+                          digitalUsed = roundData.digital_used || 0;
+                          digitalBlank = roundData.digital_blank || 0;
+                          digitalVotesMap = roundData.digital_votes || {};
+                      } else {
+                          // 向下相容：舊版未含快照的歷史輪次回退至即時查詢
+                          const keysSnap = await db.collection('elections').doc(electionId).collection('keys')
+                              .where('item_id', '==', itemId).where('round_id', '==', roundId).where('status', '==', 'USED').get();
+                          digitalUsed = keysSnap.size;
+
+                          const votesSnap = await db.collection('elections').doc(electionId).collection('votes')
+                              .where('item_id', '==', itemId).where('round_id', '==', roundId).get();
+                          votesSnap.forEach(doc => {
+                              const d = doc.data();
+                              if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
+                                  if (d.candidate_ids.length === 0) {
+                                      digitalBlank++;
+                                  } else {
+                                      d.candidate_ids.forEach(cid => {
+                                          digitalVotesMap[cid] = (digitalVotesMap[cid] || 0) + 1;
+                                      });
+                                  }
+                              }
+                          });
+                      }
+
                       const paperReceived = roundData.paper_received || 0;
                       document.getElementById('displayTotalReceived').textContent = digitalUsed + paperReceived;
 
                       const paperBlank = roundData.paper_blank || 0;
-                      // 計算數位空白票
-                      const votesSnap = await db.collection('elections').doc(electionId).collection('votes')
-                          .where('item_id', '==', itemId).where('round_id', '==', roundId).get();
-                      let digitalBlank = 0;
-                      let digitalVotesMap = {};
-                      votesSnap.forEach(doc => {
-                          const d = doc.data();
-                          if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
-                              if (d.candidate_ids.length === 0) {
-                                  digitalBlank++;
-                              } else {
-                                  d.candidate_ids.forEach(cid => {
-                                      digitalVotesMap[cid] = (digitalVotesMap[cid] || 0) + 1;
-                                  });
-                              }
-                          }
-                      });
                       document.getElementById('displayTotalBlank').textContent = digitalBlank + paperBlank;
 
                       // 計算並顯示出席人數與過半門檻

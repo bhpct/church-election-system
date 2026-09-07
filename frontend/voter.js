@@ -1,4 +1,4 @@
-﻿// voter.js
+// voter.js
 
 let currentElectionId = null;
 let currentKeyCode = null;
@@ -532,8 +532,27 @@ async function handleSubmitVote() {
         const { writeBatch, doc, collection, serverTimestamp, getDoc } = window.fs;
         const db = window.firebaseDb;
 
-        // Transaction/Batch 處理
-        // 為了極致安全，最好用 runTransaction 再次確認 Key 狀態，但這裡用 Batch 搭配前端再次讀取
+        // 1. 驗證輪次與選舉狀態 (防止投票已截止或發布後仍能送出選票)
+        const roundRef = doc(db, 'elections', currentElectionId, 'items', itemData.id, 'rounds', roundData.id);
+        const latestRoundSnap = await getDoc(roundRef);
+        if (!latestRoundSnap.exists()) {
+            throw new Error("此輪次不存在。");
+        }
+        const latestRoundData = latestRoundSnap.data();
+        if (latestRoundData.status !== 'ACTIVE') {
+            await Swal.fire({
+                title: '投票已結束',
+                text: '本輪投票已由主席宣布截止，很遺憾您的選票未能在時間內送出，此選票已被作廢。',
+                icon: 'warning',
+                confirmButtonText: '確定'
+            });
+            switchView('view-auth');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane"></i> 確認送出選票';
+            return;
+        }
+
+        // 2. 驗證金鑰狀態
         const keyRef = doc(db, 'elections', currentElectionId, 'keys', currentKeyDoc.id);
         const latestKeySnap = await getDoc(keyRef);
         if (latestKeySnap.data().status !== 'VALID') {
