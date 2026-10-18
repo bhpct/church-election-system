@@ -258,10 +258,10 @@
                                         <button type="button" class="btn btn-outline-primary btn-sm" id="confirmSaveSettingsBtn"><i class="fas fa-save"></i> 儲存</button>
                                     </div>
                                     <p class="text-muted small mb-3" style="font-size: 0.8rem;">
-                                        此處設定將自動同步為「所有輪次」的預設參數。各別輪次在開票中心仍可微調。
+                                        此處設定為全場選舉預設基準。各輪之實際出席人數與發票數請於各輪<strong>「開票中心」</strong>獨立輸入，確保真實。
                                     </p>
-                                    <form id="globalInitForm" class="row g-2 align-items-end">
-                                        <div class="col-md-7">
+                                    <form id="globalInitForm" class="row g-2 align-items-center">
+                                        <div class="col-md-6">
                                             <label class="form-label fw-bold small mb-1">預設過半基準 <span class="text-danger">*</span></label>
                                             <div class="d-flex gap-3 mt-1">
                                                 <div class="form-check">
@@ -274,11 +274,9 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="col-md-5">
-                                            <label class="form-label fw-bold small mb-1">點名出席人數 (選填)</label>
-                                            <div class="input-group input-group-sm">
-                                                <input type="number" class="form-control" id="globalInitAttending" placeholder="例: 120" min="0">
-                                                <span class="input-group-text bg-light">人</span>
+                                        <div class="col-md-6">
+                                            <div class="bg-light p-2 rounded border small text-muted">
+                                                <i class="fas fa-check-circle text-success me-1"></i> 每輪開票需獨立點名輸入出席人數與發票數
                                             </div>
                                         </div>
 

@@ -81,14 +81,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const baseElement = document.querySelector('input[name="globalQuorumBase"]:checked');
             const quorumBase = baseElement ? baseElement.value : 'ATTENDING';
-            const initAttending = parseInt(document.getElementById('globalInitAttending').value) || null;
             const sealOpacity = parseInt(document.getElementById('globalSealOpacity').value) || 15;
             const enableTutorial = document.getElementById('globalEnableTutorial').checked;
 
-            // 1. 寫入全域選舉設定 (不更動 status)
+            // 1. 寫入全域選舉設定 (不更動 status，且不使用全域預設出席人數覆蓋各輪)
             await updateDoc(doc(db, 'elections', currentElectionId), {
                 quorum_base: quorumBase,
-                init_attending_count: initAttending,
                 seal_opacity: sealOpacity,
                 enable_tutorial: enableTutorial,
                 updatedAt: window.fs.serverTimestamp()
@@ -96,12 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (currentElectionData) {
                 currentElectionData.quorum_base = quorumBase;
-                currentElectionData.init_attending_count = initAttending;
                 currentElectionData.seal_opacity = sealOpacity;
                 currentElectionData.enable_tutorial = enableTutorial;
             }
 
-            // 2. 連動更新所有已建立的輪次
+            // 2. 僅連動更新各輪次的預設過半基準 (不覆蓋各輪實際出席人數)
             if (allItems.length > 0) {
                 const batch = writeBatch(db);
                 for (const item of allItems) {
@@ -109,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const roundRef = doc(db, 'elections', currentElectionId, 'items', item.id, 'rounds', round.id);
                         batch.set(roundRef, {
                             quorum_base: quorumBase,
-                            attending_count: initAttending || 0,
                             updatedAt: window.fs.serverTimestamp()
                         }, { merge: true });
                     }
@@ -279,10 +275,6 @@ async function loadElectionData() {
             const radioBtn = document.querySelector(`input[name="globalQuorumBase"][value="${currentElectionData.quorum_base}"]`);
             if (radioBtn) radioBtn.checked = true;
         }
-        if (currentElectionData.init_attending_count !== undefined && currentElectionData.init_attending_count !== null) {
-            document.getElementById('globalInitAttending').value = currentElectionData.init_attending_count;
-        }
-        
         if (currentElectionData.enable_tutorial !== undefined) {
             document.getElementById('globalEnableTutorial').checked = currentElectionData.enable_tutorial;
         }
@@ -1491,11 +1483,14 @@ window.startRound = async function(itemId, roundId) {
                     updatedAt: window.fs.serverTimestamp()
                 }, { merge: true });
 
-                // 若這是全場選舉第一次開啟投票，紀錄該 roundId 作為新手教學判斷依據
-                if (typeof isElectionLocked !== 'undefined' && !isElectionLocked) {
+                // 若這是全場選舉第一次開啟投票，紀錄該 itemId 與 roundId 作為新手教學唯一依據，之後絕不再覆寫！
+                if (!currentElectionData.first_active_item_id) {
                     await setDoc(doc(db, 'elections', currentElectionId), {
+                        first_active_item_id: itemId,
                         first_active_round_id: roundId
                     }, { merge: true });
+                    currentElectionData.first_active_item_id = itemId;
+                    currentElectionData.first_active_round_id = roundId;
                 }
 
                 Swal.fire({
@@ -2847,9 +2842,9 @@ window.openTallyCenter = async function(itemId, roundId) {
         btnPublish.disabled = true;
     }
 
-    // 參數預設值
+    // 參數預設值 (出席人數嚴格讀取該輪本身設定，不以全域預設覆蓋)
     document.getElementById('tallyQuorumBase').value = round.quorum_base || currentElectionData.quorum_base || 'ATTENDING';
-    document.getElementById('tallyAttendingCount').value = round.attending_count || currentElectionData.init_attending_count || 0;
+    document.getElementById('tallyAttendingCount').value = (round.attending_count !== undefined && round.attending_count !== null && round.attending_count > 0) ? round.attending_count : '';
     
     // 初始化新的輸入框
     document.getElementById('tallyDigitalIssued').value = round.digital_issued || 0;
@@ -2982,6 +2977,34 @@ async function loadTallyStats(itemId, roundId) {
             window.tallyUnsubscribers.push(unsub);
         });
         
+        // 監聽輪次本身的文件變更，實現跨設備 (電腦 A 輸入，iPad/電腦 B 即時連動)
+        const roundRef = doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId);
+        const unsubRound = onSnapshot(roundRef, (snap) => {
+            if (!snap.exists()) return;
+            const rData = snap.data();
+            const activeId = document.activeElement ? document.activeElement.id : null;
+            if (activeId !== 'tallyAttendingCount' && rData.attending_count !== undefined) {
+                document.getElementById('tallyAttendingCount').value = rData.attending_count > 0 ? rData.attending_count : '';
+            }
+            if (activeId !== 'tallyDigitalIssued' && rData.digital_issued !== undefined) {
+                document.getElementById('tallyDigitalIssued').value = rData.digital_issued || 0;
+            }
+            if (activeId !== 'tallyPaperIssued' && rData.paper_issued !== undefined) {
+                document.getElementById('tallyPaperIssued').value = rData.paper_issued || 0;
+            }
+            if (activeId !== 'tallyPaperReceived' && rData.paper_received !== undefined) {
+                document.getElementById('tallyPaperReceived').value = rData.paper_received || 0;
+            }
+            if (activeId !== 'tallyPaperBlank' && rData.paper_blank !== undefined) {
+                document.getElementById('tallyPaperBlank').value = rData.paper_blank || 0;
+            }
+            if (activeId !== 'tallyQuorumBase' && rData.quorum_base) {
+                document.getElementById('tallyQuorumBase').value = rData.quorum_base;
+            }
+            updateTallyThreshold();
+        });
+        window.tallyUnsubscribers.push(unsubRound);
+
         await Promise.all([pKeys, pVotes]);
     } else {
         // 非進行中狀態 (例如 CLOSED 或 PUBLISHED)
@@ -3131,11 +3154,34 @@ function updateTallyThreshold() {
     renderTallyTable(threshold);
 }
 
-// 監聽輸入框變更以即時更新門檻與統計
+// 監聽輸入框變更以即時更新門檻與跨設備同步
 document.addEventListener('DOMContentLoaded', () => {
     ['tallyQuorumBase', 'tallyAttendingCount', 'tallyDigitalIssued', 'tallyPaperIssued', 'tallyPaperReceived', 'tallyPaperBlank'].forEach(id => {
-        document.getElementById(id)?.addEventListener('input', updateTallyThreshold);
-        document.getElementById(id)?.addEventListener('change', updateTallyThreshold);
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', updateTallyThreshold);
+        el.addEventListener('change', async () => {
+            updateTallyThreshold();
+            const itemId = currentTallyData.itemId;
+            const roundId = currentTallyData.roundId;
+            if (!itemId || !roundId || !currentElectionId) return;
+
+            try {
+                const { doc, setDoc } = window.fs;
+                const db = window.firebaseDb;
+                const updatePayload = {};
+                if (id === 'tallyQuorumBase') updatePayload.quorum_base = el.value;
+                if (id === 'tallyAttendingCount') updatePayload.attending_count = parseInt(el.value) || 0;
+                if (id === 'tallyDigitalIssued') updatePayload.digital_issued = parseInt(el.value) || 0;
+                if (id === 'tallyPaperIssued') updatePayload.paper_issued = parseInt(el.value) || 0;
+                if (id === 'tallyPaperReceived') updatePayload.paper_received = parseInt(el.value) || 0;
+                if (id === 'tallyPaperBlank') updatePayload.paper_blank = parseInt(el.value) || 0;
+
+                await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), updatePayload, { merge: true });
+            } catch (err) {
+                console.warn('跨設備參數同步失敗:', err);
+            }
+        });
     });
 });
 
@@ -3231,11 +3277,47 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTallyTable();
     });
 
-    // 結束數位投票
+    // 結束數位投票 (含防呆卡控與伺服器實體選票重算)
     document.getElementById('btnEndVoting')?.addEventListener('click', async () => {
+        const itemId = currentTallyData.itemId;
+        const roundId = currentTallyData.roundId;
+        if (!itemId || !roundId) return;
+
+        // 1. 強制防呆：檢查出席人數是否已填寫 (必須 > 0)
+        const attendingVal = parseInt(document.getElementById('tallyAttendingCount').value);
+        if (isNaN(attendingVal) || attendingVal <= 0) {
+            Swal.fire({
+                title: '無法結束投票',
+                html: '請先在左側輸入<b>「本輪實際出席人數」</b>！<br><span class="text-danger small">每一輪必須填寫實際出席人數，才能精確核算過半門檻與開票報表。</span>',
+                icon: 'warning',
+                confirmButtonText: '前往輸入'
+            }).then(() => {
+                document.getElementById('tallyAttendingCount').focus();
+            });
+            return;
+        }
+
+        // 2. 檢查發票數提醒
+        const digiIssued = parseInt(document.getElementById('tallyDigitalIssued').value) || 0;
+        const paperIssued = parseInt(document.getElementById('tallyPaperIssued').value) || 0;
+        if (digiIssued <= 0 && paperIssued <= 0) {
+            const confirmNoIssued = await Swal.fire({
+                title: '發票數尚未填寫',
+                html: '本輪「數位發票數」與「紙本發票數」目前皆為 0，確定要繼續結束投票嗎？<br><small class="text-muted">若以發票數為過半基準，將會影響門檻計算。</small>',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: '確定結束',
+                cancelButtonText: '返回填寫'
+            });
+            if (!confirmNoIssued.isConfirmed) {
+                document.getElementById('tallyDigitalIssued').focus();
+                return;
+            }
+        }
+
         Swal.fire({
-            title: '結束投票將鎖定所有數位金鑰，確定繼續？',
-            text: '系統將會自動儲存您左側手動輸入的最新票數與計算資料。',
+            title: '確定要結束投票？',
+            text: '系統將直接從資料庫伺服器重新精準核算全部選票與金鑰數據，確保絕無漏票並鎖定投票。',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: '確定結束並儲存',
@@ -3244,21 +3326,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const itemId = currentTallyData.itemId;
-                    const roundId = currentTallyData.roundId;
-                    
-                    // 強制先執行儲存
-                    await doSaveTallyData(itemId, roundId);
+                    Swal.fire({
+                        title: '清點選票中...',
+                        text: '正在從伺服器核對所有有效選票與金鑰數據，確保無任何漏票...',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
 
-                    const { doc, setDoc } = window.fs;
+                    const { doc, setDoc, collection, query, where, getDocs } = window.fs;
                     const db = window.firebaseDb;
 
+                    // 1. 強制向伺服器重新清點實體選票 (解決設備推播延遲導致 81 票 vs 82 票的漏票問題)
+                    const keysRef = collection(db, 'elections', currentElectionId, 'keys');
+                    const qKeys = query(keysRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
+                    const snapKeys = await getDocs(qKeys);
+                    
+                    let verifiedDigitalUsed = 0;
+                    snapKeys.forEach(dDoc => {
+                        if (dDoc.data().status === 'USED') verifiedDigitalUsed++;
+                    });
+
+                    const votesRef = collection(db, 'elections', currentElectionId, 'votes');
+                    const qVotes = query(votesRef, where('item_id', '==', itemId), where('round_id', '==', roundId));
+                    const snapVotes = await getDocs(qVotes);
+
+                    const verifiedVotesMap = {};
+                    let verifiedDigitalBlank = 0;
+                    snapVotes.forEach(dDoc => {
+                        const d = dDoc.data();
+                        if (d.candidate_ids && Array.isArray(d.candidate_ids)) {
+                            if (d.candidate_ids.length === 0) {
+                                verifiedDigitalBlank++;
+                            } else {
+                                d.candidate_ids.forEach(cid => {
+                                    verifiedVotesMap[cid] = (verifiedVotesMap[cid] || 0) + 1;
+                                });
+                            }
+                        }
+                    });
+
+                    // 同步權威清點數據回記憶體
+                    currentTallyData.digitalUsed = verifiedDigitalUsed;
+                    currentTallyData.digitalBlank = verifiedDigitalBlank;
+                    currentTallyData.digitalVotesMap = verifiedVotesMap;
+
+                    if (currentTallyData.candidates) {
+                        currentTallyData.candidates.forEach(c => {
+                            c.digital_votes = verifiedVotesMap[c.id] || 0;
+                            c.total_votes = c.digital_votes + (c.paper_votes || 0);
+                        });
+                    }
+
+                    // 2. 執行完整儲存 (包含紙本票數、出席人數與當選連動)
+                    await doSaveTallyData(itemId, roundId);
+
+                    // 3. 狀態切換為 CLOSED
                     await setDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId), {
                         status: 'CLOSED',
                         updatedAt: window.fs.serverTimestamp()
                     }, { merge: true });
 
-                    Swal.fire('已結束投票', '開票結果已解鎖顯示！', 'success');
+                    Swal.fire({
+                        title: '已結束投票',
+                        html: `全體票數核算完成！<br>實收數位選票：<b>${verifiedDigitalUsed}</b> 張 (含空白票 ${verifiedDigitalBlank} 張)<br>開票結果已解鎖顯示。`,
+                        icon: 'success'
+                    });
                     await loadItems();
                     openTallyCenter(itemId, roundId);
                 } catch (error) {
@@ -3961,7 +4093,7 @@ window.printElectionResults = async function() {
                     <div class="page-break mb-4">
                         <h3 style="border-bottom: 2px solid #333; padding-bottom: 5px;">${item.title} - ${rName} 開票報表</h3>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold; background: #f0f0f0; padding: 10px; border-radius: 5px;">
-                            <span>出席人數：${currentElectionData.init_attending_count !== undefined ? currentElectionData.init_attending_count : '-'}</span>
+                            <span>出席人數：${(round.attending_count !== undefined && round.attending_count !== null && round.attending_count > 0) ? round.attending_count : '-'}</span>
                             <span>總發票數：${totalIssued}</span>
                             <span>總收票數(含空白)：${totalReceived}</span>
                             <span>總空白票數：${totalBlank}</span>

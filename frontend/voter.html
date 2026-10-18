@@ -57,51 +57,54 @@
             padding: 15px;
             border-radius: 10px;
         }
-        /* Ballot View */
-        .candidate-search-box {
-            position: relative;
+        /* Ballot Slot Cards */
+        .ballot-slot-card {
+            border-radius: 12px;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        .candidate-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #ced4da;
-            border-radius: 0 0 10px 10px;
-            max-height: 350px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-        }
-        .candidate-item {
-            padding: 10px 15px;
-            cursor: pointer;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .candidate-item:hover {
+        .slot-unselected-box {
             background-color: #f8f9fa;
+            border: 2px dashed #ced4da;
         }
-        .candidate-item.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .slot-selected-box {
+            background-color: #eef6ff;
+            border: 1.5px solid #0d6efd;
+        }
+        /* Candidate Picker Offcanvas */
+        .offcanvas-candidate-item {
+            min-height: 58px;
+            border-radius: 10px;
+            transition: background-color 0.15s, transform 0.08s;
+            cursor: pointer;
+            border: 1px solid #e9ecef;
+            background-color: #ffffff;
+            margin-bottom: 8px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            width: 100%;
+            text-align: left;
+        }
+        .offcanvas-candidate-item:active {
+            transform: scale(0.98);
             background-color: #e9ecef;
         }
-        .selected-candidate {
-            background: #e7f1ff;
-            border: 1px solid #0d6efd;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .offcanvas-candidate-item.disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+            background-color: #f8f9fa !important;
+            border-color: #dee2e6;
+        }
+        .picker-district-header {
+            background: #e9ecef;
+            color: #495057;
+            font-weight: bold;
+            font-size: 0.85rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            margin-bottom: 6px;
         }
         /* View transitions */
         .view-section {
@@ -223,6 +226,9 @@
         <button id="btnStartTutorial" class="btn btn-danger btn-lg w-100 fw-bold shadow-sm" style="border-radius: 50px; font-size: 1.3rem;">
             <i class="fas fa-play"></i> 開始練習
         </button>
+        <button type="button" class="btn btn-link text-muted mt-3 w-100 text-decoration-none btn-skip-tutorial-action">
+            <i class="fas fa-forward me-1"></i> 跳過教學，直接開始投票
+        </button>
     </div>
 
     <!-- The Mock Ballot UI -->
@@ -272,6 +278,7 @@
                     <p class="text-secondary fs-5" id="tutorialOverlayDesc">點擊下方按鈕開始</p>
                 </div>
                 <button id="btnTutorialNext" class="btn btn-danger fw-bold shadow-sm w-75" style="font-size: 1.2rem; padding: 12px;"><i class="fas fa-play-circle"></i> 開始學習</button>
+                <button type="button" class="btn btn-link text-muted mt-2 text-decoration-none btn-skip-tutorial-action"><i class="fas fa-forward me-1"></i> 跳過教學直接投票</button>
             </div>
         </div>
     </div>
@@ -314,6 +321,49 @@
         border: 2px solid #dc3545;
     }
 </style>
+
+<!-- 候選人瀏覽挑選器 (Bottom Sheet - 100% 不叫出虛擬鍵盤，長輩友善滑動點選) -->
+<div class="offcanvas offcanvas-bottom" tabindex="-1" id="candidatePickerOffcanvas" style="height: 85vh; border-top-left-radius: 20px; border-top-right-radius: 20px; box-shadow: 0 -5px 25px rgba(0,0,0,0.2);">
+    <div class="offcanvas-header bg-light border-bottom py-3">
+        <div>
+            <h5 class="offcanvas-title fw-bold text-primary m-0" id="pickerOffcanvasTitle">
+                <i class="fas fa-list-check me-2"></i>選擇候選人
+            </h5>
+            <small class="text-muted" id="pickerOffcanvasSubtitle">請上下滑動點選一位候選人</small>
+        </div>
+        <button type="button" class="btn-close text-reset fs-5" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body p-3" id="pickerCandidateList">
+        <!-- 動態繪製候選人清單 -->
+    </div>
+</div>
+
+<!-- 候選人快速搜尋彈窗 (Search Modal - 專門打字過濾比對) -->
+<div class="modal fade" id="candidateSearchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg" style="border-radius: 16px; border: none; overflow: hidden;">
+            <div class="modal-header bg-primary text-white py-3">
+                <div>
+                    <h5 class="modal-title fw-bold m-0" id="searchModalTitle">
+                        <i class="fas fa-search me-2"></i>搜尋候選人
+                    </h5>
+                    <small class="text-white-50" id="searchModalSubtitle">輸入號碼、姓名或分區快速比對</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="input-group input-group-lg mb-3 shadow-sm">
+                    <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" id="modalSearchInput" class="form-control border-start-0 border-end-0" placeholder="輸入號碼、姓名、分區..." autocomplete="off">
+                    <button class="btn btn-outline-secondary border-start-0" type="button" id="btnClearModalSearch"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="modalSearchResults" style="max-height: 52vh; overflow-y: auto;">
+                    <!-- 動態搜尋結果 -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Firebase SDK -->
 <script type="module">

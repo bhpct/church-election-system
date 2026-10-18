@@ -140,11 +140,18 @@ async function handleVerifyKey() {
         buildBallotUI();
         
         // 檢查是否需要顯示教學模式
-        // 條件：目前這張選票是本次選舉「第一次被開啟投票的那一輪」，且該 QR Code 金鑰尚未跑過教學，且管理員未關閉教學
-        const isFirstEverRound = (electionData.first_active_round_id === roundId);
+        // 嚴格條件：
+        // 1. 管理員啟用教學 (electionData.enable_tutorial !== false)
+        // 2. 當前是全選舉第一次開啟的第一個項次與第一輪 (首項次首輪)
+        // 3. 該裝置在此次選舉中尚未執行過教學
+        const isFirstEverSession = (
+            electionData.first_active_item_id && electionData.first_active_round_id &&
+            electionData.first_active_item_id === itemData.id &&
+            electionData.first_active_round_id === roundId
+        );
         const tutorialEnabled = (electionData.enable_tutorial !== false);
 
-        if (isFirstEverRound && tutorialEnabled && !localStorage.getItem(`tutorial_completed_${currentKeyCode}`)) {
+        if (isFirstEverSession && tutorialEnabled && !localStorage.getItem(`tutorial_completed_${currentElectionId}`)) {
             startTutorial();
         } else {
             switchView('view-ballot');
@@ -181,7 +188,13 @@ async function loadCandidatesForBallot(candidateIds) {
     });
 }
 
-// 建立選票介面 (智慧下拉搜尋)
+// 全域變數以追蹤挑選器目前的目標圈選欄 (0-based)
+let currentTargetSlotIndex = null;
+let pickerOffcanvasInstance = null;
+let searchModalInstance = null;
+let searchModalInitialized = false;
+
+// 建立選票介面 (卡片槽位 + 雙按鈕分流：瀏覽 vs 搜尋)
 function buildBallotUI() {
     const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
     const rName = roundNames[roundData.id] || roundData.id;
@@ -203,7 +216,6 @@ function buildBallotUI() {
     // 如果有分區限制，詳細列出各區應選名額
     if (itemData.require_district && activeDistricts) {
         let districtDetails = [];
-        // 取得所有候選人中出現過的分區，藉此保留上傳時的自然排序
         const allDistrictsInOrder = [...new Set(Object.values(candidatesMap).map(c => c.district).filter(Boolean))];
         
         allDistrictsInOrder.forEach(dist => {
@@ -227,122 +239,254 @@ function buildBallotUI() {
     const forcedId = itemData.forced_candidate_id;
     const forcedCand = forcedId ? candidatesMap[forcedId] : null;
 
+    // 初始化 Bootstrap Offcanvas 與 Modal 實例
+    const offcanvasEl = document.getElementById('candidatePickerOffcanvas');
+    if (offcanvasEl && window.bootstrap) {
+        pickerOffcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
+    }
+    const modalEl = document.getElementById('candidateSearchModal');
+    if (modalEl && window.bootstrap) {
+        searchModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    }
+
     for (let i = 0; i < quota; i++) {
-        let isForcedCell = (i === 0 && forcedCand);
+        const isForcedCell = (i === 0 && forcedCand);
         
-        const box = document.createElement('div');
-        box.className = 'candidate-search-box mb-3';
-        box.innerHTML = `
-            <label class="form-label text-muted fw-bold">圈選欄 ${i+1}</label>
-            <div class="input-group has-validation">
-                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" class="form-control form-control-lg candidate-search-input" placeholder="輸入號碼/姓名/分區搜尋...">
-                <input type="hidden" class="ballot-vote-val" value="">
-                <div class="invalid-feedback text-start fw-bold" style="font-size: 0.9rem;">
-                    <i class="fas fa-exclamation-triangle"></i> 你尚未選取候選人
+        const slotCard = document.createElement('div');
+        slotCard.className = 'card mb-3 ballot-slot-card shadow-sm border';
+        slotCard.id = `ballotSlotCard_${i}`;
+        slotCard.dataset.slotIndex = i;
+
+        slotCard.innerHTML = `
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fs-6 slot-label">
+                        圈選欄 ${i+1}${isForcedCell ? ' <span class="badge bg-warning text-dark ms-1">共識薦選保留</span>' : ''}
+                    </span>
+                    <span class="slot-status-badge text-muted small fw-bold">
+                        ${isForcedCell ? '<i class="fas fa-lock text-warning"></i> 已保留' : '尚未圈選 (空白票)'}
+                    </span>
+                </div>
+                
+                <!-- 未選狀態 (Unselected) -->
+                <div class="slot-unselected-box d-flex flex-wrap justify-content-between align-items-center p-3 rounded-3" style="${isForcedCell ? 'display: none !important;' : ''}">
+                    <div class="text-secondary fw-bold mb-2 mb-sm-0 fs-6">
+                        <i class="fas fa-circle-notch text-muted me-1"></i> 未選 / 空白
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary px-3 py-2 fw-bold btn-slot-browse shadow-sm" data-slot="${i}">
+                            <i class="fas fa-list-ul me-1"></i> 瀏覽名單
+                        </button>
+                        <button type="button" class="btn btn-outline-primary px-3 py-2 fw-bold btn-slot-search shadow-sm" data-slot="${i}">
+                            <i class="fas fa-search me-1"></i> 快速搜尋
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 已選狀態 (Selected) -->
+                <div class="slot-selected-box align-items-center justify-content-between p-3 rounded-3" style="${isForcedCell ? 'display: flex;' : 'display: none;'} ${isForcedCell ? 'background: #fff9db !important; border-color: #ffc107 !important;' : ''}">
+                    <div class="d-flex align-items-center flex-grow-1 overflow-hidden me-2">
+                        <img src="${(isForcedCell && forcedCand && forcedCand.photo_base64) ? forcedCand.photo_base64 : ''}" 
+                             class="slot-candidate-photo rounded-circle border me-3" 
+                             style="width: 44px; height: 44px; object-fit: cover; ${isForcedCell && forcedCand && forcedCand.photo_base64 ? 'display: block;' : 'display: none;'}">
+                        <div class="rounded-circle border bg-white d-flex align-items-center justify-content-center text-muted me-3 slot-candidate-placeholder" 
+                             style="width: 44px; height: 44px; flex-shrink: 0; ${isForcedCell && forcedCand && forcedCand.photo_base64 ? 'display: none;' : 'display: flex;'}">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="text-truncate">
+                            <div class="d-flex align-items-center">
+                                <span class="badge ${isForcedCell ? 'bg-warning text-dark' : 'bg-primary'} me-2 slot-candidate-num fs-6">
+                                    ${isForcedCell ? '保障' : (forcedCand ? forcedCand.number || '-' : '')}
+                                </span>
+                                <strong class="fs-5 slot-candidate-name text-dark">
+                                    ${isForcedCell ? forcedCand.name : ''}
+                                </strong>
+                            </div>
+                            <div class="small text-muted slot-candidate-dist text-truncate mt-1">
+                                ${isForcedCell ? ((forcedCand.district || '') + ' ' + (forcedCand.unit || '')) : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm px-3 py-2 fw-bold btn-slot-clear" data-slot="${i}">
+                        <i class="fas fa-times me-1"></i> 清除
+                    </button>
                 </div>
             </div>
-            <div class="candidate-dropdown"></div>
-            <div class="selected-candidate align-items-center" style="display:none; margin-top: 10px;">
-                <img src="" class="selected-photo rounded-circle border me-2" style="width:40px;height:40px;object-fit:cover;display:none;">
-                <div class="text-start flex-grow-1">
-                    <span class="badge bg-primary me-2 selected-num"></span>
-                    <strong class="selected-name fs-5"></strong>
-                    <small class="text-muted ms-1 selected-dist"></small>
-                </div>
-                <button class="btn btn-sm btn-outline-danger btn-clear-selection ms-auto"><i class="fas fa-times"></i></button>
-            </div>
+            <input type="hidden" class="ballot-vote-val" value="${isForcedCell ? forcedId : ''}">
         `;
-        
-        // 綁定搜尋事件 (所有欄位都綁定)
-        const inputEl = box.querySelector('.candidate-search-input');
-        const dropdownEl = box.querySelector('.candidate-dropdown');
-        const hiddenVal = box.querySelector('.ballot-vote-val');
-        const selectedDiv = box.querySelector('.selected-candidate');
-        const clearBtn = box.querySelector('.btn-clear-selection');
-        
-        // 如果是保留名額的格子，手動觸發選取效果
-        if (isForcedCell) {
-            box.querySelector('label').innerHTML += ' (共識薦選保留)';
-            hiddenVal.value = forcedId;
-            
-            box.querySelector('.selected-num').textContent = forcedCand.number || '-';
-            box.querySelector('.selected-name').textContent = forcedCand.name;
-            box.querySelector('.selected-dist').textContent = (forcedCand.district || '') + ' ' + (forcedCand.unit || '');
-            
-            const imgEl = box.querySelector('.selected-photo');
-            if (forcedCand.photo_base64) {
-                imgEl.src = forcedCand.photo_base64;
-                imgEl.style.display = 'block';
+
+        // 綁定各按鈕事件
+        slotCard.querySelector('.btn-slot-browse')?.addEventListener('click', () => openCandidatePicker(i));
+        slotCard.querySelector('.btn-slot-search')?.addEventListener('click', () => openCandidateSearch(i));
+        slotCard.querySelector('.btn-slot-clear')?.addEventListener('click', () => clearSlotCandidate(i));
+
+        container.appendChild(slotCard);
+    }
+
+    // 初始化搜尋彈窗的即時監聽器
+    initSearchModalListeners();
+}
+
+// 瀏覽名單挑選器 (Bottom Sheet - 100% 不叫出虛擬鍵盤，滑動流暢)
+function openCandidatePicker(slotIndex) {
+    currentTargetSlotIndex = slotIndex;
+    const titleEl = document.getElementById('pickerOffcanvasTitle');
+    if (titleEl) titleEl.innerHTML = `<i class="fas fa-list-check me-2"></i>選擇候選人 (圈選欄 ${slotIndex + 1})`;
+
+    const listContainer = document.getElementById('pickerCandidateList');
+    listContainer.innerHTML = '';
+
+    const forcedId = itemData.forced_candidate_id;
+    const isForcedCell = (slotIndex === 0 && forcedId);
+
+    // 取得目前所有已選擇的 ID (排除當前 slot)
+    const currentSlots = document.querySelectorAll('.ballot-slot-card');
+    const allSelectedVals = [];
+    currentSlots.forEach((slot, idx) => {
+        if (idx !== slotIndex) {
+            const val = slot.querySelector('.ballot-vote-val')?.value;
+            if (val) allSelectedVals.push(val);
+        }
+    });
+
+    const activeDistricts = roundData.selected_districts || itemData.selected_districts;
+    const selectedDistrictsCount = {};
+    if (itemData.require_district && activeDistricts) {
+        allSelectedVals.forEach(cid => {
+            if (cid !== forcedId && candidatesMap[cid] && candidatesMap[cid].district) {
+                const dist = candidatesMap[cid].district;
+                selectedDistrictsCount[dist] = (selectedDistrictsCount[dist] || 0) + 1;
             }
-            
-            inputEl.parentElement.style.display = 'none';
-            selectedDiv.style.display = 'flex';
-            selectedDiv.classList.add('border-warning', 'bg-light');
-            const badge = box.querySelector('.selected-num');
-            badge.classList.remove('bg-primary');
-            badge.classList.add('bg-warning', 'text-dark');
-            badge.textContent = '保障';
+        });
+    }
+
+    let visibleCount = 0;
+    roundData.candidate_ids.forEach(cid => {
+        if (isForcedCell) {
+            if (cid !== forcedId) return;
+        } else {
+            if (cid === forcedId) return;
         }
 
-        inputEl.addEventListener('focus', () => renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell));
-        inputEl.addEventListener('input', () => {
-            inputEl.classList.remove('is-invalid');
-            renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell);
-        });
-        
-        // 點擊外部關閉選單 (支援手機 touch 事件)
-        const closeDropdown = (e) => {
-            if (!box.contains(e.target)) {
-                dropdownEl.style.display = 'none';
-                if (!hiddenVal.value && inputEl.value.trim() !== '') {
-                    inputEl.classList.add('is-invalid');
-                } else {
-                    inputEl.classList.remove('is-invalid');
-                }
-            }
-        };
-        document.addEventListener('click', closeDropdown);
-        document.addEventListener('touchstart', closeDropdown, {passive: true});
+        const c = candidatesMap[cid];
+        if (!c) return;
 
-        clearBtn.addEventListener('click', () => {
-            hiddenVal.value = '';
-            selectedDiv.style.display = 'none';
-            inputEl.parentElement.style.display = 'flex';
-            inputEl.value = '';
-            inputEl.classList.remove('is-invalid');
-            inputEl.focus();
-            
-            // 如果是取消保留名額，更新 UI 樣式
-            if (isForcedCell) {
-                selectedDiv.classList.remove('border-warning', 'bg-light');
-                const badge = selectedDiv.querySelector('.selected-num');
-                if(badge) {
-                    badge.classList.remove('bg-warning', 'text-dark');
-                    badge.classList.add('bg-primary');
-                    badge.textContent = '-'; // 清除"保障"字樣
-                }
+        const isAlreadySelected = allSelectedVals.includes(cid);
+        let isDistrictFull = false;
+        if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+            const limit = activeDistricts[c.district] || 1;
+            const currentCount = selectedDistrictsCount[c.district] || 0;
+            if (currentCount >= limit) {
+                isDistrictFull = true;
             }
-        });
-        
-        container.appendChild(box);
+        }
+
+        const isDisabled = isAlreadySelected || isDistrictFull;
+        let disabledReason = '';
+        if (isAlreadySelected) disabledReason = '<span class="badge bg-secondary ms-auto">已在其他欄圈選</span>';
+        else if (isDistrictFull) disabledReason = '<span class="badge bg-warning text-dark ms-auto">此區名額已滿</span>';
+
+        const photoHtml = c.photo_base64 
+            ? `<img src="${c.photo_base64}" class="rounded-circle border me-3" style="width: 44px; height: 44px; object-fit: cover;">`
+            : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted me-3" style="width: 44px; height: 44px; flex-shrink: 0;"><i class="fas fa-user"></i></div>`;
+
+        const itemBtn = document.createElement('div');
+        itemBtn.className = `offcanvas-candidate-item shadow-sm ${isDisabled ? 'disabled' : ''}`;
+        itemBtn.innerHTML = `
+            ${photoHtml}
+            <div class="text-start flex-grow-1">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-primary me-2">${c.number || '-'}</span>
+                    <strong class="fs-5 text-dark">${c.name}</strong>
+                </div>
+                <div class="small text-muted mt-1">${c.district || ''} ${c.unit || ''}</div>
+            </div>
+            ${disabledReason ? disabledReason : '<i class="fas fa-chevron-right text-muted ms-2"></i>'}
+        `;
+
+        if (!isDisabled) {
+            itemBtn.addEventListener('click', () => {
+                setSlotCandidate(currentTargetSlotIndex, cid);
+                if (pickerOffcanvasInstance) pickerOffcanvasInstance.hide();
+            });
+        }
+
+        listContainer.appendChild(itemBtn);
+        visibleCount++;
+    });
+
+    if (visibleCount === 0) {
+        listContainer.innerHTML = '<div class="p-4 text-center text-muted">無符合條件的候選人</div>';
+    }
+
+    if (pickerOffcanvasInstance) {
+        pickerOffcanvasInstance.show();
     }
 }
 
-function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
-    // 攔截全形數字並轉換為半形 (解決 iOS 鍵盤常自動輸入全形數字導致找不到人的問題)
-    const rawVal = inputEl.value.trim();
+// 快速搜尋彈窗
+function initSearchModalListeners() {
+    if (searchModalInitialized) return;
+    searchModalInitialized = true;
+
+    const modalEl = document.getElementById('candidateSearchModal');
+    const inputEl = document.getElementById('modalSearchInput');
+    const clearBtn = document.getElementById('btnClearModalSearch');
+
+    modalEl?.addEventListener('shown.bs.modal', () => {
+        if (inputEl) {
+            inputEl.value = '';
+            inputEl.focus();
+            renderSearchResults('');
+        }
+    });
+
+    inputEl?.addEventListener('input', () => {
+        renderSearchResults(inputEl.value);
+    });
+
+    clearBtn?.addEventListener('click', () => {
+        if (inputEl) {
+            inputEl.value = '';
+            inputEl.focus();
+            renderSearchResults('');
+        }
+    });
+}
+
+function openCandidateSearch(slotIndex) {
+    currentTargetSlotIndex = slotIndex;
+    const titleEl = document.getElementById('searchModalTitle');
+    if (titleEl) titleEl.innerHTML = `<i class="fas fa-search me-2"></i>搜尋候選人 (圈選欄 ${slotIndex + 1})`;
+
+    if (searchModalInstance) {
+        searchModalInstance.show();
+    }
+}
+
+function renderSearchResults(queryText) {
+    const resultsContainer = document.getElementById('modalSearchResults');
+    if (!resultsContainer) return;
+    resultsContainer.innerHTML = '';
+
+    const rawVal = queryText.trim();
     const halfWidthVal = rawVal.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248));
     const keyword = halfWidthVal.toLowerCase();
-    dropdownEl.innerHTML = '';
-    
-    // 取得目前所有已選擇的 ID (除了自己)
-    const allSelectedVals = Array.from(document.querySelectorAll('.ballot-vote-val')).map(el => el.value).filter(v => v !== '');
 
-    // 取得當前輪次的有效分區配置
+    const forcedId = itemData.forced_candidate_id;
+    const isForcedCell = (currentTargetSlotIndex === 0 && forcedId);
+
+    // 取得其他已選出的 ID
+    const currentSlots = document.querySelectorAll('.ballot-slot-card');
+    const allSelectedVals = [];
+    currentSlots.forEach((slot, idx) => {
+        if (idx !== currentTargetSlotIndex) {
+            const val = slot.querySelector('.ballot-vote-val')?.value;
+            if (val) allSelectedVals.push(val);
+        }
+    });
+
     const activeDistricts = roundData.selected_districts || itemData.selected_districts;
-
-    // 取得已被選走的分區與其計數 (僅當啟動強制分區時)
     const selectedDistrictsCount = {};
     if (itemData.require_district && activeDistricts) {
         allSelectedVals.forEach(cid => {
@@ -354,95 +498,134 @@ function renderDropdown(inputEl, dropdownEl, forcedId, isForcedCell = false) {
     }
 
     let matchCount = 0;
-
-    // 依照 roundData.candidate_ids 的順序顯示 (此順序在晉級時已由系統依照得票數排序過)
     roundData.candidate_ids.forEach(cid => {
         if (isForcedCell) {
-            if (cid !== forcedId) return; // 保留專屬格：只能選保留名額，其他人都不出現
+            if (cid !== forcedId) return;
         } else {
-            if (cid === forcedId) return; // 一般格：排除保障名額
+            if (cid === forcedId) return;
         }
-        
+
         const c = candidatesMap[cid];
         if (!c) return;
-        
+
         const rawSearchStr = `${c.number || ''} ${c.name} ${c.district || ''} ${c.unit || ''}`;
         const searchStr = rawSearchStr.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248)).toLowerCase();
-        
+
         if (keyword === '' || searchStr.includes(keyword)) {
             const isAlreadySelected = allSelectedVals.includes(cid);
-            if (isAlreadySelected) return; // 防呆：已選擇的候選人直接從其他選單消失
-            
-            // 防呆：如果該分區已達應選上限，則從選單消失 (保留專屬格不受此限)
+            let isDistrictFull = false;
             if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
-                const limit = activeDistricts[c.district] || 1; // 容錯，預設1
+                const limit = activeDistricts[c.district] || 1;
                 const currentCount = selectedDistrictsCount[c.district] || 0;
                 if (currentCount >= limit) {
-                    return;
+                    isDistrictFull = true;
                 }
             }
-            
-            const photoHtml = c.photo_base64 ? `<img src="${c.photo_base64}" class="rounded-circle border me-2" style="width:35px;height:35px;object-fit:cover;">` : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted me-2" style="width:35px;height:35px;font-size:0.8rem;"><i class="fas fa-user"></i></div>`;
-            
-            const div = document.createElement('div');
-            div.className = `candidate-item d-flex align-items-center`;
-            div.innerHTML = `
+
+            const isDisabled = isAlreadySelected || isDistrictFull;
+            let disabledReason = '';
+            if (isAlreadySelected) disabledReason = '<span class="badge bg-secondary ms-auto">已在其他欄圈選</span>';
+            else if (isDistrictFull) disabledReason = '<span class="badge bg-warning text-dark ms-auto">此區名額已滿</span>';
+
+            const photoHtml = c.photo_base64 
+                ? `<img src="${c.photo_base64}" class="rounded-circle border me-3" style="width: 42px; height: 42px; object-fit: cover;">`
+                : `<div class="rounded-circle border bg-light d-flex align-items-center justify-content-center text-muted me-3" style="width: 42px; height: 42px; flex-shrink: 0;"><i class="fas fa-user"></i></div>`;
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = `offcanvas-candidate-item shadow-sm ${isDisabled ? 'disabled' : ''}`;
+            itemDiv.innerHTML = `
                 ${photoHtml}
                 <div class="text-start flex-grow-1">
-                    <span class="badge bg-secondary me-2">${c.number || '-'}</span>
-                    <strong>${c.name}</strong>
-                    <small class="text-muted ms-2">${c.district || ''} ${c.unit || ''}</small>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-primary me-2">${c.number || '-'}</span>
+                        <strong class="fs-5 text-dark">${c.name}</strong>
+                    </div>
+                    <div class="small text-muted mt-1">${c.district || ''} ${c.unit || ''}</div>
                 </div>
+                ${disabledReason ? disabledReason : '<i class="fas fa-check-circle text-primary fs-5 ms-2"></i>'}
             `;
-            
-            div.addEventListener('click', () => {
-                    const box = inputEl.closest('.candidate-search-box');
-                    box.querySelector('.ballot-vote-val').value = cid;
-                    box.querySelector('.selected-num').textContent = c.number || '-';
-                    box.querySelector('.selected-name').textContent = c.name;
-                    box.querySelector('.selected-dist').textContent = (c.district || '') + ' ' + (c.unit || '');
-                    
-                    const imgEl = box.querySelector('.selected-photo');
-                    if (c.photo_base64) {
-                        imgEl.src = c.photo_base64;
-                        imgEl.style.display = 'block';
-                    } else {
-                        imgEl.src = '';
-                        imgEl.style.display = 'none';
-                    }
-                    
-                    inputEl.parentElement.style.display = 'none';
-                    box.querySelector('.selected-candidate').style.display = 'flex';
-                    dropdownEl.style.display = 'none';
-                    
-                    // 若為保留名額專屬格，恢復黃色徽章樣式
-                    if (isForcedCell) {
-                        const selectedDiv = box.querySelector('.selected-candidate');
-                        selectedDiv.classList.add('border-warning', 'bg-light');
-                        const badge = box.querySelector('.selected-num');
-                        badge.classList.remove('bg-primary', 'bg-secondary');
-                        badge.classList.add('bg-warning', 'text-dark');
-                        badge.textContent = '保障';
-                    } else {
-                        // 若為一般格，確保是藍色樣式
-                        const selectedDiv = box.querySelector('.selected-candidate');
-                        selectedDiv.classList.remove('border-warning', 'bg-light');
-                        const badge = box.querySelector('.selected-num');
-                        badge.classList.remove('bg-warning', 'text-dark', 'bg-secondary');
-                        badge.classList.add('bg-primary');
-                    }
+
+            if (!isDisabled) {
+                itemDiv.addEventListener('click', () => {
+                    setSlotCandidate(currentTargetSlotIndex, cid);
+                    if (searchModalInstance) searchModalInstance.hide();
                 });
-            
-            dropdownEl.appendChild(div);
+            }
+
+            resultsContainer.appendChild(itemDiv);
             matchCount++;
         }
     });
 
     if (matchCount === 0) {
-        dropdownEl.innerHTML = '<div class="p-3 text-muted text-center">找不到符合的候選人</div>';
+        resultsContainer.innerHTML = '<div class="p-4 text-center text-muted"><i class="fas fa-search me-1"></i>找不到符合的候選人</div>';
+    }
+}
+
+// 將候選人設定進槽位
+function setSlotCandidate(slotIndex, cid) {
+    const c = candidatesMap[cid];
+    if (!c) return;
+
+    const slotCard = document.getElementById(`ballotSlotCard_${slotIndex}`);
+    if (!slotCard) return;
+
+    const unselectedBox = slotCard.querySelector('.slot-unselected-box');
+    const selectedBox = slotCard.querySelector('.slot-selected-box');
+    const hiddenVal = slotCard.querySelector('.ballot-vote-val');
+    const statusBadge = slotCard.querySelector('.slot-status-badge');
+
+    hiddenVal.value = cid;
+
+    // 更新候選人內容
+    slotCard.querySelector('.slot-candidate-name').textContent = c.name;
+    slotCard.querySelector('.slot-candidate-dist').textContent = (c.district || '') + ' ' + (c.unit || '');
+    
+    const numBadge = slotCard.querySelector('.slot-candidate-num');
+    const isForcedCell = (slotIndex === 0 && itemData.forced_candidate_id === cid);
+    if (isForcedCell) {
+        numBadge.className = 'badge bg-warning text-dark me-2 slot-candidate-num fs-6';
+        numBadge.textContent = '保障';
+        selectedBox.style.background = '#fff9db';
+        selectedBox.style.borderColor = '#ffc107';
+    } else {
+        numBadge.className = 'badge bg-primary me-2 slot-candidate-num fs-6';
+        numBadge.textContent = c.number || '-';
+        selectedBox.style.background = '#eef6ff';
+        selectedBox.style.borderColor = '#0d6efd';
     }
 
-    dropdownEl.style.display = 'block';
+    const photoEl = slotCard.querySelector('.slot-candidate-photo');
+    const placeholderEl = slotCard.querySelector('.slot-candidate-placeholder');
+    if (c.photo_base64) {
+        photoEl.src = c.photo_base64;
+        photoEl.style.display = 'block';
+        placeholderEl.style.display = 'none';
+    } else {
+        photoEl.src = '';
+        photoEl.style.display = 'none';
+        placeholderEl.style.display = 'flex';
+    }
+
+    unselectedBox.style.setProperty('display', 'none', 'important');
+    selectedBox.style.display = 'flex';
+    statusBadge.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 已圈選</span>';
+}
+
+// 清除槽位回空白
+function clearSlotCandidate(slotIndex) {
+    const slotCard = document.getElementById(`ballotSlotCard_${slotIndex}`);
+    if (!slotCard) return;
+
+    const unselectedBox = slotCard.querySelector('.slot-unselected-box');
+    const selectedBox = slotCard.querySelector('.slot-selected-box');
+    const hiddenVal = slotCard.querySelector('.ballot-vote-val');
+    const statusBadge = slotCard.querySelector('.slot-status-badge');
+
+    hiddenVal.value = '';
+    selectedBox.style.display = 'none';
+    unselectedBox.style.setProperty('display', 'flex', 'important');
+    statusBadge.textContent = '尚未圈選 (空白票)';
 }
 
 // 提交選票
@@ -667,6 +850,19 @@ function startTutorial() {
     introScreen.style.display = 'block';
     mockBallotCard.style.display = 'none';
     
+    // 綁定所有「跳過教學直接投票」按鈕
+    document.querySelectorAll('.btn-skip-tutorial-action').forEach(skipBtn => {
+        skipBtn.onclick = () => {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+            localStorage.setItem(`tutorial_completed_${currentElectionId}`, 'true');
+            if (typeof currentKeyCode !== 'undefined' && currentKeyCode) {
+                localStorage.setItem(`tutorial_completed_${currentKeyCode}`, 'true');
+            }
+            switchView('view-ballot');
+        };
+    });
+
     document.getElementById('btnStartTutorial').onclick = () => {
         currentStep = 1;
         introScreen.style.display = 'none';
@@ -988,7 +1184,10 @@ const updateStepUI = () => {
                     btnNext.onclick = () => {
                         overlay.style.display = 'none';
                         document.body.style.overflow = ''; // Restore scrolling
-                        localStorage.setItem(`tutorial_completed_${currentKeyCode}`, 'true');
+                        localStorage.setItem(`tutorial_completed_${currentElectionId}`, 'true');
+                        if (typeof currentKeyCode !== 'undefined' && currentKeyCode) {
+                            localStorage.setItem(`tutorial_completed_${currentKeyCode}`, 'true');
+                        }
                         switchView('view-ballot');
                     };
                 };

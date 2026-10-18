@@ -369,7 +369,7 @@
 
                       // 計算並顯示出席人數與過半門檻
                       const totalIssued = digitalIssued + paperIssued;
-                      const attendingCount = roundData.attending_count || itemData.attending_count || electionData.init_attending_count || 0;
+                      const attendingCount = (roundData.attending_count !== undefined && roundData.attending_count !== null && roundData.attending_count > 0) ? roundData.attending_count : (itemData.attending_count || 0);
                       document.getElementById('displayAttending').textContent = attendingCount;
 
                       const quorumBase = roundData.quorum_base || itemData.quorum_base || 'ATTENDING';
