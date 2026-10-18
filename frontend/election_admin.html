@@ -284,13 +284,16 @@
 
                                         <!-- 開啟新手教學 -->
                                         <div class="col-12 mt-2">
-                                            <div class="p-2 rounded" style="background-color: #fff3cd; border: 1px solid #ffe69c;">
-                                                <div class="form-check form-switch d-flex align-items-center justify-content-between mb-0">
-                                                    <label class="form-check-label fw-bold text-dark mb-0" for="globalEnableTutorial">
-                                                        <i class="fas fa-graduation-cap text-warning me-1"></i> 開啟新手教學 (預設關閉)
+                                            <div class="p-3 rounded" style="background-color: #fff3cd; border: 1px solid #ffe69c;">
+                                                <div class="form-check form-switch d-flex align-items-center justify-content-between mb-1">
+                                                    <label class="form-check-label fw-bold text-dark mb-0 fs-6" for="globalEnableTutorial">
+                                                        <i class="fas fa-graduation-cap text-warning me-1"></i> 開啟新手教學與模擬練習模式 (預設關閉)
                                                     </label>
-                                                    <input class="form-check-input ms-2" type="checkbox" role="switch" id="globalEnableTutorial" style="transform: scale(1.2);">
+                                                    <input class="form-check-input ms-2" type="checkbox" role="switch" id="globalEnableTutorial" style="transform: scale(1.3); cursor: pointer;">
                                                 </div>
+                                                <small class="text-muted d-block" style="line-height: 1.4;">
+                                                    💡 <strong>說明</strong>：當此開關<strong>開啟</strong>時，全場選民掃碼即進入<strong>模擬練習模式</strong>（不消耗選票、不計票），供書記／主席指導圈選；當確認大家熟悉後<strong>關閉開關</strong>，選民手機將自動轉入<strong>尚未開放等候狀態</strong>，待大會正式宣布開始投票！
+                                                </small>
                                             </div>
                                         </div>
                                     </form>
@@ -706,6 +709,7 @@
                                         <button type="button" class="btn btn-outline-success" id="btnReopenVoting" style="display: none;"><i class="fas fa-play-circle"></i> 重新開放數位投票</button>
                                     </div>
                                     <div>
+                                        <button type="button" class="btn btn-outline-secondary fw-bold me-2" id="btnPrintCurrentRoundReport"><i class="fas fa-print"></i> 列印本輪開票報表</button>
                                         <button type="button" class="btn btn-outline-info fw-bold me-2" id="btnOpenProjector"><i class="fas fa-desktop"></i> 開啟投影畫面</button>
                                         <button type="button" class="btn btn-primary" id="btnSaveTallyResults"><i class="fas fa-save"></i> 儲存開票數據</button>
                                         <button type="button" class="btn btn-warning fw-bold ms-2" id="btnPublishTally"><i class="fas fa-bullhorn"></i> 發布選舉結果</button>

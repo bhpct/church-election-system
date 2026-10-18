@@ -150,6 +150,29 @@
         </div>
     </div>
 
+    <!-- 視圖 1.5: 尚未開放投票等候視窗 -->
+    <div id="view-pending-vote" class="view-section">
+        <div class="card text-center shadow border-0" style="border-radius: 16px;">
+            <div class="card-body py-5 px-4">
+                <div class="mb-4">
+                    <div class="spinner-grow text-primary" style="width: 3.5rem; height: 3.5rem;" role="status"></div>
+                </div>
+                <h3 class="fw-bold text-dark mb-2" id="pendingRoundTitle">尚未開放投票</h3>
+                <div class="badge bg-primary fs-6 mb-3 px-3 py-2 rounded-pill" id="pendingItemRoundName">項次名稱 - 輪次</div>
+                <p class="text-muted fs-6 mb-4" id="pendingDescText">
+                    主席尚未宣布投票開始，請稍候...<br>
+                    <span class="small text-secondary mt-1 d-block">您的選票金鑰已驗證成功！請保持此畫面開啟，當大會宣布投票開始時，系統將<strong>自動進入選票，無需重新掃描 QR Code</strong>。</span>
+                </p>
+                <div class="p-3 bg-light rounded text-start small text-muted border">
+                    <i class="fas fa-info-circle text-info me-1"></i> 提示：若主席指示進行操作練習，此頁面將自動轉入新手教學練習模式。
+                </div>
+            </div>
+            <div class="card-footer bg-white py-3">
+                <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()"><i class="fas fa-redo me-1"></i> 重新整理狀態</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 視圖 2: 選票畫面 -->
     <div id="view-ballot" class="view-section">
         <div class="card border-primary">
@@ -158,6 +181,24 @@
                 <h5 class="m-0 mt-2 text-warning fw-bold" id="ballotItemRoundName">項次 - 輪次</h5>
             </div>
             <div class="card-body">
+                <!-- 新手教學練習模式專屬指引卡片 -->
+                <div id="tutorialInstructionBanner" class="alert alert-warning border-warning shadow-sm mb-3" style="display: none; border-radius: 12px;">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-graduation-cap text-warning fs-3 me-2"></i>
+                        <strong class="fs-5 text-dark">新手教學與模擬練習模式</strong>
+                    </div>
+                    <div class="text-dark small mb-2" style="line-height: 1.6;">
+                        <strong>【操作指引】</strong><br>
+                        • <strong>瀏覽名單</strong>：點擊「📋 瀏覽名單」，由下往上滑動查閱全體候選人並點選。<br>
+                        • <strong>快速搜尋</strong>：點擊「🔍 快速搜尋」，輸入編號、姓名或分區快速搜尋。<br>
+                        • <strong>更換重選</strong>：若選錯隨時點擊「✕」清除即可重選。<br>
+                        ⚠️ <strong>此為練習模式，此處圈選不會消耗金鑰，亦不會計入正式選票。</strong>
+                    </div>
+                    <div class="bg-white p-2 rounded border border-warning text-center text-primary fw-bold small">
+                        📢 請聽從主席／書記指示練習。當大會關閉教學後，畫面將自動轉入正式等候或投票狀態！
+                    </div>
+                </div>
+
                 <div class="alert alert-info py-2 mb-4 text-center">
                     <i class="fas fa-info-circle"></i> 本輪次應選名額：<strong class="fs-5 text-danger" id="ballotQuota">0</strong> 名
                     <div id="ballotDistrictRule" class="small mt-1 text-danger fw-bold" style="display:none;">(含強制分區限制)</div>
@@ -171,6 +212,9 @@
             <div class="card-footer bg-white p-3">
                 <button class="btn btn-success btn-lg w-100 fw-bold rounded-pill shadow-sm" id="btnSubmitVote">
                     <i class="fas fa-paper-plane"></i> 確認送出選票
+                </button>
+                <button class="btn btn-warning text-dark btn-lg w-100 fw-bold rounded-pill shadow-sm" id="btnTutorialSimulateSubmit" style="display: none;">
+                    <i class="fas fa-graduation-cap me-1"></i> 練習完成（模擬送出）
                 </button>
             </div>
         </div>

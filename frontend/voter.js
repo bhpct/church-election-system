@@ -10,8 +10,17 @@ let roundData = null;
 let candidatesMap = {}; // 允許投票的候選人
 let unsubscribeRound = null;
 
+let unsubscribeElection = null;
+let isCurrentInTutorialMode = false;
+let hasSubmittedVote = false;
+
 // DOM Elements
-const views = ['view-auth', 'view-ballot', 'view-waiting'];
+const views = ['view-auth', 'view-ballot', 'view-waiting', 'view-pending-vote'];
+
+function getRoundName(rId) {
+    const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+    return roundNames[rId] || rId;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -25,10 +34,17 @@ document.addEventListener("DOMContentLoaded", () => {
     // 事件綁定
     document.getElementById('btnVerifyKey')?.addEventListener('click', handleVerifyKey);
     document.getElementById('btnSubmitVote')?.addEventListener('click', handleSubmitVote);
-
-    // 關閉 Loader (移至 switchView 處理，避免白畫面)
-    // document.getElementById('loader').style.display = 'none';
     
+    // 新手教學模擬送出按鈕事件
+    document.getElementById('btnTutorialSimulateSubmit')?.addEventListener('click', () => {
+        Swal.fire({
+            title: '🎉 模擬練習成功！',
+            html: '恭喜您已成功完成候選人圈選練習！<br><span class="text-muted small mt-2 d-block">⚠️ 此為操作模擬，不會消耗您的金鑰，亦不會計入正式選票。<br>請保持畫面開啟，靜候主席正式宣布開始投票。</span>',
+            icon: 'success',
+            confirmButtonText: '我知道了，等待投票開始'
+        });
+    });
+
     // 如果 URL 有提供 EID 和 KEY，自動驗證
     if (currentElectionId && urlKey) {
         handleVerifyKey();
@@ -103,7 +119,7 @@ async function handleVerifyKey() {
 
         const electionSnap = await getDoc(doc(db, 'elections', currentElectionId));
         if (!electionSnap.exists()) throw new Error("選舉場次不存在。");
-        electionData = electionSnap.data();
+        electionData = { id: electionSnap.id, ...electionSnap.data() };
 
         if (electionData.status !== 'ACTIVE') throw new Error("本場選舉尚未開放或已結束。");
 
@@ -115,47 +131,15 @@ async function handleVerifyKey() {
         if (!roundSnap.exists()) throw new Error("選舉輪次不存在。");
         roundData = { id: roundSnap.id, ...roundSnap.data() };
 
-        if (roundData.status === 'PENDING') throw new Error("此輪次尚未開放投票，請稍候。");
-        if (roundData.status === 'CLOSED') throw new Error("此輪次已結束投票，正在開票中。");
-        
-        // 若已發布結果，先提示再跳轉到投影畫面 (給選民看響應式結果)
-        if (roundData.status === 'PUBLISHED') {
-            Swal.fire({
-                title: '本輪投票已結束',
-                text: '此輪次投票已結束且結果已發布，將為您跳轉至結果畫面。',
-                icon: 'info',
-                timer: 3000,
-                timerProgressBar: true,
-                confirmButtonText: '查看結果'
-            }).then(() => {
-                window.location.href = `result.html?election_id=${currentElectionId}&item_id=${itemId}&round_id=${roundId}`;
-            });
-            return; // 終止後續
-        }
-
-        // 3. 載入候選人資料
+        // 3. 載入候選人資料並建立選票 UI
         await loadCandidatesForBallot(roundData.candidate_ids);
-
-        // 4. 建立選票 UI 並切換視窗
         buildBallotUI();
-        
-        // 檢查是否需要顯示教學模式
-        // 嚴格條件：
-        // 1. 管理員啟用教學 (electionData.enable_tutorial !== false)
-        // 2. 當前是全選舉第一次開啟的第一個項次與第一輪 (首項次首輪)
-        // 3. 該裝置在此次選舉中尚未執行過教學
-        const isFirstEverSession = (
-            electionData.first_active_item_id && electionData.first_active_round_id &&
-            electionData.first_active_item_id === itemData.id &&
-            electionData.first_active_round_id === roundId
-        );
-        const tutorialEnabled = (electionData.enable_tutorial === true);
 
-        if (isFirstEverSession && tutorialEnabled && !localStorage.getItem(`tutorial_completed_${currentElectionId}`)) {
-            startTutorial();
-        } else {
-            switchView('view-ballot');
-        }
+        // 4. 啟動即時動態狀態監聽器 (監聽新手教學開關與輪次狀態)
+        setupLiveStateListener(currentElectionId, itemId, roundId);
+
+        // 5. 依據當前狀態刷新畫面
+        refreshVoterState();
 
     } catch (error) {
         console.error(error);
@@ -166,6 +150,138 @@ async function handleVerifyKey() {
         btn.disabled = false;
         btn.innerHTML = '進入投票 <i class="fas fa-arrow-right ms-1"></i>';
     }
+}
+
+// 核心狀態機：依據新手教學開關與輪次狀態，無縫切換畫面
+function refreshVoterState() {
+    if (hasSubmittedVote) return;
+
+    closePickersIfOpen();
+
+    const isTutorialOn = (electionData && electionData.enable_tutorial === true);
+
+    if (roundData.status === 'PUBLISHED') {
+        Swal.fire({
+            title: '本輪投票已結束',
+            text: '此輪次投票已結束且結果已發布，將為您跳轉至結果畫面。',
+            icon: 'info',
+            timer: 3000,
+            timerProgressBar: true,
+            confirmButtonText: '查看結果'
+        }).then(() => {
+            window.location.href = `result.html?election_id=${currentElectionId}&item_id=${itemData.id}&round_id=${roundData.id}`;
+        });
+        return;
+    }
+
+    if (roundData.status === 'CLOSED') {
+        Swal.fire({
+            title: '本輪投票已截止',
+            text: '主席已宣布結束投票，正在進行開票核算中。',
+            icon: 'info',
+            showConfirmButton: false,
+            allowOutsideClick: false
+        });
+        return;
+    }
+
+    if (isTutorialOn) {
+        // 新手教學開關開啟中：無論發放哪一輪、狀態是否 PENDING，一律進入教學練習模式！
+        showTutorialMode(true);
+        switchView('view-ballot');
+    } else {
+        // 新手教學關閉
+        showTutorialMode(false);
+        if (roundData.status === 'PENDING') {
+            const rName = getRoundName(roundData.id);
+            const el = document.getElementById('pendingItemRoundName');
+            if (el) el.textContent = `${itemData.title} - ${rName}`;
+            switchView('view-pending-vote');
+        } else if (roundData.status === 'ACTIVE') {
+            switchView('view-ballot');
+        }
+    }
+}
+
+// 切換教學模式 UI（說明條、按鈕模擬、退回練習時清空槽位）
+function showTutorialMode(isTutorial) {
+    const banner = document.getElementById('tutorialInstructionBanner');
+    const submitBtn = document.getElementById('btnSubmitVote');
+    const simBtn = document.getElementById('btnTutorialSimulateSubmit');
+
+    if (isTutorial) {
+        isCurrentInTutorialMode = true;
+        if (banner) banner.style.display = 'block';
+        if (submitBtn) submitBtn.style.display = 'none';
+        if (simBtn) simBtn.style.display = 'block';
+    } else {
+        if (isCurrentInTutorialMode) {
+            // 從教學練習模式切回正式狀態，清空練習時所點選的暫存內容，還原為初始空白狀態
+            isCurrentInTutorialMode = false;
+            buildBallotUI();
+        }
+        if (banner) banner.style.display = 'none';
+        if (submitBtn) submitBtn.style.display = 'block';
+        if (simBtn) simBtn.style.display = 'none';
+    }
+}
+
+// 關閉可能開啟中的選人抽屜或搜尋視窗
+function closePickersIfOpen() {
+    try {
+        const offcanvasEl = document.getElementById('candidatePickerOffcanvas');
+        if (offcanvasEl && window.bootstrap && window.bootstrap.Offcanvas) {
+            const bsOffcanvas = window.bootstrap.Offcanvas.getInstance(offcanvasEl);
+            if (bsOffcanvas) bsOffcanvas.hide();
+        }
+        const searchModalEl = document.getElementById('searchCandidateModal');
+        if (searchModalEl && window.bootstrap && window.bootstrap.Modal) {
+            const bsModal = window.bootstrap.Modal.getInstance(searchModalEl);
+            if (bsModal) bsModal.hide();
+        }
+    } catch (e) {
+        console.warn('關閉挑選彈窗時略過:', e);
+    }
+}
+
+// 即時狀態監聽器
+function setupLiveStateListener(electionId, itemId, roundId) {
+    const { doc, onSnapshot } = window.fs;
+    const db = window.firebaseDb;
+
+    if (unsubscribeElection) unsubscribeElection();
+    if (unsubscribeRound) unsubscribeRound();
+
+    // 監聽選舉全域設定 (特別是 enable_tutorial 開關)
+    const electionRef = doc(db, 'elections', electionId);
+    unsubscribeElection = onSnapshot(electionRef, (snap) => {
+        if (!snap.exists()) return;
+        const eData = snap.data();
+        const prevTutorial = electionData ? electionData.enable_tutorial : null;
+        electionData = { ...electionData, ...eData };
+        if (prevTutorial !== (eData.enable_tutorial === true)) {
+            refreshVoterState();
+        }
+    });
+
+    // 監聽該輪次之狀態 (PENDING -> ACTIVE -> CLOSED -> PUBLISHED)
+    const roundRef = doc(db, 'elections', electionId, 'items', itemId, 'rounds', roundId);
+    unsubscribeRound = onSnapshot(roundRef, async (snap) => {
+        if (!snap.exists()) return;
+        const rData = snap.data();
+        const prevStatus = roundData ? roundData.status : null;
+        roundData = { id: snap.id, ...rData };
+
+        // 若候選人名單有異動，重新載入
+        if (rData.candidate_ids && JSON.stringify(rData.candidate_ids) !== JSON.stringify(Object.keys(candidatesMap))) {
+            await loadCandidatesForBallot(rData.candidate_ids);
+            buildBallotUI();
+        }
+
+        if (prevStatus !== rData.status) {
+            refreshVoterState();
+        }
+    });
 }
 
 // 載入該輪候選人
@@ -803,6 +919,7 @@ async function handleSubmitVote() {
         });
 
         await batch.commit();
+        hasSubmittedVote = true;
 
         // 成功！直接跳轉到 result.html 頁面
         window.location.href = `result.html?election_id=${currentElectionId}&item_id=${itemData.id}&round_id=${roundData.id}`;

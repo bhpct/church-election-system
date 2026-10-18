@@ -3397,6 +3397,41 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTallyTable();
     });
 
+    // 列印本輪開票報表
+    document.getElementById('btnPrintCurrentRoundReport')?.addEventListener('click', () => {
+        if (window.printSingleRoundResults) {
+            window.printSingleRoundResults(currentTallyData.itemId, currentTallyData.roundId);
+        }
+    });
+
+    // 新手教學與模擬練習模式即時開關監聽
+    document.getElementById('globalEnableTutorial')?.addEventListener('change', async (e) => {
+        const isEnabled = e.target.checked;
+        if (!currentElectionId) return;
+        try {
+            const db = window.firebaseDb;
+            const { doc, updateDoc, serverTimestamp } = window.fs;
+            await updateDoc(doc(db, 'elections', currentElectionId), {
+                enable_tutorial: isEnabled,
+                updatedAt: serverTimestamp()
+            });
+            if (currentElectionData) {
+                currentElectionData.enable_tutorial = isEnabled;
+            }
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                icon: isEnabled ? 'info' : 'success',
+                title: isEnabled ? '🎓 已開啟新手教學練習模式' : '✅ 已關閉教學，恢復正式投票流程'
+            });
+        } catch (err) {
+            console.error('更新教學開關失敗:', err);
+            Swal.fire('錯誤', '更新教學狀態失敗: ' + err.message, 'error');
+        }
+    });
+
     // 結束數位投票 (含防呆卡控與伺服器實體選票重算)
     document.getElementById('btnEndVoting')?.addEventListener('click', async () => {
         const itemId = currentTallyData.itemId;
@@ -4165,93 +4200,7 @@ window.printElectionResults = async function() {
                 ));
                 const digitalUsed = keysSnap.size;
                 
-                const digitalIssued = round.digital_issued || 0;
-                const paperIssued = round.paper_issued || 0;
-                const paperReceived = round.paper_received || 0;
-                const paperBlank = round.paper_blank || 0;
-                
-                const totalIssued = digitalIssued + paperIssued;
-                const totalReceived = digitalUsed + paperReceived;
-                const totalBlank = digitalBlank + paperBlank;
-                
-                const cIds = round.candidate_ids || [];
-                const roundCands = cIds.map(id => allCandidates.find(c => c.id === id)).filter(Boolean);
-                
-                const electedIds = round.elected_ids || [];
-                
-                roundCands.forEach(c => {
-                    c.roundTotalVotes = (digitalVotesMap[c.id] || 0) + (round.paper_votes && round.paper_votes[c.id] ? parseInt(round.paper_votes[c.id]) : 0);
-                    c.roundIsElected = electedIds.includes(c.id);
-                });
-                
-                const filteredCands = roundCands.filter(c => c.roundTotalVotes > 0 || c.roundIsElected);
-                
-                const reqDist = round.require_district !== undefined ? round.require_district : item.require_district;
-                const distOrder = [...new Set(allCandidates.filter(c => c.item_id === item.id).map(c => c.district).filter(Boolean))];
-                
-                filteredCands.sort((a, b) => {
-                    if (a.roundIsElected && !b.roundIsElected) return -1;
-                    if (!a.roundIsElected && b.roundIsElected) return 1;
-                    
-                    if (reqDist) {
-                        const distAIdx = distOrder.indexOf(a.district);
-                        const distBIdx = distOrder.indexOf(b.district);
-                        const aDistScore = distAIdx === -1 ? 9999 : distAIdx;
-                        const bDistScore = distBIdx === -1 ? 9999 : distBIdx;
-                        if (aDistScore !== bDistScore) return aDistScore - bDistScore;
-                    }
-                    
-                    if (b.roundTotalVotes !== a.roundTotalVotes) return b.roundTotalVotes - a.roundTotalVotes;
-                    
-                    const numA = parseInt(a.number) || 9999;
-                    const numB = parseInt(b.number) || 9999;
-                    return numA - numB;
-                });
-                
-                const rNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
-                const rName = rNames[round.id] || round.id;
-                
-                html += `
-                    <div class="page-break mb-4">
-                        <h3 style="border-bottom: 2px solid #333; padding-bottom: 5px;">${item.title} - ${rName} 開票報表</h3>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold; background: #f0f0f0; padding: 10px; border-radius: 5px;">
-                            <span>出席人數：${(round.attending_count !== undefined && round.attending_count !== null && round.attending_count > 0) ? round.attending_count : '-'}</span>
-                            <span>總發票數：${totalIssued}</span>
-                            <span>總收票數(含空白)：${totalReceived}</span>
-                            <span>總空白票數：${totalBlank}</span>
-                        </div>
-                        <table style="width: 100%; border-collapse: collapse; text-align: left;" border="1">
-                            <thead>
-                                <tr style="background: #e9ecef;">
-                                    <th style="padding: 8px; width: 10%;">號次</th>
-                                    <th style="padding: 8px; width: 25%;">姓名</th>
-                                    <th style="padding: 8px; width: 20%;">單位</th>
-                                    <th style="padding: 8px; width: 20%;">分區</th>
-                                    <th style="padding: 8px; width: 15%;">得票數</th>
-                                    <th style="padding: 8px; width: 10%;">狀態</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-                
-                if (filteredCands.length === 0) {
-                    html += `<tr><td colspan="6" style="padding: 8px; text-align: center;">無得票紀錄</td></tr>`;
-                } else {
-                    filteredCands.forEach(c => {
-                        html += `
-                            <tr>
-                                <td style="padding: 8px;">${c.number || ''}</td>
-                                <td style="padding: 8px; font-weight: bold;">${c.name}</td>
-                                <td style="padding: 8px;">${c.unit || ''}</td>
-                                <td style="padding: 8px;">${c.district || ''}</td>
-                                <td style="padding: 8px; font-weight: bold;">${c.roundTotalVotes}</td>
-                                <td style="padding: 8px;">${c.roundIsElected ? '✔️當選' : ''}</td>
-                            </tr>
-                        `;
-                    });
-                }
-                
-                html += `</tbody></table></div>`;
+                html += renderSingleRoundTallyReportHtml(item, round, digitalVotesMap, digitalUsed, digitalBlank);
             }
         }
         
@@ -4262,6 +4211,177 @@ window.printElectionResults = async function() {
             window.print();
         }, 500);
         
+    } catch (e) {
+        console.error(e);
+        Swal.fire('錯誤', '產生報表失敗: ' + e.message, 'error');
+    }
+};
+
+// 渲染單一輪次開票報表 HTML (含得票數變動時的虛線與誦讀指引標籤)
+function renderSingleRoundTallyReportHtml(item, round, digitalVotesMap, digitalUsed, digitalBlank) {
+    const digitalIssued = round.digital_issued || 0;
+    const paperIssued = round.paper_issued || 0;
+    const paperReceived = round.paper_received || 0;
+    const paperBlank = round.paper_blank || 0;
+    
+    const totalIssued = digitalIssued + paperIssued;
+    const totalReceived = digitalUsed + paperReceived;
+    const totalBlank = digitalBlank + paperBlank;
+    
+    const cIds = round.candidate_ids || [];
+    const roundCands = cIds.map(id => allCandidates.find(c => c.id === id)).filter(Boolean);
+    const electedIds = round.elected_ids || [];
+    
+    roundCands.forEach(c => {
+        c.roundTotalVotes = (digitalVotesMap[c.id] || 0) + (round.paper_votes && round.paper_votes[c.id] ? parseInt(round.paper_votes[c.id]) : 0);
+        c.roundIsElected = electedIds.includes(c.id);
+    });
+    
+    const filteredCands = roundCands.filter(c => c.roundTotalVotes > 0 || c.roundIsElected);
+    
+    // 得票數由高到低排序 (得票數相同時，依編號自然由小到大排序)
+    filteredCands.sort((a, b) => {
+        if (b.roundTotalVotes !== a.roundTotalVotes) return b.roundTotalVotes - a.roundTotalVotes;
+        return String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true });
+    });
+    
+    const rNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+    const rName = rNames[round.id] || round.id;
+    
+    let html = `
+        <div class="page-break mb-4">
+            <h3 style="border-bottom: 2px solid #333; padding-bottom: 5px;">${item.title} - ${rName} 開票報表</h3>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold; background: #f0f0f0; padding: 10px; border-radius: 5px;">
+                <span>出席人數：${(round.attending_count !== undefined && round.attending_count !== null && round.attending_count > 0) ? round.attending_count : '-'}</span>
+                <span>總發票數：${totalIssued}</span>
+                <span>總收票數(含空白)：${totalReceived}</span>
+                <span>總空白票數：${totalBlank}</span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; text-align: left;" border="1">
+                <thead>
+                    <tr style="background: #e9ecef;">
+                        <th style="padding: 8px; width: 10%;">號次</th>
+                        <th style="padding: 8px; width: 25%;">姓名</th>
+                        <th style="padding: 8px; width: 20%;">單位</th>
+                        <th style="padding: 8px; width: 20%;">分區</th>
+                        <th style="padding: 8px; width: 15%;">得票數</th>
+                        <th style="padding: 8px; width: 10%;">狀態</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    if (filteredCands.length === 0) {
+        html += `<tr><td colspan="6" style="padding: 8px; text-align: center;">無得票紀錄</td></tr>`;
+    } else {
+        let lastVote = null;
+        filteredCands.forEach(c => {
+            if (c.roundTotalVotes !== lastVote) {
+                lastVote = c.roundTotalVotes;
+                html += `
+                    <tr style="background-color: #f1f3f5;">
+                        <td colspan="6" style="padding: 6px 12px; font-weight: bold; font-size: 0.95rem; color: #212529; border-top: 2px dashed #495057; border-bottom: 2px dashed #495057; text-align: center; letter-spacing: 1px;">
+                            ------ 以下 獲得 ${c.roundTotalVotes} 票 候選人名單 ------
+                        </td>
+                    </tr>
+                `;
+            }
+            html += `
+                <tr>
+                    <td style="padding: 8px;">${c.number || ''}</td>
+                    <td style="padding: 8px; font-weight: bold;">${c.name}</td>
+                    <td style="padding: 8px;">${c.unit || ''}</td>
+                    <td style="padding: 8px;">${c.district || ''}</td>
+                    <td style="padding: 8px; font-weight: bold; color: #0d6efd;">${c.roundTotalVotes} 票</td>
+                    <td style="padding: 8px;">${c.roundIsElected ? '<span style="font-weight: bold; color: #198754;">✔️ 當選</span>' : ''}</td>
+                </tr>
+            `;
+        });
+    }
+    
+    html += `</tbody></table></div>`;
+    return html;
+}
+
+// 列印單一輪次開票報表 (由開票中心一鍵觸發)
+window.printSingleRoundResults = async function(itemId, roundId) {
+    if (!itemId || !roundId) {
+        itemId = currentTallyData.itemId;
+        roundId = currentTallyData.roundId;
+    }
+    if (!itemId || !roundId) {
+        return Swal.fire('提示', '請先載入輪次開票資料', 'warning');
+    }
+
+    Swal.fire({
+        title: '產生本輪報表中...',
+        html: '正在核算本輪次得票與當選數據，請稍候。',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const db = window.firebaseDb;
+        const container = document.getElementById('printContainer');
+        container.innerHTML = '';
+        
+        // 加入浮水印
+        if (currentElectionData && currentElectionData.org_id) {
+            const assetDoc = await window.fs.getDoc(window.fs.doc(db, 'org_assets', currentElectionData.org_id));
+            if (assetDoc.exists() && assetDoc.data().seal_url) {
+                container.innerHTML += `<img src="${assetDoc.data().seal_url}" class="watermark-bg">`;
+            }
+        }
+
+        const item = allItems.find(i => i.id === itemId);
+        const roundDoc = await window.fs.getDoc(window.fs.doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId));
+        if (!roundDoc.exists()) throw new Error("找不到該輪次資料");
+        const round = { id: roundDoc.id, ...roundDoc.data() };
+
+        const votesSnap = await window.fs.getDocs(window.fs.query(
+            window.fs.collection(db, 'elections', currentElectionId, 'votes'),
+            window.fs.where('item_id', '==', itemId),
+            window.fs.where('round_id', '==', roundId)
+        ));
+
+        let digitalBlank = 0;
+        let digitalVotesMap = {};
+        votesSnap.forEach(doc => {
+            const d = doc.data();
+            if (d.candidate_ids && d.candidate_ids.length === 0) {
+                digitalBlank++;
+            } else if (d.candidate_ids) {
+                d.candidate_ids.forEach(cid => {
+                    digitalVotesMap[cid] = (digitalVotesMap[cid] || 0) + 1;
+                });
+            }
+        });
+
+        const keysSnap = await window.fs.getDocs(window.fs.query(
+            window.fs.collection(db, 'elections', currentElectionId, 'keys'),
+            window.fs.where('item_id', '==', itemId),
+            window.fs.where('round_id', '==', roundId),
+            window.fs.where('status', '==', 'USED')
+        ));
+        const digitalUsed = keysSnap.size;
+
+        const printTime = new Date().toLocaleString('zh-TW', { hour12: false });
+        let html = `
+            <div class="text-center mb-4">
+                <h1 style="font-weight: 900;">${currentElectionData ? currentElectionData.name : '選舉'}</h1>
+                <p class="text-muted">列印時間：${printTime}</p>
+            </div>
+        `;
+
+        html += renderSingleRoundTallyReportHtml(item, round, digitalVotesMap, digitalUsed, digitalBlank);
+
+        container.innerHTML += html;
+        Swal.close();
+
+        setTimeout(() => {
+            window.print();
+        }, 500);
+
     } catch (e) {
         console.error(e);
         Swal.fire('錯誤', '產生報表失敗: ' + e.message, 'error');
