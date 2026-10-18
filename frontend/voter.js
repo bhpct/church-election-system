@@ -226,8 +226,9 @@ function buildBallotUI() {
         const allDistrictsInOrder = [...new Set(Object.values(candidatesMap).map(c => c.district).filter(Boolean))];
         
         allDistrictsInOrder.forEach(dist => {
-            if (activeDistricts[dist]) {
-                districtDetails.push(`[${dist}] 應選 ${activeDistricts[dist]} 名`);
+            const q = activeDistricts[dist] !== undefined ? parseInt(activeDistricts[dist]) : 0;
+            if (q > 0) {
+                districtDetails.push(`[${dist}] 應選 ${q} 名`);
             }
         });
 
@@ -367,21 +368,39 @@ function openCandidatePicker(slotIndex) {
         });
     }
 
+    // 取得候選人清單
+    let candidateList = (roundData.candidate_ids || [])
+        .map(cid => candidatesMap[cid] ? { id: cid, ...candidatesMap[cid] } : null)
+        .filter(Boolean);
+
+    // 第一輪或常規輪次：依候選人號碼自然排序 (1, 2, 3... 10, 11...)
+    if (roundData.id === 'round_1') {
+        candidateList.sort((a, b) => {
+            return String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true });
+        });
+    }
+
     let visibleCount = 0;
-    roundData.candidate_ids.forEach(cid => {
+    candidateList.forEach(c => {
+        const cid = c.id;
         if (isForcedCell) {
             if (cid !== forcedId) return;
         } else {
             if (cid === forcedId) return;
         }
 
-        const c = candidatesMap[cid];
-        if (!c) return;
+        // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不在候選名單中出現！
+        if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+            const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
+            if (distQuota <= 0) {
+                return; // 該分區名額為 0，不顯示
+            }
+        }
 
         const isAlreadySelected = allSelectedVals.includes(cid);
         let isDistrictFull = false;
         if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
-            const limit = activeDistricts[c.district] || 1;
+            const limit = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
             const currentCount = selectedDistrictsCount[c.district] || 0;
             if (currentCount >= limit) {
                 isDistrictFull = true;
@@ -504,16 +523,34 @@ function renderSearchResults(queryText) {
         });
     }
 
+    // 取得候選人清單
+    let candidateList = (roundData.candidate_ids || [])
+        .map(cid => candidatesMap[cid] ? { id: cid, ...candidatesMap[cid] } : null)
+        .filter(Boolean);
+
+    // 第一輪或常規輪次：依候選人號碼自然排序
+    if (roundData.id === 'round_1') {
+        candidateList.sort((a, b) => {
+            return String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true });
+        });
+    }
+
     let matchCount = 0;
-    roundData.candidate_ids.forEach(cid => {
+    candidateList.forEach(c => {
+        const cid = c.id;
         if (isForcedCell) {
             if (cid !== forcedId) return;
         } else {
             if (cid === forcedId) return;
         }
 
-        const c = candidatesMap[cid];
-        if (!c) return;
+        // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不納入搜尋
+        if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+            const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
+            if (distQuota <= 0) {
+                return; // 該分區名額為 0，不顯示
+            }
+        }
 
         const rawSearchStr = `${c.number || ''} ${c.name} ${c.district || ''} ${c.unit || ''}`;
         const searchStr = rawSearchStr.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248)).toLowerCase();
@@ -522,7 +559,7 @@ function renderSearchResults(queryText) {
             const isAlreadySelected = allSelectedVals.includes(cid);
             let isDistrictFull = false;
             if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
-                const limit = activeDistricts[c.district] || 1;
+                const limit = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
                 const currentCount = selectedDistrictsCount[c.district] || 0;
                 if (currentCount >= limit) {
                     isDistrictFull = true;

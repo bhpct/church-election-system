@@ -363,11 +363,19 @@ window.syncPendingRoundsWithGlobalCandidates = async function() {
         let updatesCount = 0;
 
         for (const item of allItems) {
+            // 確保候選人依號碼自然排序
+            allCandidates.sort((a, b) => String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true }));
+
             // 計算這個 item 該有的預設候選人
             let initialCandidateIds = allCandidates.filter(c => {
                 if (c.is_ineligible) return false; // 全域不可被選
                 if (item.exclude_elected && c.elected_item && c.elected_item.trim() !== '') return false; // 排除已當選
                 if (item.qualifications && item.qualifications.length > 0 && !item.qualifications.includes(c.qualification)) return false; // 資格不符
+                // 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+                if (item.require_district && item.selected_districts && c.id !== item.forced_candidate_id) {
+                    const distQuota = item.selected_districts[c.district] !== undefined ? parseInt(item.selected_districts[c.district]) : 0;
+                    if (distQuota <= 0) return false;
+                }
                 return true;
             }).map(c => c.id);
 
@@ -991,6 +999,9 @@ window.syncAllPendingRoundsCandidates = async function() {
         allCandidates = [];
         cSnap.forEach(d => allCandidates.push({ id: d.id, ...d.data() }));
 
+        // 嚴格依候選人編號自然排序
+        allCandidates.sort((a, b) => String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true }));
+
         const itemsSnap = await getDocs(collection(db, 'elections', currentElectionId, 'items'));
         let syncBatch = writeBatch(db);
         let syncOpCount = 0;
@@ -1010,21 +1021,32 @@ window.syncAllPendingRoundsCandidates = async function() {
                     let candidateIds = roundData.candidate_ids || [];
                     let updatedIds = [];
 
+                    const distDict = roundData.selected_districts || itemData.selected_districts;
+
                     // 若是第一輪 (round_1) 或尚未產生過名單，全量依資格過濾
                     if (roundDoc.id === 'round_1' || candidateIds.length === 0) {
                         updatedIds = allCandidates.filter(c => {
                             if (c.is_ineligible) return false;
                             if (excludeElected && c.elected_item && c.elected_item.trim() !== '' && c.elected_item !== itemData.title) return false;
                             if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
+                            // 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+                            if (itemData.require_district && distDict && c.id !== forcedCandidateId) {
+                                const distQuota = distDict[c.district] !== undefined ? parseInt(distDict[c.district]) : 0;
+                                if (distQuota <= 0) return false;
+                            }
                             return true;
                         }).map(c => c.id);
                     } else {
-                        // 後續輪次：嚴格剃除已在其他項次當選者或被標記不可被選者
+                        // 後續輪次：嚴格剔除已在其他項次當選者、不可被選者，以及若該輪分區名額 <= 0 者
                         updatedIds = candidateIds.filter(cid => {
                             const c = allCandidates.find(cand => cand.id === cid);
                             if (!c) return false;
                             if (c.is_ineligible) return false;
                             if (excludeElected && c.elected_item && c.elected_item.trim() !== '' && c.elected_item !== itemData.title) return false;
+                            if (itemData.require_district && distDict && cid !== forcedCandidateId) {
+                                const distQuota = distDict[c.district] !== undefined ? parseInt(distDict[c.district]) : 0;
+                                if (distQuota <= 0) return false;
+                            }
                             return true;
                         });
                     }
@@ -1426,6 +1448,9 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
             createdAt: serverTimestamp()
         });
 
+        // 確保候選人依號碼自然排序
+        allCandidates.sort((a, b) => String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true }));
+
         // 核心過濾邏輯 (為第一輪產生預設名單)
         let initialCandidateIds = allCandidates.filter(c => {
             // (1) 全域不可被選：直接剔除
@@ -1436,6 +1461,12 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
             
             // (3) 候選資格限制：若有設定，必須符合其中之一
             if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
+
+            // (4) 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+            if (reqDistrict && selectedDistricts && c.id !== forcedCandidateId) {
+                const distQuota = selectedDistricts[c.district] !== undefined ? parseInt(selectedDistricts[c.district]) : 0;
+                if (distQuota <= 0) return false;
+            }
             
             return true;
         }).map(c => c.id);
@@ -1835,11 +1866,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 updatedAt: serverTimestamp()
             });
 
+            // 確保候選人依號碼自然排序
+            allCandidates.sort((a, b) => String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true }));
+
             // 2. 重新計算並篩選候選人名單
             let initialCandidateIds = allCandidates.filter(c => {
                 if (c.is_ineligible) return false;
                 if (excludeElected && c.elected_item && c.elected_item.trim() !== '' && c.elected_item !== title) return false;
                 if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
+                // 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+                if (reqDistrict && selectedDistricts && c.id !== forcedCandidateId) {
+                    const distQuota = selectedDistricts[c.district] !== undefined ? parseInt(selectedDistricts[c.district]) : 0;
+                    if (distQuota <= 0) return false;
+                }
                 return true;
             }).map(c => c.id);
 
