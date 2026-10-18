@@ -146,16 +146,18 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                opacity: var(--seal-opacity, 0.15);
+                opacity: var(--seal-opacity, 0.12);
                 width: 60%;
                 pointer-events: none;
-                z-index: 10;
-                mix-blend-mode: multiply;
+                z-index: 0;
             }
-            /* Ensure table rows do not block the watermark if they have backgrounds */
-            #printContainer table {
+            /* Ensure table rows and report text sit strictly above the watermark */
+            #printContainer table, #printContainer div, #printContainer h1, #printContainer h2, #printContainer h3, #printContainer p, #printContainer .page-break {
                 position: relative;
                 z-index: 1;
+            }
+            #printContainer table th, #printContainer table td {
+                background: transparent !important;
             }
         }
 
@@ -285,9 +287,9 @@
                                             <div class="p-2 rounded" style="background-color: #fff3cd; border: 1px solid #ffe69c;">
                                                 <div class="form-check form-switch d-flex align-items-center justify-content-between mb-0">
                                                     <label class="form-check-label fw-bold text-dark mb-0" for="globalEnableTutorial">
-                                                        <i class="fas fa-graduation-cap text-warning me-1"></i> 開啟新手教學 (預設開啟)
+                                                        <i class="fas fa-graduation-cap text-warning me-1"></i> 開啟新手教學 (預設關閉)
                                                     </label>
-                                                    <input class="form-check-input ms-2" type="checkbox" role="switch" id="globalEnableTutorial" checked style="transform: scale(1.2);">
+                                                    <input class="form-check-input ms-2" type="checkbox" role="switch" id="globalEnableTutorial" style="transform: scale(1.2);">
                                                 </div>
                                             </div>
                                         </div>
@@ -839,28 +841,31 @@
   </div>
 </div>
 
-<!-- 修改輪次參數 Modal -->
-<div class="modal fade" id="editRoundModal" tabindex="-1">
+<!-- 修改項次參數 Modal -->
+<div class="modal fade" id="editItemModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content border-primary">
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title"><i class="fas fa-edit"></i> 修改輪次參數：<span id="editRoundTitleDisplay"></span></h5>
+        <h5 class="modal-title"><i class="fas fa-edit"></i> 修改選舉項次參數：<span id="editItemTitleDisplay"></span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body bg-light">
-        <input type="hidden" id="editRoundItemId">
-        <input type="hidden" id="editRoundRoundId">
-        <form id="editRoundForm">
+        <input type="hidden" id="editItemItemId">
+        <form id="editItemForm">
           <div class="alert alert-info py-2 small">
-              <i class="fas fa-info-circle"></i> 在此修改的參數將會覆寫該項次的預設值，且僅對此「單一輪次」生效。
+              <i class="fas fa-info-circle"></i> 在此修改的參數將套用至此整個選舉項次，並自動同步至所有尚未開始 (未開始投票) 的輪次，重新篩選符合資格之候選人名單。
           </div>
           <div class="mb-3">
-            <label class="form-label fw-bold">本輪應選名額 <span class="text-danger">*</span></label>
-            <input type="number" class="form-control border-primary" id="editRoundSeatsInput" min="1" required>
+            <label class="form-label fw-bold">項次名稱 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control border-primary" id="editItemTitleInput" required placeholder="例如：長老選舉、執事選舉">
           </div>
           <div class="mb-3">
-            <label class="form-label fw-bold">允許的候選資格 (過濾用)</label>
-            <div id="editRoundQualCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm">
+            <label class="form-label fw-bold">總應選名額 <span class="text-danger">*</span></label>
+            <input type="number" class="form-control border-primary" id="editItemSeatsInput" min="1" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">允許的候選資格 (限定資格)</label>
+            <div id="editItemQualCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm">
                 <small class="text-muted">載入中...</small>
             </div>
             <small class="text-muted d-block mt-1">請勾選允許參與此項次的資格，空白代表不限制。</small>
@@ -868,37 +873,36 @@
           <hr>
           <h6 class="fw-bold mb-3 text-primary">進階篩選與保障機制</h6>
           <div class="form-check form-switch mb-3">
-            <input class="form-check-input bg-warning" type="checkbox" id="editRoundForcedCandidateInput">
-            <label class="form-check-label text-warning fw-bold" for="editRoundForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
+            <input class="form-check-input bg-warning" type="checkbox" id="editItemForcedCandidateInput">
+            <label class="form-check-label text-warning fw-bold" for="editItemForcedCandidateInput">共識薦選保留候選 (強制保障一名)</label>
             <div class="text-muted small mt-1">開啟後，可指定一位候選人，該名額在選票上將獨立呈現。開啟保留是強迫占用 1 個名額給予保留人員，保留人員若無當選，選舉結果會缺額 1 名。</div>
           </div>
-          <div class="mb-3" id="editRoundForcedCandidateSelectContainer" style="display:none;">
-            <select class="form-select border-warning" id="editRoundForcedCandidateSelect">
+          <div class="mb-3" id="editItemForcedCandidateSelectContainer" style="display:none;">
+            <select class="form-select border-warning" id="editItemForcedCandidateSelect">
                 <option value="">請選擇保留的候選人...</option>
             </select>
           </div>
           <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" id="editRoundExcludeElectedInput" checked>
-            <label class="form-check-label" for="editRoundExcludeElectedInput"><strong>自動排除已當選者</strong></label>
+            <input class="form-check-input" type="checkbox" id="editItemExcludeElectedInput" checked>
+            <label class="form-check-label" for="editItemExcludeElectedInput"><strong>自動排除已當選者</strong></label>
+            <div class="text-muted small">開啟後，已在其他項次當選者將自動從候選名單中排除。</div>
           </div>
           <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="editRoundDistrictReqInput">
-            <label class="form-check-label" for="editRoundDistrictReqInput"><strong>強制分區競選限制</strong></label>
+            <input class="form-check-input" type="checkbox" id="editItemDistrictReqInput">
+            <label class="form-check-label" for="editItemDistrictReqInput"><strong>強制分區競選限制</strong></label>
           </div>
-          <div id="editRoundDistrictCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm mb-3" style="display:none;">
+          <div id="editItemDistrictCheckboxesContainer" class="p-3 bg-white border rounded shadow-sm mb-3" style="display:none;">
             <small class="text-muted fw-bold text-primary">
-              勾選數量規則：<br>
-              勾選數量規則：<br>
-              各區應選人數加總要與「應選名額」一致。<br>
-              倘若同時間有勾選保留候選，則各區應選人數加總要與「應選名額 + 1」一致。
+              各區應選人數加總要與「總應選名額」一致。<br>
+              倘若同時間有勾選保留候選，則各區應選人數加總要與「總應選名額 + 1」一致。
             </small>
-            <div id="editRoundDistrictCheckboxesList" class="row mt-2"></div>
+            <div id="editItemDistrictCheckboxesList" class="row mt-2"></div>
           </div>
         </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-primary" id="saveEditRoundBtn">儲存輪次專屬設定</button>
+        <button type="button" class="btn btn-primary" id="saveEditItemBtn">儲存項次參數並同步待命輪次</button>
       </div>
     </div>
   </div>
@@ -1176,6 +1180,24 @@
                 <span>
                     <strong>不進行自動篩選</strong><br>
                     <small class="text-muted">直接將所有尚未當選的候選人帶入下一輪，再由您手動微調。</small>
+                </span>
+            </label>
+        </div>
+
+        <h6 class="fw-bold mt-4 mb-2"><i class="fas fa-sort-amount-down"></i> 下一輪候選人名單呈現排序</h6>
+        <div class="list-group mb-3">
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardSortOrder" value="VOTES_DESC" checked>
+                <span>
+                    <strong>依本輪得票數由高至低排列 (推薦)</strong><br>
+                    <small class="text-muted">晉級候選人優先以票數多寡排列，同票者再依原始編號排序。</small>
+                </span>
+            </label>
+            <label class="list-group-item d-flex gap-2">
+                <input class="form-check-input flex-shrink-0" type="radio" name="wizardSortOrder" value="NUMBER_ASC">
+                <span>
+                    <strong>依原始候選人編號由小至大排列</strong><br>
+                    <small class="text-muted">維持名冊初始設定之編號順序。</small>
                 </span>
             </label>
         </div>

@@ -149,7 +149,7 @@ async function handleVerifyKey() {
             electionData.first_active_item_id === itemData.id &&
             electionData.first_active_round_id === roundId
         );
-        const tutorialEnabled = (electionData.enable_tutorial !== false);
+        const tutorialEnabled = (electionData.enable_tutorial === true);
 
         if (isFirstEverSession && tutorialEnabled && !localStorage.getItem(`tutorial_completed_${currentElectionId}`)) {
             startTutorial();
@@ -181,9 +181,16 @@ async function loadCandidatesForBallot(candidateIds) {
     const candidatesRef = collection(db, 'elections', currentElectionId, 'candidates');
     const snaps = await getDocs(candidatesRef);
 
+    const excludeElected = (itemData && itemData.exclude_elected !== false);
+
     snaps.forEach(snap => {
         if (candidateIds.includes(snap.id)) {
-            candidatesMap[snap.id] = snap.data();
+            const data = snap.data();
+            // 雙重防禦：若該項次設定排除已當選，且此人已在其他項次當選，則不列入選票名單
+            if (excludeElected && data.elected_item && data.elected_item.trim() !== '' && data.elected_item !== itemData.title) {
+                return;
+            }
+            candidatesMap[snap.id] = data;
         }
     });
 }

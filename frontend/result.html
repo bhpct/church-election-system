@@ -561,6 +561,13 @@
                 const allItems = [];
                 itemsSnap.forEach(d => allItems.push({ id: d.id, ...d.data() }));
 
+                // 依建立時間嚴格排序，確保手機端順序與操作者輸入/投影畫面完全一致
+                allItems.sort((a, b) => {
+                    const tA = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : (a.createdAt.seconds ? a.createdAt.seconds * 1000 : 0)) : 0;
+                    const tB = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : (b.createdAt.seconds ? b.createdAt.seconds * 1000 : 0)) : 0;
+                    return tA - tB;
+                });
+
                 // Fetch all candidates
                 const candsSnap = await db.collection('elections').doc(electionId).collection('candidates').get();
                 const allCandidates = [];
