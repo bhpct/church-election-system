@@ -8,6 +8,7 @@ let electionData = null;
 let itemData = null;
 let roundData = null;
 let candidatesMap = {}; // 允許投票的候選人
+let allElectionCandidatesMap = {}; // 全場候選人資料庫名單 (用於新手練習模式)
 let unsubscribeRound = null;
 
 let unsubscribeElection = null;
@@ -35,13 +36,54 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('btnVerifyKey')?.addEventListener('click', handleVerifyKey);
     document.getElementById('btnSubmitVote')?.addEventListener('click', handleSubmitVote);
     
-    // 新手教學模擬送出按鈕事件
+    // 新手教學模擬送出按鈕事件 (含選擇清單摘要與再練習一次)
     document.getElementById('btnTutorialSimulateSubmit')?.addEventListener('click', () => {
+        const slots = document.querySelectorAll('.ballot-slot-card');
+        const selectedList = [];
+
+        slots.forEach((s, idx) => {
+            const val = s.querySelector('.ballot-vote-val')?.value;
+            const cand = val ? (candidatesMap[val] || allElectionCandidatesMap[val]) : null;
+            if (cand) {
+                selectedList.push(`• 圈選欄 ${idx + 1}：<strong class="text-primary fs-6">${cand.name}</strong> <span class="badge bg-secondary">${cand.number || '-'}號</span> <small class="text-muted">(${cand.district || ''} ${cand.unit || ''})</small>`);
+            } else {
+                selectedList.push(`• 圈選欄 ${idx + 1}：<span class="text-muted fw-bold">（未圈選 / 空白票）</span>`);
+            }
+        });
+
         Swal.fire({
-            title: '🎉 模擬練習成功！',
-            html: '恭喜您已成功完成候選人圈選練習！<br><span class="text-muted small mt-2 d-block">⚠️ 此為操作模擬，不會消耗您的金鑰，亦不會計入正式選票。<br>請保持畫面開啟，靜候主席正式宣布開始投票。</span>',
+            title: '🎉 模擬練習送出成功！',
+            html: `
+                <div class="alert alert-warning text-start small py-2 mb-3 border-warning" style="background-color: #fff3cd;">
+                    <div class="fw-bold text-danger mb-1"><i class="fas fa-exclamation-triangle me-1"></i> 練習中・非正式選舉</div>
+                    此為大會投票模擬操作練習，<strong>未消耗您的選票金鑰，亦不計入正式開票數據</strong>。
+                </div>
+                <div class="text-start p-3 bg-light rounded border mb-3 small">
+                    <h6 class="fw-bold text-dark mb-2"><i class="fas fa-check-circle text-success me-1"></i> 您剛才模擬圈選的內容：</h6>
+                    ${selectedList.join('<br>')}
+                </div>
+                <p class="text-muted small mb-0">您可以點擊「<b>再練習一次</b>」清空重新圈選，或點擊「<b>靜候正式投票</b>」等待主席宣布正式投票。</p>
+            `,
             icon: 'success',
-            confirmButtonText: '我知道了，等待投票開始'
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-redo me-1"></i> 再練習一次',
+            cancelButtonText: '<i class="fas fa-clock me-1"></i> 靜候正式投票',
+            confirmButtonColor: '#0d6efd',
+            cancelButtonColor: '#6c757d',
+            allowOutsideClick: false
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // 再練習一次：清空選票重新建構練習介面
+                buildBallotUI();
+                Swal.fire({
+                    toast: true,
+                    position: 'top',
+                    timer: 2000,
+                    showConfirmButton: false,
+                    icon: 'info',
+                    title: '模擬選票已重置，您可以再次練習圈選！'
+                });
+            }
         });
     });
 
@@ -210,13 +252,16 @@ function showTutorialMode(isTutorial) {
     const simBtn = document.getElementById('btnTutorialSimulateSubmit');
 
     if (isTutorial) {
-        isCurrentInTutorialMode = true;
+        if (!isCurrentInTutorialMode) {
+            isCurrentInTutorialMode = true;
+            buildBallotUI();
+        }
         if (banner) banner.style.display = 'block';
         if (submitBtn) submitBtn.style.display = 'none';
         if (simBtn) simBtn.style.display = 'block';
     } else {
         if (isCurrentInTutorialMode) {
-            // 從教學練習模式切回正式狀態，清空練習時所點選的暫存內容，還原為初始空白狀態
+            // 從教學練習模式切回正式狀態，清空練習時所點選的暫存內容，還原為正式選票
             isCurrentInTutorialMode = false;
             buildBallotUI();
         }
@@ -284,29 +329,34 @@ function setupLiveStateListener(electionId, itemId, roundId) {
     });
 }
 
-// 載入該輪候選人
+// 載入該輪候選人與全場候選人資料庫名單
 async function loadCandidatesForBallot(candidateIds) {
-    if (!candidateIds || candidateIds.length === 0) return;
-    
     const { collection, getDocs } = window.fs;
     const db = window.firebaseDb;
 
     candidatesMap = {};
+    allElectionCandidatesMap = {};
     
-    // 效能優化：一次性讀取所有候選人，避免 N+1 查詢瓶頸
+    // 效能優化：一次性讀取所有候選人
     const candidatesRef = collection(db, 'elections', currentElectionId, 'candidates');
     const snaps = await getDocs(candidatesRef);
 
     const excludeElected = (itemData && itemData.exclude_elected !== false);
 
     snaps.forEach(snap => {
-        if (candidateIds.includes(snap.id)) {
-            const data = snap.data();
+        const data = snap.data();
+        if (data.is_ineligible) return; // 全域不可被選者直接排除
+
+        // 全場候選人資料庫名單 (用於新手練習模式)
+        allElectionCandidatesMap[snap.id] = { id: snap.id, ...data };
+
+        // 正式輪次名單
+        if (candidateIds && candidateIds.includes(snap.id)) {
             // 雙重防禦：若該項次設定排除已當選，且此人已在其他項次當選，則不列入選票名單
             if (excludeElected && data.elected_item && data.elected_item.trim() !== '' && data.elected_item !== itemData.title) {
                 return;
             }
-            candidatesMap[snap.id] = data;
+            candidatesMap[snap.id] = { id: snap.id, ...data };
         }
     });
 }
@@ -319,48 +369,59 @@ let searchModalInitialized = false;
 
 // 建立選票介面 (卡片槽位 + 雙按鈕分流：瀏覽 vs 搜尋)
 function buildBallotUI() {
-    const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
-    const rName = roundNames[roundData.id] || roundData.id;
+    const isPractice = (isCurrentInTutorialMode === true);
+    const quota = isPractice ? 2 : (parseInt(roundData.seats !== undefined ? roundData.seats : itemData.seats) || 1);
 
-    document.getElementById('ballotElectionName').textContent = electionData.name;
-    document.getElementById('ballotItemRoundName').textContent = `${itemData.title} - ${rName}`;
-    
-    const quota = parseInt(roundData.seats !== undefined ? roundData.seats : itemData.seats) || 1;
-    document.getElementById('ballotQuota').textContent = quota;
-    
-    // 取得當前輪次的有效分區配置 (優先使用輪次設定，否則使用全局設定)
-    const activeDistricts = roundData.selected_districts || itemData.selected_districts;
-    
-    const container = document.getElementById('ballotSelectionsContainer');
-    container.innerHTML = '';
-    
     const districtRuleEl = document.getElementById('ballotDistrictRule');
-    
-    // 如果有分區限制，詳細列出各區應選名額
-    if (itemData.require_district && activeDistricts) {
-        let districtDetails = [];
-        const allDistrictsInOrder = [...new Set(Object.values(candidatesMap).map(c => c.district).filter(Boolean))];
-        
-        allDistrictsInOrder.forEach(dist => {
-            const q = activeDistricts[dist] !== undefined ? parseInt(activeDistricts[dist]) : 0;
-            if (q > 0) {
-                districtDetails.push(`[${dist}] 應選 ${q} 名`);
-            }
-        });
 
-        if (districtDetails.length > 0) {
-            districtRuleEl.innerHTML = `(含強制分區限制)<br><div class="text-secondary fw-normal mt-1 d-inline-block text-start">配置：<br>${districtDetails.join('<br>')}</div>`;
-            districtRuleEl.style.display = 'block';
-        } else {
-            districtRuleEl.innerHTML = `(含強制分區限制)`;
+    if (isPractice) {
+        document.getElementById('ballotElectionName').textContent = electionData.name;
+        document.getElementById('ballotItemRoundName').innerHTML = `<span class="badge bg-danger text-white me-2 fs-6"><i class="fas fa-exclamation-triangle me-1"></i> 練習中・非正式選舉</span> ${itemData ? itemData.title : '選舉'} - 投票操作練習`;
+        document.getElementById('ballotQuota').textContent = '2';
+        if (districtRuleEl) {
+            districtRuleEl.innerHTML = `<span class="badge bg-warning text-dark"><i class="fas fa-info-circle me-1"></i> 練習模式開放全體候選人自由練習，不設分區限制</span>`;
             districtRuleEl.style.display = 'block';
         }
     } else {
-        districtRuleEl.style.display = 'none';
+        const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+        const rName = roundNames[roundData.id] || roundData.id;
+
+        document.getElementById('ballotElectionName').textContent = electionData.name;
+        document.getElementById('ballotItemRoundName').textContent = `${itemData.title} - ${rName}`;
+        document.getElementById('ballotQuota').textContent = quota;
+
+        // 取得當前輪次的有效分區配置 (優先使用輪次設定，否則使用全局設定)
+        const activeDistricts = roundData.selected_districts || itemData.selected_districts;
+        
+        // 如果有分區限制，詳細列出各區應選名額
+        if (itemData.require_district && activeDistricts) {
+            let districtDetails = [];
+            const allDistrictsInOrder = [...new Set(Object.values(candidatesMap).map(c => c.district).filter(Boolean))];
+            
+            allDistrictsInOrder.forEach(dist => {
+                const q = activeDistricts[dist] !== undefined ? parseInt(activeDistricts[dist]) : 0;
+                if (q > 0) {
+                    districtDetails.push(`[${dist}] 應選 ${q} 名`);
+                }
+            });
+
+            if (districtDetails.length > 0) {
+                districtRuleEl.innerHTML = `(含強制分區限制)<br><div class="text-secondary fw-normal mt-1 d-inline-block text-start">配置：<br>${districtDetails.join('<br>')}</div>`;
+                districtRuleEl.style.display = 'block';
+            } else {
+                districtRuleEl.innerHTML = `(含強制分區限制)`;
+                districtRuleEl.style.display = 'block';
+            }
+        } else {
+            districtRuleEl.style.display = 'none';
+        }
     }
 
-    // 判斷是否有保障名額
-    const forcedId = itemData.forced_candidate_id;
+    const container = document.getElementById('ballotSelectionsContainer');
+    container.innerHTML = '';
+
+    // 判斷是否有保障名額 (練習模式無保障名額限制)
+    const forcedId = isPractice ? null : itemData.forced_candidate_id;
     const forcedCand = forcedId ? candidatesMap[forcedId] : null;
 
     // 初始化 Bootstrap Offcanvas 與 Modal 實例
@@ -374,8 +435,13 @@ function buildBallotUI() {
     }
 
     for (let i = 0; i < quota; i++) {
-        const isForcedCell = (i === 0 && forcedCand);
-        
+        const isForcedCell = (!isPractice && i === 0 && forcedCand);
+        let practicePrompt = '';
+        if (isPractice) {
+            if (i === 0) practicePrompt = '<span class="badge bg-primary-subtle text-primary border ms-2">建議使用 [📋 瀏覽名單]</span>';
+            if (i === 1) practicePrompt = '<span class="badge bg-success-subtle text-success border ms-2">建議使用 [🔍 快速搜尋]</span>';
+        }
+
         const slotCard = document.createElement('div');
         slotCard.className = 'card mb-3 ballot-slot-card shadow-sm border';
         slotCard.id = `ballotSlotCard_${i}`;
@@ -383,12 +449,12 @@ function buildBallotUI() {
 
         slotCard.innerHTML = `
             <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
                     <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fs-6 slot-label">
-                        圈選欄 ${i+1}${isForcedCell ? ' <span class="badge bg-warning text-dark ms-1">共識薦選保留</span>' : ''}
+                        圈選欄 ${i+1}${isForcedCell ? ' <span class="badge bg-warning text-dark ms-1">共識薦選保留</span>' : ''}${practicePrompt}
                     </span>
                     <span class="slot-status-badge text-muted small fw-bold">
-                        ${isForcedCell ? '<i class="fas fa-lock text-warning"></i> 已保留' : '尚未圈選 (空白票)'}
+                        ${isForcedCell ? '<i class="fas fa-lock text-warning"></i> 已保留' : (isPractice ? '尚未選擇 (練習中)' : '尚未圈選 (空白票)')}
                     </span>
                 </div>
                 
@@ -454,14 +520,21 @@ function buildBallotUI() {
 // 瀏覽名單挑選器 (Bottom Sheet - 100% 不叫出虛擬鍵盤，滑動流暢)
 function openCandidatePicker(slotIndex) {
     currentTargetSlotIndex = slotIndex;
+    const isPractice = (isCurrentInTutorialMode === true);
     const titleEl = document.getElementById('pickerOffcanvasTitle');
-    if (titleEl) titleEl.innerHTML = `<i class="fas fa-list-check me-2"></i>選擇候選人 (圈選欄 ${slotIndex + 1})`;
+    if (titleEl) {
+        if (isPractice) {
+            titleEl.innerHTML = `<i class="fas fa-list-check me-2"></i>選擇練習候選人 (圈選欄 ${slotIndex + 1}) <span class="badge bg-danger ms-1">⚠️ 練習中</span>`;
+        } else {
+            titleEl.innerHTML = `<i class="fas fa-list-check me-2"></i>選擇候選人 (圈選欄 ${slotIndex + 1})`;
+        }
+    }
 
     const listContainer = document.getElementById('pickerCandidateList');
     listContainer.innerHTML = '';
 
-    const forcedId = itemData.forced_candidate_id;
-    const isForcedCell = (slotIndex === 0 && forcedId);
+    const forcedId = isPractice ? null : itemData.forced_candidate_id;
+    const isForcedCell = (!isPractice && slotIndex === 0 && forcedId);
 
     // 取得目前所有已選擇的 ID (排除當前 slot)
     const currentSlots = document.querySelectorAll('.ballot-slot-card');
@@ -475,7 +548,7 @@ function openCandidatePicker(slotIndex) {
 
     const activeDistricts = roundData.selected_districts || itemData.selected_districts;
     const selectedDistrictsCount = {};
-    if (itemData.require_district && activeDistricts) {
+    if (!isPractice && itemData.require_district && activeDistricts) {
         allSelectedVals.forEach(cid => {
             if (cid !== forcedId && candidatesMap[cid] && candidatesMap[cid].district) {
                 const dist = candidatesMap[cid].district;
@@ -484,38 +557,43 @@ function openCandidatePicker(slotIndex) {
         });
     }
 
-    // 取得候選人清單
-    let candidateList = (roundData.candidate_ids || [])
-        .map(cid => candidatesMap[cid] ? { id: cid, ...candidatesMap[cid] } : null)
-        .filter(Boolean);
-
-    // 第一輪或常規輪次：依候選人號碼自然排序 (1, 2, 3... 10, 11...)
-    if (roundData.id === 'round_1') {
-        candidateList.sort((a, b) => {
-            return String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true });
-        });
+    // 取得候選人清單：練習模式使用全場候選人資料庫名單，正式投票使用當前輪次名單
+    let candidateList = [];
+    if (isPractice) {
+        candidateList = Object.values(allElectionCandidatesMap);
+    } else {
+        candidateList = (roundData.candidate_ids || [])
+            .map(cid => candidatesMap[cid] ? { id: cid, ...candidatesMap[cid] } : null)
+            .filter(Boolean);
     }
+
+    // 依候選人號碼自然排序 (1, 2, 3... 10, 11...)
+    candidateList.sort((a, b) => {
+        return String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true });
+    });
 
     let visibleCount = 0;
     candidateList.forEach(c => {
         const cid = c.id;
-        if (isForcedCell) {
-            if (cid !== forcedId) return;
-        } else {
-            if (cid === forcedId) return;
-        }
+        if (!isPractice) {
+            if (isForcedCell) {
+                if (cid !== forcedId) return;
+            } else {
+                if (cid === forcedId) return;
+            }
 
-        // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不在候選名單中出現！
-        if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
-            const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
-            if (distQuota <= 0) {
-                return; // 該分區名額為 0，不顯示
+            // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不在候選名單中出現！
+            if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+                const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
+                if (distQuota <= 0) {
+                    return; // 該分區名額為 0，不顯示
+                }
             }
         }
 
         const isAlreadySelected = allSelectedVals.includes(cid);
         let isDistrictFull = false;
-        if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+        if (!isPractice && !isForcedCell && itemData.require_district && activeDistricts && c.district) {
             const limit = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
             const currentCount = selectedDistrictsCount[c.district] || 0;
             if (currentCount >= limit) {
@@ -598,8 +676,15 @@ function initSearchModalListeners() {
 
 function openCandidateSearch(slotIndex) {
     currentTargetSlotIndex = slotIndex;
+    const isPractice = (isCurrentInTutorialMode === true);
     const titleEl = document.getElementById('searchModalTitle');
-    if (titleEl) titleEl.innerHTML = `<i class="fas fa-search me-2"></i>搜尋候選人 (圈選欄 ${slotIndex + 1})`;
+    if (titleEl) {
+        if (isPractice) {
+            titleEl.innerHTML = `<i class="fas fa-search me-2"></i>搜尋練習候選人 (圈選欄 ${slotIndex + 1}) <span class="badge bg-danger ms-1">⚠️ 練習中</span>`;
+        } else {
+            titleEl.innerHTML = `<i class="fas fa-search me-2"></i>搜尋候選人 (圈選欄 ${slotIndex + 1})`;
+        }
+    }
 
     if (searchModalInstance) {
         searchModalInstance.show();
@@ -615,8 +700,9 @@ function renderSearchResults(queryText) {
     const halfWidthVal = rawVal.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248));
     const keyword = halfWidthVal.toLowerCase();
 
-    const forcedId = itemData.forced_candidate_id;
-    const isForcedCell = (currentTargetSlotIndex === 0 && forcedId);
+    const isPractice = (isCurrentInTutorialMode === true);
+    const forcedId = isPractice ? null : itemData.forced_candidate_id;
+    const isForcedCell = (!isPractice && currentTargetSlotIndex === 0 && forcedId);
 
     // 取得其他已選出的 ID
     const currentSlots = document.querySelectorAll('.ballot-slot-card');
@@ -630,7 +716,7 @@ function renderSearchResults(queryText) {
 
     const activeDistricts = roundData.selected_districts || itemData.selected_districts;
     const selectedDistrictsCount = {};
-    if (itemData.require_district && activeDistricts) {
+    if (!isPractice && itemData.require_district && activeDistricts) {
         allSelectedVals.forEach(cid => {
             if (cid !== forcedId && candidatesMap[cid] && candidatesMap[cid].district) {
                 const dist = candidatesMap[cid].district;
@@ -639,32 +725,37 @@ function renderSearchResults(queryText) {
         });
     }
 
-    // 取得候選人清單
-    let candidateList = (roundData.candidate_ids || [])
-        .map(cid => candidatesMap[cid] ? { id: cid, ...candidatesMap[cid] } : null)
-        .filter(Boolean);
-
-    // 第一輪或常規輪次：依候選人號碼自然排序
-    if (roundData.id === 'round_1') {
-        candidateList.sort((a, b) => {
-            return String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true });
-        });
+    // 取得候選人清單：練習模式使用全場候選人資料庫名單，正式投票使用當前輪次名單
+    let candidateList = [];
+    if (isPractice) {
+        candidateList = Object.values(allElectionCandidatesMap);
+    } else {
+        candidateList = (roundData.candidate_ids || [])
+            .map(cid => candidatesMap[cid] ? { id: cid, ...candidatesMap[cid] } : null)
+            .filter(Boolean);
     }
+
+    // 依候選人號碼自然排序
+    candidateList.sort((a, b) => {
+        return String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true });
+    });
 
     let matchCount = 0;
     candidateList.forEach(c => {
         const cid = c.id;
-        if (isForcedCell) {
-            if (cid !== forcedId) return;
-        } else {
-            if (cid === forcedId) return;
-        }
+        if (!isPractice) {
+            if (isForcedCell) {
+                if (cid !== forcedId) return;
+            } else {
+                if (cid === forcedId) return;
+            }
 
-        // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不納入搜尋
-        if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
-            const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
-            if (distQuota <= 0) {
-                return; // 該分區名額為 0，不顯示
+            // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不納入搜尋
+            if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+                const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
+                if (distQuota <= 0) {
+                    return; // 該分區名額為 0，不顯示
+                }
             }
         }
 
@@ -674,7 +765,7 @@ function renderSearchResults(queryText) {
         if (keyword === '' || searchStr.includes(keyword)) {
             const isAlreadySelected = allSelectedVals.includes(cid);
             let isDistrictFull = false;
-            if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
+            if (!isPractice && !isForcedCell && itemData.require_district && activeDistricts && c.district) {
                 const limit = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
                 const currentCount = selectedDistrictsCount[c.district] || 0;
                 if (currentCount >= limit) {
@@ -724,7 +815,8 @@ function renderSearchResults(queryText) {
 
 // 將候選人設定進槽位
 function setSlotCandidate(slotIndex, cid) {
-    const c = candidatesMap[cid];
+    const isPractice = (isCurrentInTutorialMode === true);
+    const c = candidatesMap[cid] || allElectionCandidatesMap[cid];
     if (!c) return;
 
     const slotCard = document.getElementById(`ballotSlotCard_${slotIndex}`);
@@ -742,7 +834,7 @@ function setSlotCandidate(slotIndex, cid) {
     slotCard.querySelector('.slot-candidate-dist').textContent = (c.district || '') + ' ' + (c.unit || '');
     
     const numBadge = slotCard.querySelector('.slot-candidate-num');
-    const isForcedCell = (slotIndex === 0 && itemData.forced_candidate_id === cid);
+    const isForcedCell = (!isPractice && slotIndex === 0 && itemData.forced_candidate_id === cid);
     if (isForcedCell) {
         numBadge.className = 'badge bg-warning text-dark me-2 slot-candidate-num fs-6';
         numBadge.textContent = '保障';
@@ -769,7 +861,9 @@ function setSlotCandidate(slotIndex, cid) {
 
     unselectedBox.style.setProperty('display', 'none', 'important');
     selectedBox.style.display = 'flex';
-    statusBadge.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> 已圈選</span>';
+    statusBadge.innerHTML = isPractice 
+        ? '<span class="text-success"><i class="fas fa-check-circle"></i> 已選擇 (練習)</span>' 
+        : '<span class="text-success"><i class="fas fa-check-circle"></i> 已圈選</span>';
 }
 
 // 清除槽位回空白
@@ -785,7 +879,7 @@ function clearSlotCandidate(slotIndex) {
     hiddenVal.value = '';
     selectedBox.style.display = 'none';
     unselectedBox.style.setProperty('display', 'flex', 'important');
-    statusBadge.textContent = '尚未圈選 (空白票)';
+    statusBadge.textContent = isCurrentInTutorialMode ? '尚未選擇 (練習中)' : '尚未圈選 (空白票)';
 }
 
 // 提交選票
