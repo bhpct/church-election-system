@@ -36,23 +36,80 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('btnVerifyKey')?.addEventListener('click', handleVerifyKey);
     document.getElementById('btnSubmitVote')?.addEventListener('click', handleSubmitVote);
     
-    // 新手教學模擬送出按鈕事件 (含選擇清單摘要與再練習一次)
-    document.getElementById('btnTutorialSimulateSubmit')?.addEventListener('click', () => {
+    // 新手教學模擬送出按鈕事件 (完整模擬正式選票之送出確認、空白票警告與再練習一次)
+    document.getElementById('btnTutorialSimulateSubmit')?.addEventListener('click', async () => {
         const slots = document.querySelectorAll('.ballot-slot-card');
         const selectedList = [];
+        const chosenCandidates = [];
 
         slots.forEach((s, idx) => {
             const val = s.querySelector('.ballot-vote-val')?.value;
             const cand = val ? (candidatesMap[val] || allElectionCandidatesMap[val]) : null;
             if (cand) {
+                chosenCandidates.push(cand);
                 selectedList.push(`• 圈選欄 ${idx + 1}：<strong class="text-primary fs-6">${cand.name}</strong> <span class="badge bg-secondary">${cand.number || '-'}號</span> <small class="text-muted">(${cand.district || ''} ${cand.unit || ''})</small>`);
             } else {
-                selectedList.push(`• 圈選欄 ${idx + 1}：<span class="text-muted fw-bold">（未圈選 / 空白票）</span>`);
+                selectedList.push(`• 圈選欄 ${idx + 1}：<span class="text-danger fw-bold"><i class="fas fa-times-circle"></i> （未圈選 / 空白票）</span>`);
             }
         });
 
+        const selectedCount = chosenCandidates.length;
+
+        // 步驟 1: 完全比照正式投票之「送出確認」與「空白票警告」
+        let confirmHtml = '';
+        if (selectedCount === 0) {
+            confirmHtml = `
+                <div class="p-3 bg-danger text-white rounded mb-3 border border-3 border-dark shadow">
+                    <h3 class="m-0 fw-bold"><i class="fas fa-exclamation-triangle"></i> 空白票警告（模擬練習）</h3>
+                    <p class="m-0 mt-2 fs-6">您<strong>沒有圈選任何候選人</strong>！<br>在正式投票中，此選票將以「<strong>空白票</strong>」送出！</p>
+                </div>
+                <div class="alert alert-warning py-2 mb-2 small text-start border-warning" style="background-color: #fff3cd;">
+                    <i class="fas fa-info-circle text-warning me-1"></i> <strong>教學提醒</strong>：在教會正式大會投票中，投空白票是合法的。但一旦確認送出，選票金鑰即失效，無法收回重投。
+                </div>
+                <span class="text-secondary small">此為模擬練習操作，未消耗金鑰，請選擇是否確認送出。</span>
+            `;
+        } else if (selectedCount < 2) {
+            confirmHtml = `
+                <div class="p-3 bg-warning text-dark rounded mb-3 border border-2 border-warning shadow-sm">
+                    <h4 class="m-0 fw-bold text-dark"><i class="fas fa-info-circle"></i> 部分空白提示（模擬練習）</h4>
+                    <p class="m-0 mt-2 fs-6">練習模式應選 2 位，您目前圈選了 <strong>${selectedCount}</strong> 位候選人，另一欄為<strong>空白票</strong>。</p>
+                </div>
+                <div class="text-start bg-light p-2 mb-2 border rounded fs-6">
+                    ${chosenCandidates.map(c => `<div><span class="badge bg-primary me-2">${c.number || '-'}</span> <strong>${c.name}</strong> <small class="text-muted">(${c.district || ''} ${c.unit || ''})</small></div>`).join('')}
+                </div>
+                <span class="text-secondary small">此為模擬練習操作，未消耗金鑰，請選擇是否確認送出。</span>
+            `;
+        } else {
+            const namesHtml = chosenCandidates.map(c => {
+                return `<div class="text-start bg-light p-2 mb-1 border rounded fs-6">
+                    <span class="badge bg-primary me-2">${c.number || '-'}</span> <strong>${c.name}</strong> <small class="text-muted">(${c.district || ''} ${c.unit || ''})</small>
+                </div>`;
+            }).join('');
+            confirmHtml = `
+                <h5 class="mb-3">您共模擬圈選了 <strong><span class="text-primary fs-4">${selectedCount}</span></strong> 位候選人：</h5>
+                <div style="max-height: 200px; overflow-y: auto;" class="mb-3">${namesHtml}</div>
+                <div class="alert alert-warning py-1 small text-start border-warning" style="background-color: #fff3cd;">
+                    <i class="fas fa-exclamation-triangle text-danger me-1"></i> ⚠️ 練習中・非正式選舉，未消耗選票金鑰
+                </div>
+            `;
+        }
+
+        const confirmResult = await Swal.fire({
+            title: selectedCount === 0 ? '⚠️ 空白票確認' : '確認送出選票？（模擬）',
+            html: confirmHtml,
+            icon: selectedCount === 0 ? 'warning' : 'question',
+            showCancelButton: true,
+            confirmButtonText: selectedCount === 0 ? '確定以空白票送出' : '確定送出',
+            cancelButtonText: '返回修改',
+            confirmButtonColor: selectedCount === 0 ? '#dc3545' : '#198754',
+            cancelButtonColor: '#6c757d'
+        });
+
+        if (!confirmResult.isConfirmed) return;
+
+        // 步驟 2: 模擬送出成功成果卡片（可選再練習一次或靜候正式投票）
         Swal.fire({
-            title: '🎉 模擬練習送出成功！',
+            title: selectedCount === 0 ? '🎉 空白票模擬送出完成！' : '🎉 模擬練習送出成功！',
             html: `
                 <div class="alert alert-warning text-start small py-2 mb-3 border-warning" style="background-color: #fff3cd;">
                     <div class="fw-bold text-danger mb-1"><i class="fas fa-exclamation-triangle me-1"></i> 練習中・非正式選舉</div>
