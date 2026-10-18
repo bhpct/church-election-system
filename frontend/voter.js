@@ -639,20 +639,22 @@ function openCandidatePicker(slotIndex) {
                 if (cid === forcedId) return;
             }
 
-            // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不在候選名單中出現！
-            if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
-                const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
+            // 分區限制過濾：若無分區或該分區應選配額 <= 0，且非保留名額，直接不在候選名單中出現！
+            if (!isForcedCell && itemData.require_district && activeDistricts) {
+                const distName = (c.district || '').trim();
+                const distQuota = distName && activeDistricts[distName] !== undefined ? parseInt(activeDistricts[distName]) : 0;
                 if (distQuota <= 0) {
-                    return; // 該分區名額為 0，不顯示
+                    return; // 無分區或該分區名額為 0，不顯示
                 }
             }
         }
 
         const isAlreadySelected = allSelectedVals.includes(cid);
         let isDistrictFull = false;
-        if (!isPractice && !isForcedCell && itemData.require_district && activeDistricts && c.district) {
-            const limit = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
-            const currentCount = selectedDistrictsCount[c.district] || 0;
+        if (!isPractice && !isForcedCell && itemData.require_district && activeDistricts) {
+            const distName = (c.district || '').trim();
+            const limit = distName && activeDistricts[distName] !== undefined ? parseInt(activeDistricts[distName]) : 0;
+            const currentCount = (distName && selectedDistrictsCount[distName]) || 0;
             if (currentCount >= limit) {
                 isDistrictFull = true;
             }
@@ -807,11 +809,12 @@ function renderSearchResults(queryText) {
                 if (cid === forcedId) return;
             }
 
-            // 分區限制過濾：若該分區應選配額 <= 0，且非保留名額，直接不納入搜尋
-            if (!isForcedCell && itemData.require_district && activeDistricts && c.district) {
-                const distQuota = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
+            // 分區限制過濾：若無分區或該分區應選配額 <= 0，且非保留名額，直接不納入搜尋
+            if (!isForcedCell && itemData.require_district && activeDistricts) {
+                const distName = (c.district || '').trim();
+                const distQuota = distName && activeDistricts[distName] !== undefined ? parseInt(activeDistricts[distName]) : 0;
                 if (distQuota <= 0) {
-                    return; // 該分區名額為 0，不顯示
+                    return; // 無分區或該分區名額為 0，不顯示
                 }
             }
         }
@@ -822,9 +825,10 @@ function renderSearchResults(queryText) {
         if (keyword === '' || searchStr.includes(keyword)) {
             const isAlreadySelected = allSelectedVals.includes(cid);
             let isDistrictFull = false;
-            if (!isPractice && !isForcedCell && itemData.require_district && activeDistricts && c.district) {
-                const limit = activeDistricts[c.district] !== undefined ? parseInt(activeDistricts[c.district]) : 0;
-                const currentCount = selectedDistrictsCount[c.district] || 0;
+            if (!isPractice && !isForcedCell && itemData.require_district && activeDistricts) {
+                const distName = (c.district || '').trim();
+                const limit = distName && activeDistricts[distName] !== undefined ? parseInt(activeDistricts[distName]) : 0;
+                const currentCount = (distName && selectedDistrictsCount[distName]) || 0;
                 if (currentCount >= limit) {
                     isDistrictFull = true;
                 }
@@ -964,15 +968,19 @@ async function handleSubmitVote() {
         for (const cid of selectedIds) {
             if (cid === forcedId) continue; // 保留名額不占用分區席次
             
-            const dist = candidatesMap[cid]?.district;
-            if (dist) {
-                selectedDistrictsCount[dist] = (selectedDistrictsCount[dist] || 0) + 1;
-                const limit = activeDistricts[dist] || 1;
-                if (selectedDistrictsCount[dist] > limit) {
-                    districtConflict = true;
-                    conflictMsg = `【${dist}】已超過應選人數上限 (${limit}名)！`;
-                    break;
-                }
+            const cand = candidatesMap[cid] || allElectionCandidatesMap[cid];
+            const distName = (cand?.district || '').trim();
+            if (!distName) {
+                districtConflict = true;
+                conflictMsg = `【${cand?.name || '候選人'}】未設定分區，無法於強制分區遴選項次中圈選！`;
+                break;
+            }
+            selectedDistrictsCount[distName] = (selectedDistrictsCount[distName] || 0) + 1;
+            const limit = activeDistricts[distName] !== undefined ? parseInt(activeDistricts[distName]) : 0;
+            if (selectedDistrictsCount[distName] > limit) {
+                districtConflict = true;
+                conflictMsg = `【${distName}】已超過應選人數上限 (${limit}名)！`;
+                break;
             }
         }
         

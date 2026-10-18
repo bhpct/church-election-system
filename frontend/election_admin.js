@@ -366,14 +366,15 @@ window.syncPendingRoundsWithGlobalCandidates = async function() {
             // 確保候選人依號碼自然排序
             allCandidates.sort((a, b) => String(a.number || '').localeCompare(String(b.number || ''), 'zh-TW', { numeric: true }));
 
-            // 計算這個 item 該有的預設候選人
+            // 計算這個 item 該有的預設候選人 (主要供第一輪使用)
             let initialCandidateIds = allCandidates.filter(c => {
                 if (c.is_ineligible) return false; // 全域不可被選
                 if (item.exclude_elected && c.elected_item && c.elected_item.trim() !== '') return false; // 排除已當選
                 if (item.qualifications && item.qualifications.length > 0 && !item.qualifications.includes(c.qualification)) return false; // 資格不符
-                // 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+                // 強制分區限制：若無分區或該分區應選配額 <= 0，且非保留名額，直接排除
                 if (item.require_district && item.selected_districts && c.id !== item.forced_candidate_id) {
-                    const distQuota = item.selected_districts[c.district] !== undefined ? parseInt(item.selected_districts[c.district]) : 0;
+                    const distName = (c.district || '').trim();
+                    const distQuota = distName && item.selected_districts[distName] !== undefined ? parseInt(item.selected_districts[distName]) : 0;
                     if (distQuota <= 0) return false;
                 }
                 return true;
@@ -388,12 +389,41 @@ window.syncPendingRoundsWithGlobalCandidates = async function() {
             if (item.rounds) {
                 for (const roundData of item.rounds) {
                     if (roundData.status === 'PENDING') {
+                        const distDict = roundData.selected_districts || item.selected_districts;
+                        let updatedIds = [];
+
+                        // 第一輪 (round_1) 或名單尚未被晉級精靈初始化過時，採用全局初始名單
+                        if (roundData.id === 'round_1' || !roundData.candidate_ids || roundData.candidate_ids.length === 0) {
+                            updatedIds = initialCandidateIds;
+                        } else {
+                            // 後續輪次 (round_2, round_3...)：已由晉級精靈產生過專屬晉級名單，絕不被全量名單覆蓋！
+                            // 僅嚴格剔除不可被選者、已在其他項次當選者，或該分區名額為 0 者
+                            updatedIds = roundData.candidate_ids.filter(cid => {
+                                const c = allCandidates.find(cand => cand.id === cid);
+                                if (!c || c.is_ineligible) return false;
+                                if (item.exclude_elected && c.elected_item && c.elected_item.trim() !== '' && c.elected_item !== item.title) return false;
+                                if (item.require_district && distDict && cid !== item.forced_candidate_id) {
+                                    const distName = (c.district || '').trim();
+                                    const distQuota = distName && distDict[distName] !== undefined ? parseInt(distDict[distName]) : 0;
+                                    if (distQuota <= 0) return false;
+                                }
+                                return true;
+                            });
+
+                            if (item.forced_candidate_id && !updatedIds.includes(item.forced_candidate_id)) {
+                                const forceCand = allCandidates.find(c => c.id === item.forced_candidate_id);
+                                if (forceCand && !forceCand.is_ineligible && (!item.exclude_elected || !forceCand.elected_item || forceCand.elected_item === item.title)) {
+                                    updatedIds.push(item.forced_candidate_id);
+                                }
+                            }
+                        }
+
                         const roundRef = doc(db, 'elections', currentElectionId, 'items', item.id, 'rounds', roundData.id);
-                        batch.update(roundRef, { candidate_ids: initialCandidateIds });
+                        batch.update(roundRef, { candidate_ids: updatedIds });
                         updatesCount++;
                         
                         // 更新記憶體資料
-                        roundData.candidate_ids = initialCandidateIds; 
+                        roundData.candidate_ids = updatedIds; 
                     }
                 }
             }
@@ -1029,9 +1059,10 @@ window.syncAllPendingRoundsCandidates = async function() {
                             if (c.is_ineligible) return false;
                             if (excludeElected && c.elected_item && c.elected_item.trim() !== '' && c.elected_item !== itemData.title) return false;
                             if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
-                            // 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+                            // 強制分區限制：若無分區或該分區應選配額 <= 0，且非保留名額，直接排除
                             if (itemData.require_district && distDict && c.id !== forcedCandidateId) {
-                                const distQuota = distDict[c.district] !== undefined ? parseInt(distDict[c.district]) : 0;
+                                const distName = (c.district || '').trim();
+                                const distQuota = distName && distDict[distName] !== undefined ? parseInt(distDict[distName]) : 0;
                                 if (distQuota <= 0) return false;
                             }
                             return true;
@@ -1044,7 +1075,8 @@ window.syncAllPendingRoundsCandidates = async function() {
                             if (c.is_ineligible) return false;
                             if (excludeElected && c.elected_item && c.elected_item.trim() !== '' && c.elected_item !== itemData.title) return false;
                             if (itemData.require_district && distDict && cid !== forcedCandidateId) {
-                                const distQuota = distDict[c.district] !== undefined ? parseInt(distDict[c.district]) : 0;
+                                const distName = (c.district || '').trim();
+                                const distQuota = distName && distDict[distName] !== undefined ? parseInt(distDict[distName]) : 0;
                                 if (distQuota <= 0) return false;
                             }
                             return true;
@@ -1200,10 +1232,23 @@ function renderItemsAccordion(generatedKeysSet = new Set()) {
             const keyBtnClass = hasKeys ? 'btn-success text-white' : 'btn-outline-secondary';
             const keyBtnText = hasKeys ? '<i class="fas fa-key"></i> 金鑰 (已產生)' : '<i class="fas fa-key"></i> 金鑰 (未產生)';
             
+            let distBadgeHtml = '';
+            const roundDistricts = round.selected_districts || (round.id === 'round_1' ? item.selected_districts : null);
+            if (item.require_district && roundDistricts) {
+                const activePairs = Object.entries(roundDistricts)
+                    .filter(([d, q]) => parseInt(q) > 0)
+                    .map(([d, q]) => `${d} ${q}席`);
+                if (activePairs.length > 0) {
+                    distBadgeHtml = `<span class="badge bg-warning-subtle text-dark border ms-1">配額: ${activePairs.join(', ')}</span>`;
+                } else if (round.status !== 'PENDING') {
+                    distBadgeHtml = `<span class="badge bg-success-subtle text-success border ms-1">各區已額滿</span>`;
+                }
+            }
+            
             roundsHtml += `
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                     <div>
-                        <strong>${getRoundName(round.id)}</strong> <small class="text-muted ms-1">(本輪應選 ${displaySeats} 席)</small>
+                        <strong>${getRoundName(round.id)}</strong> <small class="text-muted ms-1">(本輪應選 ${displaySeats} 席)</small>${distBadgeHtml}
                         <span class="badge bg-${statusColor} ms-2">${statusText}</span>
                     </div>
                     <div>
@@ -1462,9 +1507,10 @@ document.getElementById('saveItemBtn').addEventListener('click', async () => {
             // (3) 候選資格限制：若有設定，必須符合其中之一
             if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
 
-            // (4) 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+            // (4) 強制分區限制：若無分區或該分區應選配額 <= 0，且非保留名額，直接排除
             if (reqDistrict && selectedDistricts && c.id !== forcedCandidateId) {
-                const distQuota = selectedDistricts[c.district] !== undefined ? parseInt(selectedDistricts[c.district]) : 0;
+                const distName = (c.district || '').trim();
+                const distQuota = distName && selectedDistricts[distName] !== undefined ? parseInt(selectedDistricts[distName]) : 0;
                 if (distQuota <= 0) return false;
             }
             
@@ -1874,9 +1920,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (c.is_ineligible) return false;
                 if (excludeElected && c.elected_item && c.elected_item.trim() !== '' && c.elected_item !== title) return false;
                 if (qArray.length > 0 && !qArray.includes(c.qualification)) return false;
-                // 強制分區限制：若該分區應選配額 <= 0，且非保留名額，直接排除
+                // 強制分區限制：若無分區或該分區應選配額 <= 0，且非保留名額，直接排除
                 if (reqDistrict && selectedDistricts && c.id !== forcedCandidateId) {
-                    const distQuota = selectedDistricts[c.district] !== undefined ? parseInt(selectedDistricts[c.district]) : 0;
+                    const distName = (c.district || '').trim();
+                    const distQuota = distName && selectedDistricts[distName] !== undefined ? parseInt(selectedDistricts[distName]) : 0;
                     if (distQuota <= 0) return false;
                 }
                 return true;
@@ -2087,6 +2134,14 @@ window.openRoundCandidates = function(itemId, roundId) {
                 shouldBeLeft = false; // 已當選且排除一定在右邊
             } else if (isQualified) {
                 shouldBeLeft = true; // 符合資格在左邊
+            }
+
+            // (4) 檢查強制分區限制 (若無分區或該分區額滿，不排入左邊)
+            const distDict = round.selected_districts || item.selected_districts;
+            if (item.require_district && distDict && c.id !== forceId) {
+                const distName = (c.district || '').trim();
+                const distQuota = distName && distDict[distName] !== undefined ? parseInt(distDict[distName]) : 0;
+                if (distQuota <= 0) shouldBeLeft = false;
             }
 
             const li = createCandidateNode(c, shouldBeLeft);
