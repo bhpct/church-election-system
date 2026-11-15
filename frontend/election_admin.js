@@ -1312,14 +1312,31 @@ function updateKeysAndTallySelects() {
 
 // 監聽 keys 和 tally 下拉選單變化，自動觸發載入
 document.addEventListener('DOMContentLoaded', () => {
+    const triggerSelectedKeysLoad = () => {
+        const itemId = document.getElementById('keysItemSelect')?.value || '';
+        const roundId = document.getElementById('keysRoundSelect')?.value || '';
+        const container = document.getElementById('keysContentContainer');
+        if (itemId && roundId) {
+            if (container) container.style.display = 'block';
+            document.getElementById('manageKeysItemId').value = itemId;
+            document.getElementById('manageKeysRoundId').value = roundId;
+            loadKeys(itemId, roundId);
+        } else {
+            if (container) container.style.display = 'none';
+            document.getElementById('manageKeysItemId').value = '';
+            document.getElementById('manageKeysRoundId').value = '';
+            currentKeys = [];
+        }
+    };
+
+    document.getElementById('keysItemSelect')?.addEventListener('change', triggerSelectedKeysLoad);
+    document.getElementById('keysRoundSelect')?.addEventListener('change', triggerSelectedKeysLoad);
+
     document.getElementById('btnLoadKeys')?.addEventListener('click', () => {
         const itemId = document.getElementById('keysItemSelect').value;
         const roundId = document.getElementById('keysRoundSelect').value;
         if (itemId && roundId) {
-            document.getElementById('keysContentContainer').style.display = 'block';
-            document.getElementById('manageKeysItemId').value = itemId;
-            document.getElementById('manageKeysRoundId').value = roundId;
-            loadKeys(itemId, roundId);
+            triggerSelectedKeysLoad();
         } else {
             Swal.fire('提示', '請先選擇項次與輪次', 'info');
         }
@@ -2618,6 +2635,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 列印實體選票 (單一輪次)
     document.getElementById('btnPrintBallots')?.addEventListener('click', async () => {
+        const selectedItemId = document.getElementById('keysItemSelect')?.value || document.getElementById('manageKeysItemId')?.value;
+        const selectedRoundId = document.getElementById('keysRoundSelect')?.value || document.getElementById('manageKeysRoundId')?.value;
+        const loadedItemId = document.getElementById('manageKeysItemId')?.value;
+        const loadedRoundId = document.getElementById('manageKeysRoundId')?.value;
+
+        // 防呆：確保目前記憶體中的金鑰與下拉選單所選的項次/輪次完全一致，避免印到舊輪次選票
+        if (selectedItemId && selectedRoundId && (selectedItemId !== loadedItemId || selectedRoundId !== loadedRoundId || currentKeys.some(k => k.item_id !== selectedItemId || k.round_id !== selectedRoundId))) {
+            document.getElementById('manageKeysItemId').value = selectedItemId;
+            document.getElementById('manageKeysRoundId').value = selectedRoundId;
+            await loadKeys(selectedItemId, selectedRoundId);
+        }
+
         if (currentKeys.length === 0) {
             Swal.fire('提示', '目前沒有金鑰可供列印', 'info');
             return;
@@ -2756,24 +2785,138 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+let isPrintingBallots = false;
+
+function escapePrintHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// 將大型 Base64 公印轉換為單一共用 Blob URL，避免數百張選票重複嵌入數百 MB 字串導致列印缺頁或記憶體溢位
+function getReusableSealUrl(rawUrl) {
+    if (!rawUrl) return '';
+    if (!rawUrl.startsWith('data:image/') || (window.location.protocol !== 'http:' && window.location.protocol !== 'https:')) {
+        return rawUrl;
+    }
+    if (window.__cachedSealSource === rawUrl && window.__cachedSealBlobUrl) {
+        return window.__cachedSealBlobUrl;
+    }
+    try {
+        const commaIdx = rawUrl.indexOf(',');
+        if (commaIdx === -1) return rawUrl;
+        const meta = rawUrl.substring(0, commaIdx);
+        const base64Data = rawUrl.substring(commaIdx + 1);
+        const mimeMatch = meta.match(/^data:([^;]+);base64$/i);
+        if (!mimeMatch) return rawUrl;
+
+        const binaryStr = atob(base64Data);
+        const len = binaryStr.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: mimeMatch[1] });
+        if (window.__cachedSealBlobUrl) {
+            try { URL.revokeObjectURL(window.__cachedSealBlobUrl); } catch (_) {}
+        }
+        window.__cachedSealSource = rawUrl;
+        window.__cachedSealBlobUrl = URL.createObjectURL(blob);
+        return window.__cachedSealBlobUrl;
+    } catch (e) {
+        console.warn('公印 Blob URL 轉換失敗，降級使用原始圖片字串:', e);
+        return rawUrl;
+    }
+}
+
+// 確保 QRCode 函式庫已載入完畢（若頁面開啟時網路瞬斷導致未載入，會自動重試載入並設 10 秒逾時保護）
+function ensureQRCodeLibrary() {
+    if (typeof window.QRCode !== 'undefined') {
+        return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+        const staleScript = document.querySelector('script[data-qrcode-lib="1"]');
+        if (staleScript) {
+            staleScript.remove();
+        }
+        const script = document.createElement('script');
+        const timer = setTimeout(() => {
+            script.remove();
+            reject(new Error('載入 QR Code 產生套件逾時，請檢查網路連線後重試'));
+        }, 10000);
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+        script.dataset.qrcodeLib = '1';
+        script.onload = () => {
+            clearTimeout(timer);
+            if (typeof window.QRCode !== 'undefined') {
+                resolve();
+            } else {
+                reject(new Error('QR Code 產生套件初始化失敗，請重新整理網頁後再試'));
+            }
+        };
+        script.onerror = () => {
+            clearTimeout(timer);
+            script.remove();
+            reject(new Error('無法載入 QR Code 產生套件，請檢查網路連線後重試'));
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// 等待列印 iframe 內所有圖片（公印浮水印與所有 QR Code）100% 載入並完成點陣圖解碼，杜絕列印缺頁或漏圖
+async function waitForIframeImagesReady(iframeDoc) {
+    const images = Array.from(iframeDoc.images || []);
+    const waitSingleImage = (img) => new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (typeof img.decode === 'function') {
+                img.decode().catch(() => {}).finally(resolve);
+            } else {
+                resolve();
+            }
+        };
+        const timer = setTimeout(finish, 3000);
+        if (img.complete && img.naturalWidth > 0) {
+            finish();
+        } else {
+            img.addEventListener('load', finish, { once: true });
+            img.addEventListener('error', finish, { once: true });
+        }
+    });
+
+    const BATCH_SIZE = 64;
+    for (let i = 0; i < images.length; i += BATCH_SIZE) {
+        await Promise.all(images.slice(i, i + BATCH_SIZE).map(waitSingleImage));
+    }
+}
+
 function printBallotsA4(keysToPrint) {
     if (!keysToPrint || keysToPrint.length === 0) return;
+    if (isPrintingBallots) return;
+    isPrintingBallots = true;
 
-    // 依據項次建立順序與輪次順序進行排序 (避免列印時順序錯亂)
-    keysToPrint.sort((a, b) => {
+    // 複製陣列並依據項次建立順序、輪次順序與金鑰編號穩定排序 (避免列印時順序錯亂)
+    const sortedKeys = [...keysToPrint].sort((a, b) => {
         const itemIdxA = allItems.findIndex(i => i.id === a.item_id);
         const itemIdxB = allItems.findIndex(i => i.id === b.item_id);
         if (itemIdxA !== itemIdxB) return itemIdxA - itemIdxB;
-        
+        if (a.item_id !== b.item_id) return String(a.item_id || '').localeCompare(String(b.item_id || ''));
+
         // 項次相同，比較輪次 (round_1, round_2, round_3)
         if (a.round_id < b.round_id) return -1;
         if (a.round_id > b.round_id) return 1;
-        return 0;
+        return String(a.code || '').localeCompare(String(b.code || ''));
     });
 
     // 將金鑰依據項次與輪次分組，確保不同輪次絕對不會印在同一頁
     const groupedKeys = {};
-    keysToPrint.forEach(k => {
+    sortedKeys.forEach(k => {
         const groupKey = `${k.item_id}__${k.round_id}`;
         if (!groupedKeys[groupKey]) groupedKeys[groupKey] = [];
         groupedKeys[groupKey].push(k);
@@ -2786,128 +2929,300 @@ function printBallotsA4(keysToPrint) {
 
     Swal.fire({
         title: '產生列印檔中...',
-        html: `總共有 <b>${keysToPrint.length}</b> 張選票，預計印製 <b>${totalPages}</b> 頁。<br>由於需要產生防偽 QR Code，準備時間約需數秒至十幾秒。<br>請耐心等候，直到跳出瀏覽器的列印設定視窗。`,
+        html: `總共有 <b>${sortedKeys.length}</b> 張選票，預計印製 <b>${totalPages}</b> 頁。<br><div id="ballotPrintProgressText" class="mt-2 text-primary fw-bold">正在初始化防偽 QR Code 產生器...</div><small class="text-muted d-block mt-2">系統將在所有頁面與公印 100% 校驗完成後自動開啟列印視窗，請勿關閉網頁。</small>`,
         allowOutsideClick: false,
+        allowEscapeKey: false,
         showConfirmButton: false,
         didOpen: () => {
             Swal.showLoading();
-            setTimeout(() => {
-                // 建立隱藏的 iframe 進行列印，避免彈出視窗被阻擋或右鍵無法列印的問題
-                let printIframe = document.getElementById('ballotPrintIframe');
-    if (!printIframe) {
-        printIframe = document.createElement('iframe');
-        printIframe.id = 'ballotPrintIframe';
-        // 使用 visibility hidden 和絕對定位，避免 display:none 導致 QR Code 無法渲染
-        printIframe.style.position = 'absolute';
-        printIframe.style.top = '-10000px';
-        printIframe.style.left = '-10000px';
-        printIframe.style.width = '210mm';
-        printIframe.style.height = '297mm';
-        document.body.appendChild(printIframe);
-    }
-    
-    let html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>列印選票</title>
-        <style>
-            @page { size: A4 portrait; margin: 5mm; }
-            body { margin: 0; padding: 0; background: #fff; font-family: '微軟正黑體', sans-serif; }
-            .page { width: 200mm; height: 287mm; display: flex; flex-wrap: wrap; box-sizing: border-box; page-break-after: always; padding: 0; gap: 4mm; margin: 0 auto; justify-content: flex-start; align-content: flex-start; }
-            /* 2x2 Grid: each ballot is approx 95mm x 135mm (A6 size) */
-            .ballot { width: calc(50% - 2mm); height: 140mm; padding: 8mm; box-sizing: border-box; border: 1px dashed #999; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: transparent; }
-            .watermark { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); width: 60%; opacity: ${currentElectionData.seal_opacity !== undefined ? currentElectionData.seal_opacity / 100 : 0.15}; z-index: 0; pointer-events: none; }
-            .content { position: relative; z-index: 10; text-align: center; display: flex; flex-direction: column; height: 100%; justify-content: space-between; }
-            .header h3 { margin: 0 0 5px 0; font-size: 20px; color: #000; font-weight: bold; }
-            .header h2 { margin: 0 0 10px 0; font-size: 24px; color: #000; font-weight: bold; }
-            .header h4 { margin: 0; font-size: 18px; color: #000; font-weight: bold; }
-            .qr-container { display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid #333; border-radius: 8px; padding: 10px; background: #f8f9fa; margin-top: auto; position: relative; z-index: 20; }
-            .qr-container span { font-size: 12px; color: #666; margin-bottom: 5px; }
-            .qr-container strong { font-size: 24px; letter-spacing: 5px; color: #000; margin-bottom: 10px; }
-            .qr-code { width: 110px; height: 110px; background: #fff; padding: 0; border: none; z-index: 20; position: relative; display: flex; justify-content: center; align-items: center; }
-            .hint { font-size: 11px; margin-top: 10px; font-weight: bold; text-align: center; }
-        </style>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    </head>
-    <body>
-    `;
+            setTimeout(async () => {
+                let tempQrDiv = null;
+                try {
+                    await ensureQRCodeLibrary();
 
-    // 依序處理每個輪次的群組
-    for (const groupKey in groupedKeys) {
-        const group = groupedKeys[groupKey];
-        const firstKey = group[0];
-        
-        // 查找對應的名稱
-        const item = allItems.find(i => i.id === firstKey.item_id);
-        const roundTitle = getRoundName(firstKey.round_id);
-        const itemTitle = item ? item.title : '未知項次';
+                    const cleanHref = window.location.href.split('?')[0].split('#')[0];
+                    const baseUrl = cleanHref.substring(0, cleanHref.lastIndexOf('/'));
+                    const progressEl = document.getElementById('ballotPrintProgressText');
 
-        // 生成該群組的頁面 (4張選票一頁)
-        for (let i = 0; i < group.length; i += 4) {
-            html += '<div class="page">';
-            for (let j = 0; j < 4; j++) {
-                if (i + j < group.length) {
-                    const k = group[i + j];
-                    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-                    const voteUrl = `${baseUrl}/voter.html?eid=${currentElectionId}&key=${k.code}`;
-                    const sealHtml = currentOrgData?.seal_url ? `<img src="${currentOrgData.seal_url}" class="watermark">` : '';
-                    
-                    html += `
-                    <div class="ballot">
-                        ${sealHtml}
-                        <div class="content">
-                            <div class="header">
-                                <h3>${currentOrgData?.name || '教會機構'}</h3>
-                                <h2>${currentElectionData?.name || '選舉'}</h2>
-                                <h4>${itemTitle} - ${roundTitle}</h4>
-                            </div>
-                            <div class="qr-container">
-                                <span>請掃描下方 QR Code 或於網頁輸入此金鑰</span>
-                                <strong>${k.code}</strong>
-                                <div id="qr-${k.code}" class="qr-code"></div>
-                            </div>
-                            <div class="hint">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
-                        </div>
-                    </div>
-                    <script>
-                        setTimeout(() => {
-                            new QRCode(document.getElementById("qr-${k.code}"), {
-                                text: "${voteUrl}",
-                                width: 110,
-                                height: 110,
-                                colorDark : "#000000",
-                                colorLight : "#ffffff",
-                                correctLevel : QRCode.CorrectLevel.M
-                            });
-                        }, 100);
-                    </script>
-                    `;
-                }
-            }
-            html += '</div>';
+                    // 單一隱藏畫布重複使用並即時轉成輕量 PNG，確保瀏覽器同時最多只存在 1 個 Canvas，徹底杜絕大量選票 Canvas 上限溢位空白
+                    tempQrDiv = document.createElement('div');
+                    tempQrDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:110px;height:110px;overflow:hidden;opacity:0;pointer-events:none;';
+                    document.body.appendChild(tempQrDiv);
+
+                    const qrDataMap = new WeakMap();
+                    const QR_CHUNK_SIZE = 32;
+                    for (let idx = 0; idx < sortedKeys.length; idx++) {
+                        const k = sortedKeys[idx];
+                        const voteUrl = `${baseUrl}/voter.html?eid=${currentElectionId}&key=${k.code}`;
+
+                        tempQrDiv.innerHTML = '';
+                        new window.QRCode(tempQrDiv, {
+                            text: voteUrl,
+                            width: 110,
+                            height: 110,
+                            colorDark: '#000000',
+                            colorLight: '#ffffff',
+                            correctLevel: window.QRCode.CorrectLevel.M
+                        });
+
+                        let qrDataUrl = '';
+                        const canvas = tempQrDiv.querySelector('canvas');
+                        if (canvas && typeof canvas.toDataURL === 'function') {
+                            qrDataUrl = canvas.toDataURL('image/png');
+                        } else {
+                            const qrImg = tempQrDiv.querySelector('img');
+                            if (qrImg && qrImg.src) qrDataUrl = qrImg.src;
+                        }
+                        tempQrDiv.innerHTML = '';
+
+                        if (!qrDataUrl) {
+                            throw new Error(`金鑰 ${k.code} 的防偽 QR Code 產生失敗，為避免印出空白選票已中止列印。`);
+                        }
+                        qrDataMap.set(k, qrDataUrl);
+
+                        if ((idx + 1) % QR_CHUNK_SIZE === 0 || idx === sortedKeys.length - 1) {
+                            if (progressEl) {
+                                progressEl.textContent = `正在產生防偽 QR Code：${idx + 1} / ${sortedKeys.length} 張（共 ${totalPages} 頁）...`;
+                            }
+                            await new Promise(r => setTimeout(r, 0));
+                        }
+                    }
+
+                    if (tempQrDiv) {
+                        tempQrDiv.remove();
+                        tempQrDiv = null;
+                    }
+
+                    // 重建乾淨的列印專用 iframe（置於視窗內透明底層，避免 -10000px 離屏導致圖片延遲解碼或單頁裁切）
+                    const oldIframe = document.getElementById('ballotPrintIframe');
+                    if (oldIframe) oldIframe.remove();
+
+                    const printIframe = document.createElement('iframe');
+                    printIframe.id = 'ballotPrintIframe';
+                    printIframe.setAttribute('aria-hidden', 'true');
+                    printIframe.style.cssText = 'position:fixed;right:0;bottom:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;z-index:-1;';
+                    document.body.appendChild(printIframe);
+
+                    const sealOpacity = currentElectionData?.seal_opacity !== undefined ? (currentElectionData.seal_opacity / 100) : 0.15;
+                    const reusableSealUrl = getReusableSealUrl(currentOrgData?.seal_url || '');
+                    const orgNameSafe = escapePrintHtml(currentOrgData?.name || '教會機構');
+                    const electionNameSafe = escapePrintHtml(currentElectionData?.name || '選舉');
+
+                    // 採用確定性 Table 2x2 網格取代多頁 Flexbox，且單頁總高 273.5mm 同時相容 5mm 邊界與預設 10mm 印表機邊界，絕不溢位產生空白頁或缺頁
+                    const htmlParts = [`<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>列印選票</title>
+    <style>
+        @page { size: A4 portrait; margin: 5mm; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            font-family: '微軟正黑體', 'Microsoft JhengHei', sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-    }
+        .page {
+            display: block;
+            width: 100%;
+            max-width: 198mm;
+            margin: 0 auto;
+            padding: 0;
+            box-sizing: border-box;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            page-break-after: always;
+            break-after: page;
+        }
+        .page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+        }
+        .ballot-grid {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin: 0;
+            padding: 0;
+        }
+        .ballot-grid tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        .ballot-cell {
+            width: 50%;
+            vertical-align: top;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        .ballot-cell.col-left { padding-right: 2mm; }
+        .ballot-cell.col-right { padding-left: 2mm; }
+        .ballot-cell.row-top { padding-bottom: 3.5mm; }
+        .ballot {
+            width: 100%;
+            height: 135mm;
+            padding: 6.5mm 7.5mm;
+            box-sizing: border-box;
+            border: 1px dashed #999;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: transparent;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        .watermark {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60%;
+            opacity: ${sealOpacity};
+            z-index: 0;
+            pointer-events: none;
+        }
+        .content {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: space-between;
+        }
+        .header h3 { margin: 0 0 5px 0; font-size: 20px; color: #000; font-weight: bold; }
+        .header h2 { margin: 0 0 10px 0; font-size: 24px; color: #000; font-weight: bold; }
+        .header h4 { margin: 0; font-size: 18px; color: #000; font-weight: bold; }
+        .qr-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f8f9fa;
+            margin-top: auto;
+            position: relative;
+            z-index: 20;
+        }
+        .qr-container span { font-size: 12px; color: #666; margin-bottom: 5px; }
+        .qr-container strong { font-size: 24px; letter-spacing: 5px; color: #000; margin-bottom: 10px; }
+        .qr-code {
+            width: 110px;
+            height: 110px;
+            background: #fff;
+            padding: 0;
+            border: none;
+            z-index: 20;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .qr-code img {
+            width: 110px;
+            height: 110px;
+            display: block;
+        }
+        .hint { font-size: 11px; margin-top: 10px; font-weight: bold; text-align: center; }
+    </style>
+</head>
+<body>`];
 
-    html += `
-    <script>
-        // 等待 QR Code 渲染完成後自動觸發 iframe 的列印
-        setTimeout(() => {
-            window.print();
-        }, 1500);
-    </script>
-    </body></html>`;
+                    const renderBallotCardHtml = (k, itemTitleSafe, roundTitleSafe) => {
+                        const qrSrc = qrDataMap.get(k) || '';
+                        const sealHtml = reusableSealUrl ? `<img src="${reusableSealUrl}" class="watermark" alt="">` : '';
+                        const codeSafe = escapePrintHtml(k.code);
+                        return `<div class="ballot">
+                            ${sealHtml}
+                            <div class="content">
+                                <div class="header">
+                                    <h3>${orgNameSafe}</h3>
+                                    <h2>${electionNameSafe}</h2>
+                                    <h4>${itemTitleSafe} - ${roundTitleSafe}</h4>
+                                </div>
+                                <div class="qr-container">
+                                    <span>請掃描下方 QR Code 或於網頁輸入此金鑰</span>
+                                    <strong>${codeSafe}</strong>
+                                    <div class="qr-code"><img src="${qrSrc}" width="110" height="110" alt="QR"></div>
+                                </div>
+                                <div class="hint">⚠️ 注意：此金鑰限用一次，投票後即失效。請勿外流。</div>
+                            </div>
+                        </div>`;
+                    };
 
-    // 寫入 iframe 並關閉文件流
-    const doc = printIframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
+                    for (const groupKey in groupedKeys) {
+                        const group = groupedKeys[groupKey];
+                        const firstKey = group[0];
+                        const item = allItems.find(i => i.id === firstKey.item_id);
+                        const itemTitleSafe = escapePrintHtml(item ? item.title : '未知項次');
+                        const roundTitleSafe = escapePrintHtml(getRoundName(firstKey.round_id));
 
-                setTimeout(() => {
+                        for (let i = 0; i < group.length; i += 4) {
+                            const pageSlots = [];
+                            for (let j = 0; j < 4; j++) {
+                                if (i + j < group.length) {
+                                    const k = group[i + j];
+                                    pageSlots.push(renderBallotCardHtml(k, itemTitleSafe, roundTitleSafe));
+                                } else {
+                                    pageSlots.push('');
+                                }
+                            }
+
+                            const hasSecondRow = Boolean(pageSlots[2] || pageSlots[3]);
+                            const topRowClass = hasSecondRow ? ' row-top' : '';
+                            htmlParts.push(`<div class="page"><table class="ballot-grid"><tbody>`);
+                            htmlParts.push(`<tr><td class="ballot-cell col-left${topRowClass}">${pageSlots[0]}</td><td class="ballot-cell col-right${topRowClass}">${pageSlots[1]}</td></tr>`);
+                            if (hasSecondRow) {
+                                htmlParts.push(`<tr><td class="ballot-cell col-left">${pageSlots[2]}</td><td class="ballot-cell col-right">${pageSlots[3]}</td></tr>`);
+                            }
+                            htmlParts.push(`</tbody></table></div>`);
+                        }
+                    }
+
+                    htmlParts.push(`</body></html>`);
+
+                    if (progressEl) {
+                        progressEl.textContent = `正在載入公印圖層與排版校驗（共 ${totalPages} 頁）...`;
+                    }
+
+                    const doc = printIframe.contentWindow.document;
+                    doc.open();
+                    doc.write(htmlParts.join(''));
+                    doc.close();
+
+                    // 等待 iframe 內每一張公印與 QR Code 100% 解碼就緒後才觸發列印
+                    await waitForIframeImagesReady(doc);
+                    await Promise.race([
+                        new Promise(r => window.requestAnimationFrame(() => window.requestAnimationFrame(r))),
+                        new Promise(r => setTimeout(r, 120))
+                    ]);
+                    await new Promise(r => setTimeout(r, 150));
+
                     Swal.close();
-                }, 2000);
-            }, 500); // 延遲 500ms 讓 SweetAlert 動畫能夠顯示
+                    setTimeout(() => {
+                        try {
+                            printIframe.contentWindow.focus();
+                            printIframe.contentWindow.print();
+                        } finally {
+                            isPrintingBallots = false;
+                        }
+                    }, 80);
+                } catch (err) {
+                    console.error('選票列印產生失敗:', err);
+                    if (tempQrDiv) {
+                        tempQrDiv.remove();
+                        tempQrDiv = null;
+                    }
+                    isPrintingBallots = false;
+                    Swal.fire('列印準備失敗', err.message || '產生列印選票時發生未預期錯誤', 'error');
+                }
+            }, 150);
         }
     });
 }

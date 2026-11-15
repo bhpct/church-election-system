@@ -17,6 +17,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
     <!-- SheetJS (Excel) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- QRCode.js (預載供實體選票防偽 QR Code 高速產生) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" data-qrcode-lib="1"></script>
     <style>
         body {
             background-color: #f4f6f9;
@@ -125,14 +127,17 @@
 
         /* 列印專用樣式 */
         @media print {
+            html, body {
+                height: auto !important;
+                overflow: visible !important;
+                background: white !important;
+            }
             body > *:not(#printContainer) {
                 display: none !important;
             }
             #printContainer {
                 display: block !important;
-                position: absolute;
-                top: 0;
-                left: 0;
+                position: relative;
                 width: 100%;
                 background: white;
                 margin: 0;
@@ -1325,6 +1330,6 @@
 </script>
 
 <script src="utils.js?v=3.00"></script>
-<script src="election_admin.js?v=3.00"></script>
+<script src="election_admin.js?v=3.01"></script>
 </body>
 </html>

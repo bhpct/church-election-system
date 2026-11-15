@@ -14,6 +14,28 @@ let unsubscribeRound = null;
 let unsubscribeElection = null;
 let isCurrentInTutorialMode = false;
 let hasSubmittedVote = false;
+let loadedBallotConfigSignature = null;
+let ballotLoadSeq = 0;
+
+// 計算選票結構與候選名單的唯一特徵碼 (避免因後台輸入出席人數、發票數等無關欄位更新而誤觸重繪清空選票)
+function getBallotConfigSignature(rData) {
+    if (!rData) return '';
+    let normalizedDistricts = null;
+    if (rData.selected_districts && typeof rData.selected_districts === 'object') {
+        normalizedDistricts = {};
+        Object.keys(rData.selected_districts).sort().forEach(k => {
+            normalizedDistricts[k] = rData.selected_districts[k];
+        });
+    }
+    return JSON.stringify({
+        candidate_ids: Array.isArray(rData.candidate_ids) ? rData.candidate_ids : [],
+        seats: rData.seats !== undefined ? rData.seats : null,
+        selected_districts: normalizedDistricts,
+        require_district: rData.require_district !== undefined ? rData.require_district : null,
+        forced_candidate_id: rData.forced_candidate_id !== undefined ? rData.forced_candidate_id : null,
+        exclude_elected: rData.exclude_elected !== undefined ? rData.exclude_elected : null
+    });
+}
 
 // DOM Elements
 const views = ['view-auth', 'view-ballot', 'view-waiting', 'view-pending-vote'];
@@ -231,6 +253,7 @@ async function handleVerifyKey() {
         roundData = { id: roundSnap.id, ...roundSnap.data() };
 
         // 3. 載入候選人資料並建立選票 UI
+        loadedBallotConfigSignature = getBallotConfigSignature(roundData);
         await loadCandidatesForBallot(roundData.candidate_ids);
         buildBallotUI();
 
@@ -336,7 +359,7 @@ function closePickersIfOpen() {
             const bsOffcanvas = window.bootstrap.Offcanvas.getInstance(offcanvasEl);
             if (bsOffcanvas) bsOffcanvas.hide();
         }
-        const searchModalEl = document.getElementById('searchCandidateModal');
+        const searchModalEl = document.getElementById('candidateSearchModal') || document.getElementById('searchCandidateModal');
         if (searchModalEl && window.bootstrap && window.bootstrap.Modal) {
             const bsModal = window.bootstrap.Modal.getInstance(searchModalEl);
             if (bsModal) bsModal.hide();
@@ -359,9 +382,10 @@ function setupLiveStateListener(electionId, itemId, roundId) {
     unsubscribeElection = onSnapshot(electionRef, (snap) => {
         if (!snap.exists()) return;
         const eData = snap.data();
-        const prevTutorial = electionData ? electionData.enable_tutorial : null;
+        const prevTutorial = Boolean(electionData && electionData.enable_tutorial === true);
+        const nextTutorial = Boolean(eData.enable_tutorial === true);
         electionData = { ...electionData, ...eData };
-        if (prevTutorial !== (eData.enable_tutorial === true)) {
+        if (prevTutorial !== nextTutorial) {
             refreshVoterState();
         }
     });
@@ -374,10 +398,30 @@ function setupLiveStateListener(electionId, itemId, roundId) {
         const prevStatus = roundData ? roundData.status : null;
         roundData = { id: snap.id, ...rData };
 
-        // 若候選人名單有異動，重新載入
-        if (rData.candidate_ids && JSON.stringify(rData.candidate_ids) !== JSON.stringify(Object.keys(candidatesMap))) {
-            await loadCandidatesForBallot(rData.candidate_ids);
-            buildBallotUI();
+        // 僅在「候選人名單或席次分區配置真正發生異動」時才重新載入候選人
+        // (避免後台開票中心輸入出席人數、發票數同步寫入 round 文件時，誤判名單異動而清空選民圈選中的選票)
+        const newSignature = getBallotConfigSignature(rData);
+        if (newSignature !== loadedBallotConfigSignature) {
+            loadedBallotConfigSignature = newSignature;
+            const currentSeq = ++ballotLoadSeq;
+            try {
+                const { getDoc } = window.fs;
+                const latestItemSnap = await getDoc(doc(db, 'elections', electionId, 'items', itemId));
+                if (latestItemSnap.exists()) {
+                    itemData = { id: latestItemSnap.id, ...latestItemSnap.data() };
+                }
+            } catch (err) {
+                console.warn('同步項次參數略過:', err);
+            }
+            await loadCandidatesForBallot(roundData.candidate_ids);
+            if (currentSeq !== ballotLoadSeq) return;
+
+            // 若目前處於教學練習模式，僅更新底層名單快取，不重繪畫面以免打斷練習；
+            // 待教學開關關閉時，showTutorialMode(false) 會自動呼叫 buildBallotUI() 切換為正式選票
+            if (!isCurrentInTutorialMode) {
+                const shouldPreserve = (prevStatus === 'ACTIVE' && roundData.status === 'ACTIVE');
+                buildBallotUI(shouldPreserve);
+            }
         }
 
         if (prevStatus !== rData.status) {
@@ -425,9 +469,18 @@ let searchModalInstance = null;
 let searchModalInitialized = false;
 
 // 建立選票介面 (卡片槽位 + 雙按鈕分流：瀏覽 vs 搜尋)
-function buildBallotUI() {
+function buildBallotUI(preserveSelections = false) {
     const isPractice = (isCurrentInTutorialMode === true);
     const quota = isPractice ? 2 : (parseInt(roundData.seats !== undefined ? roundData.seats : itemData.seats) || 1);
+
+    // 防禦性保護：若在正式投票進行中觸發重繪，保留選民目前已圈選的有效候選人
+    const previousSelections = [];
+    if (preserveSelections && !isPractice) {
+        document.querySelectorAll('.ballot-slot-card').forEach(slot => {
+            const val = slot.querySelector('.ballot-vote-val')?.value || '';
+            previousSelections.push(val);
+        });
+    }
 
     const districtRuleEl = document.getElementById('ballotDistrictRule');
 
@@ -568,6 +621,36 @@ function buildBallotUI() {
         slotCard.querySelector('.btn-slot-clear')?.addEventListener('click', () => clearSlotCandidate(i));
 
         container.appendChild(slotCard);
+    }
+
+    // 若啟用保留圈選狀態，將先前已圈選且仍在有效名單內的候選人還原至對應槽位
+    if (preserveSelections && !isPractice && previousSelections.length > 0) {
+        const usedCids = new Set();
+        const restoredDistrictCount = {};
+        const activeDistrictsForRestore = roundData.selected_districts || itemData.selected_districts;
+
+        for (let idx = 0; idx < previousSelections.length && idx < quota; idx++) {
+            const prevCid = previousSelections[idx];
+            if (idx === 0 && forcedCand && prevCid === forcedId) {
+                usedCids.add(prevCid);
+                continue; // 維持第一格「已保留」初始視覺狀態
+            }
+            if (prevCid && candidatesMap[prevCid] && !usedCids.has(prevCid)) {
+                if (idx > 0 && forcedId && prevCid === forcedId) continue;
+                if (itemData.require_district && activeDistrictsForRestore && prevCid !== forcedId) {
+                    const distName = (candidatesMap[prevCid].district || '').trim();
+                    const distLimit = distName && activeDistrictsForRestore[distName] !== undefined ? (parseInt(activeDistrictsForRestore[distName]) || 0) : 0;
+                    const usedInDist = (distName && restoredDistrictCount[distName]) || 0;
+                    if (distLimit <= 0 || usedInDist >= distLimit) continue;
+                    restoredDistrictCount[distName] = usedInDist + 1;
+                }
+                usedCids.add(prevCid);
+                setSlotCandidate(idx, prevCid);
+            } else if (idx === 0 && forcedCand && prevCid === '') {
+                // 若選民原本已手動清除第一格保障名額，尊重其清除狀態
+                clearSlotCandidate(0);
+            }
+        }
     }
 
     // 初始化搜尋彈窗的即時監聽器
