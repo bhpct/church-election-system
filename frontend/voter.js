@@ -41,8 +41,19 @@ function getBallotConfigSignature(rData) {
 const views = ['view-auth', 'view-ballot', 'view-waiting', 'view-pending-vote'];
 
 function getRoundName(rId) {
-    const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
+    const roundNames = { 'round_1': '第一次', 'round_2': '第二次', 'round_3': '第三次' };
     return roundNames[rId] || rId;
+}
+
+// 正規化項次／次別限定資格，相容陣列與逗號字串格式
+function normalizeQualifications(rawQuals) {
+    if (Array.isArray(rawQuals)) {
+        return rawQuals.map(s => String(s || '').trim()).filter(Boolean);
+    }
+    if (typeof rawQuals === 'string') {
+        return rawQuals.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -249,7 +260,7 @@ async function handleVerifyKey() {
         itemData = { id: itemSnap.id, ...itemSnap.data() };
 
         const roundSnap = await getDoc(doc(db, 'elections', currentElectionId, 'items', itemId, 'rounds', roundId));
-        if (!roundSnap.exists()) throw new Error("選舉輪次不存在。");
+        if (!roundSnap.exists()) throw new Error("選舉次別不存在。");
         roundData = { id: roundSnap.id, ...roundSnap.data() };
 
         // 3. 載入候選人資料並建立選票 UI
@@ -284,8 +295,8 @@ function refreshVoterState() {
 
     if (roundData.status === 'PUBLISHED') {
         Swal.fire({
-            title: '本輪投票已結束',
-            text: '此輪次投票已結束且結果已發布，將為您跳轉至結果畫面。',
+            title: '本次投票已結束',
+            text: '此次投票已結束且結果已發布，將為您跳轉至結果畫面。',
             icon: 'info',
             timer: 3000,
             timerProgressBar: true,
@@ -298,7 +309,7 @@ function refreshVoterState() {
 
     if (roundData.status === 'CLOSED') {
         Swal.fire({
-            title: '本輪投票已截止',
+            title: '本次投票已截止',
             text: '主席已宣布結束投票，正在進行開票核算中。',
             icon: 'info',
             showConfirmButton: false,
@@ -430,7 +441,7 @@ function setupLiveStateListener(electionId, itemId, roundId) {
     });
 }
 
-// 載入該輪候選人與全場候選人資料庫名單
+// 載入該次別候選人與全場候選人資料庫名單
 async function loadCandidatesForBallot(candidateIds) {
     const { collection, getDocs } = window.fs;
     const db = window.firebaseDb;
@@ -442,7 +453,16 @@ async function loadCandidatesForBallot(candidateIds) {
     const candidatesRef = collection(db, 'elections', currentElectionId, 'candidates');
     const snaps = await getDocs(candidatesRef);
 
-    const excludeElected = (itemData && itemData.exclude_elected !== false);
+    const excludeElected = (roundData && roundData.exclude_elected !== undefined)
+        ? (roundData.exclude_elected !== false)
+        : (itemData && itemData.exclude_elected !== false);
+    const forcedId = (roundData && roundData.forced_candidate_id !== undefined)
+        ? roundData.forced_candidate_id
+        : itemData?.forced_candidate_id;
+    const allowedQuals = normalizeQualifications(
+        (roundData && roundData.qualifications !== undefined) ? roundData.qualifications : itemData?.qualifications
+    );
+    const excludedSet = new Set(Array.isArray(itemData?.excluded_candidate_ids) ? itemData.excluded_candidate_ids : []);
 
     snaps.forEach(snap => {
         const data = snap.data();
@@ -451,12 +471,34 @@ async function loadCandidatesForBallot(candidateIds) {
         // 全場候選人資料庫名單 (用於新手練習模式)
         allElectionCandidatesMap[snap.id] = { id: snap.id, ...data };
 
-        // 正式輪次名單
+        // 正式次別名單 (多重防呆檢核)
         if (candidateIds && candidateIds.includes(snap.id)) {
-            // 雙重防禦：若該項次設定排除已當選，且此人已在其他項次當選，則不列入選票名單
-            if (excludeElected && data.elected_item && data.elected_item.trim() !== '' && data.elected_item !== itemData.title) {
+            const isForced = Boolean(forcedId && snap.id === forcedId);
+            const electedItem = (data.elected_item || '').trim();
+
+            // 雙重防禦 1：已在其他項次當選(若啟用排除)，或已於本項次先前次別當選者，不列入選票名單
+            if (electedItem) {
+                if (roundData?.id !== 'round_1' && itemData?.title && electedItem === itemData.title) {
+                    return;
+                }
+                if (excludeElected && itemData?.title && electedItem !== itemData.title) {
+                    return;
+                }
+            }
+
+            // 雙重防禦 2：後台於該項次手動剔除參選資格者，絕不允許出現在選票上
+            if (!isForced && excludedSet.has(snap.id)) {
                 return;
             }
+
+            // 雙重防禦 3：不符項次限定參選資格者，絕不允許出現在選票上
+            if (!isForced && allowedQuals.length > 0) {
+                const candQual = (data.qualification || '').trim();
+                if (!candQual || !allowedQuals.includes(candQual)) {
+                    return;
+                }
+            }
+
             candidatesMap[snap.id] = { id: snap.id, ...data };
         }
     });
@@ -493,8 +535,7 @@ function buildBallotUI(preserveSelections = false) {
             districtRuleEl.style.display = 'block';
         }
     } else {
-        const roundNames = { 'round_1': '第一輪', 'round_2': '第二輪', 'round_3': '第三輪' };
-        const rName = roundNames[roundData.id] || roundData.id;
+        const rName = getRoundName(roundData.id);
 
         document.getElementById('ballotElectionName').textContent = electionData.name;
         document.getElementById('ballotItemRoundName').textContent = `${itemData.title} - ${rName}`;
@@ -1121,13 +1162,13 @@ async function handleSubmitVote() {
         const roundRef = doc(db, 'elections', currentElectionId, 'items', itemData.id, 'rounds', roundData.id);
         const latestRoundSnap = await getDoc(roundRef);
         if (!latestRoundSnap.exists()) {
-            throw new Error("此輪次不存在。");
+            throw new Error("此次別不存在。");
         }
         const latestRoundData = latestRoundSnap.data();
         if (latestRoundData.status !== 'ACTIVE') {
             await Swal.fire({
                 title: '投票已結束',
-                text: '本輪投票已由主席宣布截止，很遺憾您的選票未能在時間內送出，此選票已被作廢。',
+                text: '本次投票已由主席宣布截止，很遺憾您的選票未能在時間內送出，此選票已被作廢。',
                 icon: 'warning',
                 confirmButtonText: '確定'
             });
@@ -1188,7 +1229,7 @@ function listenToRoundResult() {
             document.getElementById('waitStatusIcon').innerHTML = '<i class="fas fa-bullhorn text-warning" style="font-size: 5rem;"></i>';
             document.getElementById('waitTitle').textContent = '開票結果已發布！';
             document.getElementById('waitTitle').className = 'fw-bold text-warning mb-2';
-            document.getElementById('waitSubtitle').textContent = '本輪次投票與開票已正式完成。';
+            document.getElementById('waitSubtitle').textContent = '本次投票與開票已正式完成。';
             document.getElementById('waitSpinner').style.display = 'none';
             
             // 繪製結果
@@ -1210,7 +1251,7 @@ function listenToRoundResult() {
                     }
                 });
             } else {
-                resultList.innerHTML = '<div class="list-group-item text-muted">本輪無人達標當選</div>';
+                resultList.innerHTML = '<div class="list-group-item text-muted">本次無人達標當選</div>';
             }
             
             document.getElementById('liveResultSection').style.display = 'block';

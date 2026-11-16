@@ -265,7 +265,7 @@
                                         <button type="button" class="btn btn-outline-primary btn-sm" id="confirmSaveSettingsBtn"><i class="fas fa-save"></i> 儲存</button>
                                     </div>
                                     <p class="text-muted small mb-3" style="font-size: 0.8rem;">
-                                        此處設定為全場選舉預設基準。各輪之實際出席人數與發票數請於各輪<strong>「開票中心」</strong>獨立輸入，確保真實。
+                                        此處設定為全場選舉預設基準。各次別之實際出席人數與發票數請於各次別<strong>「開票中心」</strong>獨立輸入，確保真實。
                                     </p>
                                     <form id="globalInitForm" class="row g-2 align-items-center">
                                         <div class="col-md-6">
@@ -283,7 +283,7 @@
                                         </div>
                                         <div class="col-md-6">
                                             <div class="bg-light p-2 rounded border small text-muted">
-                                                <i class="fas fa-check-circle text-success me-1"></i> 每輪開票需獨立點名輸入出席人數與發票數
+                                                <i class="fas fa-check-circle text-success me-1"></i> 每次開票需獨立點名輸入出席人數與發票數
                                             </div>
                                         </div>
 
@@ -308,7 +308,7 @@
                         
                         <div class="card p-4 border-success">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與輪次控制台</h5>
+                                <h5 class="m-0"><i class="fas fa-list-alt text-success"></i> 選舉項次與次別控制台</h5>
                                 <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
                                     <i class="fas fa-plus"></i> 新增選舉項次
                                 </button>
@@ -392,11 +392,11 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">選擇要預覽的輪次</label>
+                                    <label class="form-label">選擇要預覽的次別</label>
                                     <select class="form-select" id="previewRoundSelect">
-                                        <option value="round_1">第一輪</option>
-                                        <option value="round_2">第二輪</option>
-                                        <option value="round_3">第三輪</option>
+                                        <option value="round_1">第一次</option>
+                                        <option value="round_2">第二次</option>
+                                        <option value="round_3">第三次</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4 d-flex align-items-end">
@@ -428,7 +428,7 @@
                                     <div class="text-center position-relative" style="z-index: 1;">
                                         <h3 id="previewOrgName" class="fw-bold text-dark mb-3" style="font-size: 24px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">機構名稱</h3>
                                         <h2 id="previewElectionName" class="text-dark mb-4 fw-bold" style="font-size: 32px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">選舉名稱</h2>
-                                        <h4 id="previewItemRoundName" class="text-secondary mt-2" style="font-size: 22px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">項次 - 輪次</h4>
+                                        <h4 id="previewItemRoundName" class="text-secondary mt-2" style="font-size: 22px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">項次 - 次別</h4>
                                     </div>
                                     
                                     <!-- 下方 QR Code 與金鑰區 -->
@@ -459,32 +459,32 @@
                             <!-- 全域作業 -->
                             <div class="card shadow-sm mb-4 border-warning">
                                 <div class="card-header bg-warning text-dark fw-bold">
-                                    <i class="fas fa-globe"></i> 全域作業 (批次處理所有項次與輪次)
+                                    <i class="fas fa-globe"></i> 全域作業 (批次處理所有項次與次別)
                                 </div>
                                 <div class="card-body">
                                     <div class="row">
                                         <div class="col-md-6 border-end">
                                             <h6 class="fw-bold">全域金鑰發放</h6>
-                                            <p class="text-muted small mb-2">系統將自動掃描所有「尚無金鑰」的項次與輪次，並統一發放。已發放過的輪次會被略過，不影響既有選票。</p>
+                                            <p class="text-muted small mb-2">系統將自動掃描所有「尚無金鑰」的項次與次別，並統一發放。已發放過的次別會被略過，不影響既有選票。</p>
                                             <div class="input-group">
-                                                <span class="input-group-text">每輪發放張數</span>
+                                                <span class="input-group-text">每次發放張數</span>
                                                 <input type="number" class="form-control" id="globalKeysCount" min="1" placeholder="例如：120">
                                                 <button class="btn btn-warning fw-bold" id="btnGlobalGenerateKeys" type="button">一鍵發放金鑰</button>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <h6 class="fw-bold">多層級選票列印</h6>
-                                            <p class="text-muted small mb-2">列印不限次數。不同輪次的選票會自動換頁分隔，確保實體紙張不會混雜。</p>
+                                            <p class="text-muted small mb-2">列印不限次數。不同次別的選票會自動換頁分隔，確保實體紙張不會混雜。</p>
                                             <div class="d-flex gap-2 flex-wrap mt-3">
-                                                <button class="btn btn-primary shadow-sm" id="btnGlobalPrintAll"><i class="fas fa-print"></i> 1. 一鍵列印「所有輪次」選票</button>
-                                                <button class="btn btn-outline-primary" id="btnItemPrintAll"><i class="fas fa-print"></i> 2. 僅列印「下方所選項次 (三輪)」</button>
+                                                <button class="btn btn-primary shadow-sm" id="btnGlobalPrintAll"><i class="fas fa-print"></i> 1. 一鍵列印「所有次別」選票</button>
+                                                <button class="btn btn-outline-primary" id="btnItemPrintAll"><i class="fas fa-print"></i> 2. 僅列印「下方所選項次 (三次)」</button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <h6 class="fw-bold mb-3"><i class="fas fa-search"></i> 單一輪次檢視與管理</h6>
+                            <h6 class="fw-bold mb-3"><i class="fas fa-search"></i> 單一次別檢視與管理</h6>
                             <div class="row mb-4 bg-light p-3 rounded">
                                 <div class="col-md-4">
                                     <label class="form-label">選擇要操作的項次</label>
@@ -493,15 +493,15 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">選擇要操作的輪次</label>
+                                    <label class="form-label">選擇要操作的次別</label>
                                     <select class="form-select" id="keysRoundSelect">
-                                        <option value="round_1">第一輪</option>
-                                        <option value="round_2">第二輪</option>
-                                        <option value="round_3">第三輪</option>
+                                        <option value="round_1">第一次</option>
+                                        <option value="round_2">第二次</option>
+                                        <option value="round_3">第三次</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4 d-flex align-items-end">
-                                    <button class="btn btn-secondary" id="btnLoadKeys">載入該輪次金鑰</button>
+                                    <button class="btn btn-secondary" id="btnLoadKeys">載入該次別金鑰</button>
                                 </div>
                             </div>
 
@@ -538,17 +538,17 @@
 
                                 <div class="card shadow-sm mb-4">
                                     <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-plus-circle text-success"></i> 單一輪次金鑰補發與列印</span>
+                                        <span><i class="fas fa-plus-circle text-success"></i> 單一次別金鑰補發與列印</span>
                                         <button class="btn btn-sm btn-outline-danger" id="btnDestroyAllKeys" style="display: none;"><i class="fas fa-trash-alt"></i> 銷毀所有未使用金鑰解除鎖定</button>
                                     </div>
                                     <div class="card-body">
                                         <div class="input-group mb-2">
                                             <span class="input-group-text">發放數量</span>
                                             <input type="number" class="form-control" id="generateKeysCount" min="1" placeholder="例如：120">
-                                            <button class="btn btn-primary" id="btnGenerateKeys" type="button">產生本輪金鑰</button>
-                                            <button class="btn btn-success fw-bold ms-2 rounded" id="btnPrintBallots" type="button" style="display: none;"><i class="fas fa-print"></i> 3. 僅列印本輪選票</button>
+                                            <button class="btn btn-primary" id="btnGenerateKeys" type="button">產生本次金鑰</button>
+                                            <button class="btn btn-success fw-bold ms-2 rounded" id="btnPrintBallots" type="button" style="display: none;"><i class="fas fa-print"></i> 3. 僅列印本次選票</button>
                                         </div>
-                                        <small class="text-muted d-block" id="generateKeyHint">系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦發放金鑰，該輪次即鎖定產生功能，若要重配需先銷毀。</strong></small>
+                                        <small class="text-muted d-block" id="generateKeyHint">系統將會產生一組全新的隨機金鑰（8碼純數字）。<strong class="text-danger">注意：一旦發放金鑰，該次別即鎖定產生功能，若要重配需先銷毀。</strong></small>
                                     </div>
                                 </div>
 
@@ -590,11 +590,11 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">選擇要操作的輪次</label>
+                                    <label class="form-label">選擇要操作的次別</label>
                                     <select class="form-select" id="tallyRoundSelect">
-                                        <option value="round_1">第一輪</option>
-                                        <option value="round_2">第二輪</option>
-                                        <option value="round_3">第三輪</option>
+                                        <option value="round_1">第一次</option>
+                                        <option value="round_2">第二次</option>
+                                        <option value="round_3">第三次</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4 d-flex align-items-end">
@@ -714,7 +714,7 @@
                                         <button type="button" class="btn btn-outline-success" id="btnReopenVoting" style="display: none;"><i class="fas fa-play-circle"></i> 重新開放數位投票</button>
                                     </div>
                                     <div>
-                                        <button type="button" class="btn btn-outline-secondary fw-bold me-2" id="btnPrintCurrentRoundReport"><i class="fas fa-print"></i> 列印本輪開票報表</button>
+                                        <button type="button" class="btn btn-outline-secondary fw-bold me-2" id="btnPrintCurrentRoundReport"><i class="fas fa-print"></i> 列印本次開票報表</button>
                                         <button type="button" class="btn btn-outline-info fw-bold me-2" id="btnOpenProjector"><i class="fas fa-desktop"></i> 開啟投影畫面</button>
                                         <button type="button" class="btn btn-primary" id="btnSaveTallyResults"><i class="fas fa-save"></i> 儲存開票數據</button>
                                         <button type="button" class="btn btn-warning fw-bold ms-2" id="btnPublishTally"><i class="fas fa-bullhorn"></i> 發布選舉結果</button>
@@ -732,7 +732,7 @@
                                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                                         <h5 class="m-0"><i class="fas fa-trophy text-warning"></i> 全局當選名單總覽</h5>
                                         <div>
-                                            <button class="btn btn-outline-danger me-2" onclick="unpublishElectedProjection()" id="unpublishGlobalBtn" style="display:none;"><i class="fas fa-undo"></i> 撤銷公布 (恢復單輪結果)</button>
+                                            <button class="btn btn-outline-danger me-2" onclick="unpublishElectedProjection()" id="unpublishGlobalBtn" style="display:none;"><i class="fas fa-undo"></i> 撤銷公布 (恢復單次結果)</button>
                                             <button class="btn btn-outline-primary me-2" onclick="openElectedProjection()" id="publishGlobalBtn"><i class="fas fa-desktop"></i> 公布當選總名單與開啟投影畫面</button>
                                             <button class="btn btn-primary" onclick="printElectionResults()"><i class="fas fa-print"></i> 列印當選與得票結果</button>
                                         </div>
@@ -770,7 +770,7 @@
                             <div class="col-md-6 mb-4">
                                 <div class="card p-4 h-100 border-danger">
                                     <h5 class="mb-3 text-danger"><i class="fas fa-archive"></i> 數位選票列印歸檔</h5>
-                                    <p class="text-muted small mb-3">此功能將會印出「所有項次、所有輪次」的金鑰使用狀況，以及已使用金鑰的「圈選明細」與「精確時間戳記」。</p>
+                                    <p class="text-muted small mb-3">此功能將會印出「所有項次、所有次別」的金鑰使用狀況，以及已使用金鑰的「圈選明細」與「精確時間戳記」。</p>
                                     <div class="alert alert-danger p-2 small">
                                         <i class="fas fa-exclamation-triangle"></i> 報表資料量可能非常龐大，列印過程需等待較長時間。印出後請妥善歸檔存查。
                                     </div>
@@ -844,7 +844,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-primary" id="saveItemBtn">建立項次與三輪設定</button>
+        <button type="button" class="btn btn-primary" id="saveItemBtn">建立項次與三次設定</button>
       </div>
     </div>
   </div>
@@ -862,7 +862,7 @@
         <input type="hidden" id="editItemItemId">
         <form id="editItemForm">
           <div class="alert alert-info py-2 small">
-              <i class="fas fa-info-circle"></i> 在此修改的參數將套用至此整個選舉項次，並自動同步至所有尚未開始 (未開始投票) 的輪次，重新篩選符合資格之候選人名單。
+              <i class="fas fa-info-circle"></i> 在此修改的參數將套用至此整個選舉項次，並自動同步至所有尚未開始 (未開始投票) 的次別，重新篩選符合資格之候選人名單。
           </div>
           <div class="mb-3">
             <label class="form-label fw-bold">項次名稱 <span class="text-danger">*</span></label>
@@ -911,7 +911,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-primary" id="saveEditItemBtn">儲存項次參數並同步待命輪次</button>
+        <button type="button" class="btn btn-primary" id="saveEditItemBtn">儲存項次參數並同步待命次別</button>
       </div>
     </div>
   </div>
@@ -1038,7 +1038,7 @@
           <div class="form-check form-switch mb-3 mt-3">
             <input class="form-check-input bg-danger" type="checkbox" id="editCandIneligibleInput">
             <label class="form-check-label text-danger fw-bold" for="editCandIneligibleInput">不可被選 (打 X)</label>
-            <div class="text-muted small mt-1">勾選後，此人將全域隱藏，絕對不會出現在任何選舉輪次中。</div>
+            <div class="text-muted small mt-1">勾選後，此人將全域隱藏，絕對不會出現在任何選舉次別中。</div>
           </div>
         </form>
       </div>
@@ -1057,7 +1057,7 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header bg-secondary text-white">
-        <h5 class="modal-title"><i class="fas fa-key"></i> 輪次金鑰管理：<span id="manageKeysTitle"></span></h5>
+        <h5 class="modal-title"><i class="fas fa-key"></i> 次別金鑰管理：<span id="manageKeysTitle"></span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body bg-light">
@@ -1136,12 +1136,12 @@
   </div>
 </div>
 
-<!-- 下一輪晉級設定嚮導 Modal -->
+<!-- 下一次晉級設定嚮導 Modal -->
 <div class="modal fade" id="nextRoundWizardModal" data-bs-backdrop="static" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content border-info">
       <div class="modal-header bg-info text-white">
-        <h5 class="modal-title"><i class="fas fa-magic"></i> 晉級下一輪設定</h5>
+        <h5 class="modal-title"><i class="fas fa-magic"></i> 晉級下一次設定</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -1160,13 +1160,13 @@
             </div>
         </div>
 
-        <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-filter"></i> 下一輪候選人晉級篩選設定</h6>
+        <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-filter"></i> 下一次候選人晉級篩選設定</h6>
         <div class="list-group mb-3">
             <label class="list-group-item d-flex gap-2">
                 <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="MULTIPLY" checked>
                 <span>
                     <strong>N 倍數制</strong><br>
-                    <small class="text-muted">取剩餘名額的 N 倍人數晉級 (依本輪得票高低排序)。</small>
+                    <small class="text-muted">取剩餘名額的 N 倍人數晉級 (依本次得票高低排序)。</small>
                     <div class="input-group input-group-sm mt-2 w-50">
                         <span class="input-group-text">N =</span>
                         <input type="number" class="form-control" id="wizardFilterMultiplyN" value="2" min="1">
@@ -1177,7 +1177,7 @@
                 <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="ADD">
                 <span>
                     <strong>N 加數制</strong><br>
-                    <small class="text-muted">取剩餘名額 + N 的人數晉級 (依本輪得票高低排序)。</small>
+                    <small class="text-muted">取剩餘名額 + N 的人數晉級 (依本次得票高低排序)。</small>
                     <div class="input-group input-group-sm mt-2 w-50">
                         <span class="input-group-text">N =</span>
                         <input type="number" class="form-control" id="wizardFilterAddN" value="1" min="1">
@@ -1188,17 +1188,17 @@
                 <input class="form-check-input flex-shrink-0" type="radio" name="wizardFilterType" value="ALL">
                 <span>
                     <strong>不進行自動篩選</strong><br>
-                    <small class="text-muted">直接將所有尚未當選的候選人帶入下一輪，再由您手動微調。</small>
+                    <small class="text-muted">直接將所有尚未當選的候選人帶入下一次，再由您手動微調。</small>
                 </span>
             </label>
         </div>
 
-        <h6 class="fw-bold mt-4 mb-2"><i class="fas fa-sort-amount-down"></i> 下一輪候選人名單呈現排序</h6>
+        <h6 class="fw-bold mt-4 mb-2"><i class="fas fa-sort-amount-down"></i> 下一次候選人名單呈現排序</h6>
         <div class="list-group mb-3">
             <label class="list-group-item d-flex gap-2">
                 <input class="form-check-input flex-shrink-0" type="radio" name="wizardSortOrder" value="VOTES_DESC" checked>
                 <span>
-                    <strong>依本輪得票數由高至低排列 (推薦)</strong><br>
+                    <strong>依本次得票數由高至低排列 (推薦)</strong><br>
                     <small class="text-muted">晉級候選人優先以票數多寡排列，同票者再依原始編號排序。</small>
                 </span>
             </label>
@@ -1213,18 +1213,18 @@
       </div>
       <div class="modal-footer bg-light">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">稍後設定</button>
-        <button type="button" class="btn btn-primary" id="btnConfirmNextRound">產生下一輪名單</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmNextRound">產生下一次名單</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- 輪次名單微調 Modal (雙欄穿梭框) -->
+<!-- 次別名單微調 Modal (雙欄穿梭框) -->
 <div class="modal fade" id="adjustRoundCandidatesModal" data-bs-backdrop="static" tabindex="-1">
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title"><i class="fas fa-users-cog"></i> 調整輪次候選名單：<span id="adjustRoundTitle"></span></h5>
+        <h5 class="modal-title"><i class="fas fa-users-cog"></i> 調整次別候選名單：<span id="adjustRoundTitle"></span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body bg-light">
@@ -1232,19 +1232,19 @@
         <input type="hidden" id="adjustRoundId">
         
         <div class="mb-3 text-center">
-            <button class="btn btn-warning fw-bold shadow-sm" id="btnAutoAssign" title="依據本輪規則，自動將符合資格者移入左側，不符者移出右側">
-                <i class="fas fa-magic"></i> ✨ 依照本輪資格，自動分配名單
+            <button class="btn btn-warning fw-bold shadow-sm" id="btnAutoAssign" title="依據本次規則，自動將符合資格者移入左側，不符者移出右側">
+                <i class="fas fa-magic"></i> ✨ 依照本次資格，自動分配名單
             </button>
             <small class="d-block text-muted mt-1">萬一名單混亂，可點此瞬間還原至初始符合資格狀態（需再按儲存才會生效）</small>
         </div>
 
         <div class="row align-items-stretch">
-            <!-- 左側：本輪候選區 -->
+            <!-- 左側：本次候選區 -->
             <div class="col-md-5">
                 <div class="card h-100 border-success shadow-sm">
                     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                         <div>
-                            <span class="fw-bold">本輪候選區 (<span id="countSelected">0</span>)</span>
+                            <span class="fw-bold">本次候選區 (<span id="countSelected">0</span>)</span>
                             <button class="btn btn-sm btn-light ms-2 text-success py-0" id="btnSortByNumber" title="依號次重排"><i class="fas fa-sort-numeric-down"></i></button>
                         </div>
                         <input type="text" class="form-control form-control-sm w-50" id="searchSelected" placeholder="搜尋姓名/編號">
@@ -1267,11 +1267,11 @@
                 <small class="text-muted mt-2 text-center" style="font-size: 0.8em;">(選取後請按箭頭移動)</small>
             </div>
 
-            <!-- 右側：本輪排除區 -->
+            <!-- 右側：本次排除區 -->
             <div class="col-md-5">
                 <div class="card h-100 border-secondary shadow-sm">
                     <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                        <span class="fw-bold">本輪非候選區 (<span id="countUnselected">0</span>)</span>
+                        <span class="fw-bold">本次非候選區 (<span id="countUnselected">0</span>)</span>
                         <input type="text" class="form-control form-control-sm w-50" id="searchUnselected" placeholder="搜尋姓名/編號">
                     </div>
                     <div class="card-body p-0">
@@ -1286,7 +1286,7 @@
       <div class="modal-footer">
         <span class="text-muted small me-auto"><i class="fas fa-info-circle"></i> 提示：若為「強制保障名額」或全域「不可被選者」，系統將鎖定該筆項目無法移動。</span>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-primary" id="saveRoundCandidatesBtn">儲存輪次名單</button>
+        <button type="button" class="btn btn-primary" id="saveRoundCandidatesBtn">儲存次別名單</button>
       </div>
     </div>
   </div>
@@ -1330,6 +1330,6 @@
 </script>
 
 <script src="utils.js?v=3.00"></script>
-<script src="election_admin.js?v=3.01"></script>
+<script src="election_admin.js?v=3.02"></script>
 </body>
 </html>
